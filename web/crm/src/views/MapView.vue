@@ -1,15 +1,13 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">FIELD TERRITORY MAP</div>
-        <h2>แผนที่ร้านค้า</h2>
-        <p>ดูร้านบนแผนที่ และปักหมุดตำแหน่งร้านด้วย GPS</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn light" @click="getGps">📍 รับพิกัด GPS ปัจจุบัน</button>
-      </div>
-    </div>
+    <PageHeader
+      title="แผนที่ร้าน"
+      subtitle="ดูร้านบนแผนที่ และปักหมุดตำแหน่งร้านด้วย GPS"
+    >
+      <template #primary>
+        <button type="button" class="btn primary" @click="getGps">📍 รับพิกัด GPS ปัจจุบัน</button>
+      </template>
+    </PageHeader>
 
     <div class="split">
       <div class="card panel-pad">
@@ -62,6 +60,7 @@
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import CustomerMap from '../CustomerMap.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, invalidateCrmData, openVisitWizard } from '../composables/useCrmSession.js';
 

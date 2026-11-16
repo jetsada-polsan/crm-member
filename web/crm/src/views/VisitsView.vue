@@ -1,15 +1,13 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">FIELD VISIT EVIDENCE</div>
-        <h2>บันทึกเข้าพบร้าน</h2>
-        <p>ประวัติการเข้าพบ พร้อมรูปถ่าย เวลา และพิกัด GPS (แตะรูปเพื่อดูขยาย)</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn primary" @click="openVisitWizard()">📸 เริ่มบันทึกเข้าพบ (9 ขั้นตอน)</button>
-      </div>
-    </div>
+    <PageHeader
+      title="ออกตลาด"
+      subtitle="ประวัติการเข้าพบ พร้อมรูปถ่าย เวลา และพิกัด GPS (แตะรูปเพื่อดูขยาย)"
+    >
+      <template #primary>
+        <button type="button" class="btn primary" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
+      </template>
+    </PageHeader>
 
     <div v-if="offlineDrafts.length" class="card panel-pad" style="margin-bottom:16px;border-left:4px solid var(--blue)">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -134,6 +132,7 @@
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { removeOfflineDraft } from '../../../shared/utils/offlineDrafts.js';

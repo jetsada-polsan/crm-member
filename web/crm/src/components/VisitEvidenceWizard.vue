@@ -1,7 +1,7 @@
 <template>
   <FullScreenMobileForm
     :open="visitWizardOpen"
-    title="บันทึกหลักฐานการเข้าพบร้านค้า (Visit Evidence)"
+    title="บันทึกเข้าพบร้าน"
     :step-label="`ขั้นตอน ${step} / 8`"
     :dirty="isDirty && step < 8"
     @close="handleClose"

@@ -1,17 +1,17 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">REPORTS &amp; RECONCILIATION</div>
-        <h2>รายงานยอดขาย &amp; การออกตลาด</h2>
-        <p>ยอดขายจริงก่อน VAT (ไม่รวมใบจอง หักใบลดหนี้) ส่งออก CSV หรือพิมพ์รายงาน</p>
-      </div>
-      <div class="head-actions">
-        <a :href="reconUrl('csv')" class="btn">⬇ Reconciliation CSV</a>
-        <a :href="fieldUrl('csv')" class="btn light">⬇ Field Report CSV</a>
+    <PageHeader
+      title="รายงานยอดขาย & การออกตลาด"
+      subtitle="ยอดขายจริงก่อน VAT (ไม่รวมใบจอง หักใบลดหนี้) ส่งออกไฟล์หรือพิมพ์รายงาน"
+    >
+      <template #secondary>
+        <a :href="reconUrl('csv')" class="btn">⬇ ยอดขาย (CSV)</a>
+        <a :href="fieldUrl('csv')" class="btn light">⬇ เข้าพบ (CSV)</a>
+      </template>
+      <template #primary>
         <a :href="fieldUrl('print')" target="_blank" class="btn primary">🖨 พิมพ์รายงานเข้าพบ</a>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="card panel-pad" style="margin-bottom:16px">
       <div class="head-filter" style="margin-bottom:0">
@@ -55,7 +55,7 @@
       <div v-else-if="matrixError" class="error" role="alert">โหลดตารางยอดขายรายวันไม่สำเร็จ: {{ matrixErrorMessage?.message || 'ตรวจการเชื่อมต่อและลองรีเฟรช' }}</div>
       <template v-else>
         <div class="small muted" style="margin:0 0 8px">พบ {{ fmt(matrix?.meta?.total_customers || 0) }} ร้าน · หน้า {{ matrix?.meta?.current_page || 1 }} / {{ matrix?.meta?.last_page || 1 }} · ช่วง {{ matrix?.filters?.from }} ถึง {{ matrix?.filters?.to }}</div>
-        <div class="table-wrap" style="max-height:560px;overflow:auto">
+        <div class="table-wrap desktop-table-only" style="max-height:560px;overflow:auto">
           <table class="table" style="min-width:max-content">
             <thead><tr>
               <th style="position:sticky;left:0;z-index:2;background:#f8fafc;min-width:220px">ลูกค้า</th>
@@ -81,6 +81,24 @@
               <tr v-if="!(matrix?.data || []).length"><td :colspan="(matrix?.dates?.length || 0) + 3" class="placeholder">ไม่พบยอดซื้อจริงในช่วงและตัวกรองนี้</td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="mob-cards">
+          <template v-for="row in matrixRows" :key="`mm-${row.key}`">
+            <div v-if="row.type === 'route'" class="notice" style="margin-bottom:8px">
+              <strong>[{{ row.routeCode || '—' }}] {{ row.routeName || 'ไม่ระบุพื้นที่' }}</strong>
+              <div class="small">{{ fmt(row.customerCount) }} ร้าน · ซื้อสุทธิ {{ fmt(row.net) }} ฿</div>
+            </div>
+            <div v-else class="card mob-card">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                <strong>{{ row.customer_name }}</strong>
+                <span class="tag blue">{{ fmt(row.net_purchase_before_vat) }} ฿</span>
+              </div>
+              <div class="small muted" style="margin-top:4px">
+                {{ row.erp_customer_code }} · [{{ row.route_code || '—' }}] {{ row.route_name || '' }}
+              </div>
+            </div>
+          </template>
+          <div v-if="!(matrix?.data || []).length" class="placeholder">ไม่พบยอดซื้อจริงในช่วงและตัวกรองนี้</div>
         </div>
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:10px">
           <button type="button" class="btn light" :disabled="(matrix?.meta?.current_page || 1) <= 1" @click="page--">ก่อนหน้า</button>
@@ -118,7 +136,7 @@
     <SkeletonBlock v-if="isLoading" variant="kpis" />
     <template v-else>
       <div class="card panel-pad" style="margin-bottom:16px">
-        <h3 style="margin-top:0">สรุปตัวเลข Reconciliation Bplus (ก่อน VAT / VAT / รวม)</h3>
+        <h3 style="margin-top:0">สรุปตัวเลขเทียบยอด Bplus (ก่อน VAT / VAT / รวม)</h3>
         <div v-if="recon?.summary" class="kpis" style="margin-bottom:0">
           <div class="card kpi">
             <div class="kpi-label">ยอดขายสุทธิก่อน VAT</div>
@@ -143,7 +161,7 @@
         <div class="section-head" style="padding-bottom:12px">
           <h3>รายงานการเข้าพบภาคสนาม 6 ข้อ ({{ fieldReport?.summary?.total_visits || 0 }} รายการ)</h3>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap desktop-table-only">
           <table class="table">
             <thead>
               <tr><th>วันที่</th><th>ร้านค้า</th><th>พนักงาน</th><th>ผล</th><th>Q1 แหล่งซื้อ</th><th>Q2 สินค้า</th><th>รูป</th></tr>
@@ -164,6 +182,21 @@
             </tbody>
           </table>
         </div>
+        <div class="mob-cards panel-pad">
+          <div v-for="r in (fieldReport?.rows || []).slice(0, 50)" :key="`fr-${r.id}`" class="card mob-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <strong>{{ r.shop_name }}</strong>
+              <span class="tag blue">{{ r.result }}</span>
+            </div>
+            <div class="small muted" style="margin-top:4px">
+              {{ new Date(r.visited_at).toLocaleDateString('th-TH') }} · {{ r.staff_name }} · รูป {{ r.photo_count }} ภาพ
+            </div>
+            <div v-if="r.supplier_name || r.product_types" class="small" style="margin-top:6px">
+              แหล่งซื้อ: {{ r.supplier_name || '—' }} · สินค้า: {{ r.product_types || '—' }}
+            </div>
+          </div>
+          <div v-if="!(fieldReport?.rows || []).length" class="placeholder">ยังไม่มีข้อมูลเข้าพบในช่วงเวลาที่เลือก</div>
+        </div>
       </div>
     </template>
   </div>
@@ -172,6 +205,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { crmGet, crmMutate, fmt, isManager } from '../composables/useCrmSession.js';
 

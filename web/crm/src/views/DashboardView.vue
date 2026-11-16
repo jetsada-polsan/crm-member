@@ -1,17 +1,17 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">BUSINESS OVERVIEW</div>
-        <h2>ภาพรวมฝ่ายขาย 👋</h2>
-        <p>ลูกค้าใหม่ การเข้าพบ งานค้าง และยอดขายก่อน VAT</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      title="ภาพรวมฝ่ายขาย"
+      subtitle="ลูกค้าใหม่ การเข้าพบ งานค้าง และยอดขายก่อน VAT"
+    >
+      <template #secondary>
         <button class="btn" type="button" @click="refetchAll">⟳ รีเฟรช</button>
         <button class="btn light" type="button" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
-        <button class="btn primary" type="button" @click="openQuickAdd()">＋ เพิ่มลูกค้าใหม่</button>
-      </div>
-    </div>
+      </template>
+      <template #primary>
+        <button class="btn primary" type="button" @click="openQuickAdd()">＋ เพิ่มร้านใหม่</button>
+      </template>
+    </PageHeader>
 
     <div v-if="offlineDrafts.length" class="notice" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <span>มีข้อมูลเข้าพบค้างใน Offline Draft Queue จำนวน <b>{{ offlineDrafts.length }}</b> รายการ</span>
@@ -198,6 +198,7 @@
 import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { RouterLink } from 'vue-router';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import {
   crmGet,

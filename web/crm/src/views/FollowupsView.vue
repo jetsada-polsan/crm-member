@@ -1,15 +1,13 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">FOLLOW-UP TASKS</div>
-        <h2>งานติดตามผล</h2>
-        <p>งานที่ต้องโทรหรือกลับไปเยี่ยมร้าน กดเสร็จได้ทันที</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      title="งานติดตามผล"
+      subtitle="งานที่ต้องโทรหรือกลับไปเยี่ยมร้าน กดปิดงานได้ทันที"
+    >
+      <template #primary>
         <button type="button" class="btn primary" @click="taskModalOpen = true">＋ เพิ่มงานติดตาม</button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <SkeletonBlock v-if="isLoading && !(tasks || []).length" variant="table" :rows="6" />
     <div v-else-if="isError" class="error">{{ error?.message || 'โหลดงานติดตามไม่สำเร็จ' }}</div>
@@ -76,6 +74,7 @@
 import { ref } from 'vue';
 import { useMutation, useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, crmQueryClient, invalidateCrmData } from '../composables/useCrmSession.js';

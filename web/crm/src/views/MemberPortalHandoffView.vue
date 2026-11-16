@@ -1,17 +1,15 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">{{ isRegisterMode ? 'MEMBER REGISTRATION ONBOARDING' : 'MEMBER PORTAL SEPARATION' }}</div>
-        <h2>{{ isRegisterMode ? 'วิธีสมัครสมาชิก' : 'เปิดหน้าสมาชิก' }}</h2>
-        <p>หน้าสำหรับร้านค้าสมัครสมาชิก ดูบิล และแลกของรางวัล (แยกบัญชีจากทีมขาย)</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      :title="isRegisterMode ? 'วิธีสมัครสมาชิก' : 'เปิดหน้าสมาชิก'"
+      subtitle="หน้าสำหรับร้านค้าสมัครสมาชิก ดูบิล และแลกของรางวัล (แยกบัญชีจากทีมขาย)"
+    >
+      <template #primary>
         <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn primary">
           ↗ เปิดหน้าสมาชิก
         </a>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="notice">
       เพื่อความปลอดภัย: ระบบ CRM พนักงาน (Staff Guard) และ Member Portal (Member Guard) แยก Cookie, Session และ CSRF อิสระต่อกัน ลูกค้าสามารถสมัครด้วยเบอร์โทรศัพท์หรืออีเมล (รหัสผ่าน 12+ ตัวอักษร) แล้วรอทีมงานยืนยันกับบัญชี ERP ก่อนจึงจะเห็นบิลขายและคะแนน
@@ -89,6 +87,7 @@
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, fmt, isManager } from '../composables/useCrmSession.js';
 

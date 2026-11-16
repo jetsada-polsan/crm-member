@@ -1,18 +1,17 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">CUSTOMER DIRECTORY</div>
-        <h2>ทะเบียนลูกค้า</h2>
-        <p>ค้นหาร้านค้าทั้งหมด ทั้งลูกค้าใน ERP ร้านใหม่ และสมาชิก</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      title="ลูกค้า"
+      subtitle="ค้นหาร้านค้าทั้งหมด ทั้งลูกค้าใน ERP ร้านใหม่ และสมาชิก"
+    >
+      <template #secondary>
         <button v-if="isManager" type="button" class="btn" @click="openWorkflow('requests')">คำขอเปิดรหัส ERP</button>
-        <button v-if="isManager" type="button" class="btn" @click="openWorkflow('matches')">คิวจับคู่ / ตรวจรายการซ้ำ</button>
-        <button type="button" class="btn" @click="csvModalOpen = true">📥 นำเข้า CSV</button>
-        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านค้าใหม่</button>
-      </div>
-    </div>
+        <button type="button" class="btn" @click="csvModalOpen = true">📥 นำเข้าไฟล์ CSV</button>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านใหม่</button>
+      </template>
+    </PageHeader>
 
     <div class="card panel-pad" style="margin-bottom:16px">
       <div class="head-filter" style="margin-bottom:10px">
@@ -314,6 +313,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import {

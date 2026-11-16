@@ -1,18 +1,18 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">LOYALTY REWARDS</div>
-        <h2>แลกของรางวัล</h2>
-        <p>ใช้แต้มแลกของรางวัล และดูคูปองของคุณ</p>
-      </div>
-      <div class="card" style="padding:10px 16px;display:inline-flex;align-items:center;gap:8px">
-        <span>คะแนนของคุณ:</span>
-        <strong style="font-size:18px;color:var(--blue)">
-          {{ isMemberVerified ? fmt(pointsData?.balance || 0) : '🔒 รอยืนยันสิทธิ์' }}
-        </strong>
-      </div>
-    </div>
+    <PageHeader
+      title="แลกของรางวัล"
+      subtitle="ใช้แต้มแลกของรางวัล และดูคูปองของคุณ"
+    >
+      <template #secondary>
+        <div class="card" style="padding:10px 16px;display:inline-flex;align-items:center;gap:8px">
+          <span>คะแนนของคุณ:</span>
+          <strong style="font-size:18px;color:var(--blue)">
+            {{ isMemberVerified ? fmt(pointsData?.balance || 0) : '🔒 รอยืนยันสิทธิ์' }}
+          </strong>
+        </div>
+      </template>
+    </PageHeader>
 
     <div v-if="!isMemberVerified" class="notice" style="margin-bottom:16px">
       บัญชีที่ยังไม่ผ่านการยืนยันตัวตนร้านค้า จะดูรายการของรางวัลได้แต่ยังไม่สามารถกดแลกของรางวัลจนกว่าผู้ดูแลจะอนุมัติสิทธิ์ ERP
@@ -73,6 +73,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { fmt, invalidateMemberData, isMemberVerified, memberGet, memberMutate } from '../composables/useMemberSession.js';

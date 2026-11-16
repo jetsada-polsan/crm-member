@@ -1,14 +1,14 @@
 <template>
   <FullScreenMobileForm
     :open="quickAddOpen"
-    title="เพิ่มร้านค้า / ลูกค้าใหม่ (Quick Add)"
-    step-label="ขั้นตอนด่วน: 3 ช่องบังคับ + ข้อมูลประกอบ"
+    title="เพิ่มร้านใหม่"
+    step-label="กรอกข้อมูลสำคัญ 3 ช่อง + รูปถ่ายและพิกัด"
     :dirty="isDirty"
     @close="closeQuickAdd"
   >
     <div v-if="duplicates.length" class="error" style="margin-bottom:14px">
       <strong>พบข้อมูลร้านค้าที่อาจซ้ำในระบบ ({{ duplicates.length }} รายการ):</strong>
-      <ul style="margin:6px 0 6px 18px;padding:0;font-size:12px">
+      <ul style="margin:6px 0 6px 18px;padding:0;font-size:13px">
         <li v-for="d in duplicates" :key="`${d.source}-${d.id}`">
           <b>[{{ d.source === 'erp' ? 'ERP' : 'Lead' }} {{ d.code }}]</b>
           {{ d.name }} · {{ d.phone || 'ไม่มีเบอร์' }}

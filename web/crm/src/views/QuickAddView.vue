@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">FIELD SALES ACQUISITION</div>
-        <h2>เพิ่มร้านค้าใหม่</h2>
-        <p>บันทึกร้านใหม่จากหน้างาน ระบบจะเตือนถ้าชื่อ เบอร์ หรือพิกัดซ้ำ</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เปิดฟอร์มเพิ่มร้านใหม่ (3 ช่องด่วน)</button>
-        <button type="button" class="btn light" @click="openVisitWizard()">📸 บันทึกเข้าพบร้านค้า</button>
-      </div>
-    </div>
+    <PageHeader
+      title="เพิ่มร้านใหม่"
+      subtitle="บันทึกร้านใหม่จากหน้างาน ระบบจะเตือนถ้าชื่อ เบอร์ หรือพิกัดซ้ำ"
+    >
+      <template #secondary>
+        <button type="button" class="btn light" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เปิดฟอร์มเพิ่มร้านใหม่</button>
+      </template>
+    </PageHeader>
 
     <div class="split">
       <div class="card panel-pad">
@@ -66,6 +66,7 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import {
   crmGet,

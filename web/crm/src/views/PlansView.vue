@@ -1,21 +1,19 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">ROUTE PLANS</div>
-        <h2>แผนออกตลาดประจำวัน</h2>
-        <p>วางแผนร้านที่ต้องไปเยี่ยมในแต่ละวัน</p>
-      </div>
-      <div v-if="isManager" class="head-actions">
+    <PageHeader
+      title="แผนออกตลาดประจำวัน"
+      subtitle="วางแผนร้านที่ต้องไปเยี่ยมในแต่ละวัน"
+    >
+      <template v-if="isManager" #primary>
         <button type="button" class="btn primary" @click="modalOpen = true">＋ สร้างแผนออกตลาด</button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <SkeletonBlock v-if="isLoading && !(plans || []).length" variant="table" :rows="5" />
     <div v-else-if="isError" class="error">{{ error?.message || 'โหลดแผนออกตลาดไม่สำเร็จ' }}</div>
 
     <div v-else class="card">
-      <div class="table-wrap">
+      <div class="table-wrap desktop-table-only">
         <table class="table">
           <thead><tr><th>ID</th><th>วันที่</th><th>เส้นทาง / โซน</th><th>หมายเหตุ</th></tr></thead>
           <tbody>
@@ -30,6 +28,19 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="mob-cards panel-pad">
+        <div v-for="p in plans || []" :key="`pm-${p.id}`" class="card mob-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <strong>{{ p.route_name }}</strong>
+            <span class="tag blue">{{ p.visit_date }}</span>
+          </div>
+          <div v-if="p.district || p.note" class="small muted" style="margin-top:6px">
+            {{ p.district || '' }} {{ p.note ? `· ${p.note}` : '' }}
+          </div>
+        </div>
+        <div v-if="!(plans || []).length" class="placeholder">ยังไม่มีแผนออกตลาดในระบบ</div>
       </div>
     </div>
 
@@ -52,6 +63,7 @@
 import { ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, isManager, me } from '../composables/useCrmSession.js';

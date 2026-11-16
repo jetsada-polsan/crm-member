@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">BPLUS ERP MIRROR</div>
-        <h2>ลูกค้าใน ERP</h2>
-        <p>ข้อมูลลูกค้าและยอดขายจาก Bplus (ดูได้อย่างเดียว ถ้าจะแก้ต้องแก้ใน Bplus)</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn" @click="refetch">⟳ รีเฟรช</button>
-        <RouterLink to="/sync" class="btn light">⇄ ERP Sync Monitor</RouterLink>
-      </div>
-    </div>
+    <PageHeader
+      title="ลูกค้าใน ERP"
+      subtitle="ข้อมูลลูกค้าและยอดขายจาก Bplus (ดูได้อย่างเดียว ถ้าจะแก้ต้องแก้ใน Bplus)"
+    >
+      <template v-if="isManager" #secondary>
+        <RouterLink to="/sync" class="btn light">🔄 สถานะดึงข้อมูล ERP</RouterLink>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="refetch">⟳ รีเฟรช</button>
+      </template>
+    </PageHeader>
 
     <div class="notice">
       โหมด Read-Only ERP Mirror: รายชื่อลูกค้า รหัส AR และยอดขายมาจากฐานข้อมูล Bplus เท่านั้น หากต้องการเก็บข้อมูลภาคสนามเพิ่มให้เปิดผ่าน CRM Lead หรือบันทึกเข้าพบ
@@ -118,8 +118,9 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
-import { crmGet, fmt, openDetailDrawer, openVisitWizard } from '../composables/useCrmSession.js';
+import { crmGet, fmt, isManager, openDetailDrawer, openVisitWizard } from '../composables/useCrmSession.js';
 
 const searchRaw = ref('');
 const search = ref('');

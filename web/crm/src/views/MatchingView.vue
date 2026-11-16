@@ -1,18 +1,18 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">EXPLICIT MATCHING REVIEW</div>
-        <h2>จับคู่ลูกค้ากับ ERP</h2>
-        <p>ตรวจคู่ที่ระบบแนะนำ แล้วยืนยันเองว่าร้านใหม่คือลูกค้ารายไหนใน ERP</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      title="จับคู่ลูกค้ากับ ERP"
+      subtitle="ตรวจคู่ที่ระบบแนะนำ แล้วยืนยันเองว่าร้านใหม่คือลูกค้ารายไหนใน ERP"
+    >
+      <template #secondary>
         <button type="button" class="btn" @click="refetch">⟳ โหลดใหม่</button>
+      </template>
+      <template #primary>
         <button type="button" class="btn primary" :disabled="refreshing" @click="refreshCandidates">
-          {{ refreshing ? 'กำลังสแกนคู่เทียบ...' : '✨ สแกนหาคู่เทียบใหม่ (Refresh Candidates)' }}
+          {{ refreshing ? 'กำลังตรวจคู่เทียบ...' : '✨ สแกนหาคู่เทียบใหม่' }}
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="card panel-pad" style="margin-bottom:16px">
       <div class="head-filter" style="margin-bottom:0">
@@ -86,6 +86,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, invalidateCrmData } from '../composables/useCrmSession.js';

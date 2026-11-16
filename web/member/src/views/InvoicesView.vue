@@ -1,12 +1,9 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">ERP VERIFIED INVOICES</div>
-        <h2>ประวัติการซื้อ</h2>
-        <p>บิลซื้อของร้านคุณ (แสดงหลังยืนยันร้านค้าแล้ว)</p>
-      </div>
-    </div>
+    <PageHeader
+      title="ประวัติการซื้อ"
+      subtitle="บิลซื้อของร้านคุณ (แสดงหลังยืนยันร้านค้าแล้ว)"
+    />
 
     <div v-if="!isMemberVerified" class="card panel-pad">
       <div class="empty">
@@ -83,6 +80,7 @@
 import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { fmt, isMemberVerified, memberGet } from '../composables/useMemberSession.js';
 

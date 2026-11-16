@@ -1,15 +1,13 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">ACQUISITION PIPELINE</div>
-        <h2>โอกาสการขาย</h2>
-        <p>ติดตามร้านใหม่ทีละขั้น ตั้งแต่ติดต่อครั้งแรกจนเปิดรหัสใน ERP</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านค้าใหม่</button>
-      </div>
-    </div>
+    <PageHeader
+      title="โอกาสการขาย"
+      subtitle="ติดตามร้านใหม่ทีละขั้น ตั้งแต่ติดต่อครั้งแรกจนเปิดรหัสใน ERP"
+    >
+      <template #primary>
+        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านใหม่</button>
+      </template>
+    </PageHeader>
 
     <SkeletonBlock v-if="isLoading && !leadsList.length" variant="cards" :rows="4" />
     <div v-else-if="isError" class="error">{{ error?.message || 'โหลด Pipeline ไม่สำเร็จ' }}</div>
@@ -67,6 +65,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useMutation, useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import {

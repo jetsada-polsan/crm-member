@@ -1,20 +1,20 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">BPLUS LOCAL BRIDGE</div>
-        <h2>สถานะดึงข้อมูล ERP</h2>
-        <p>ตรวจการเชื่อมต่อกับ Bplus (อ่านข้อมูลอย่างเดียว ไม่แก้ข้อมูลใน ERP)</p>
-      </div>
-      <div v-if="isManager" class="head-actions">
-        <button type="button" class="btn" :disabled="busy" @click="runAction('/sync-monitor/test-connection', 'ทดสอบ SQL Auth')">
-          ทดสอบ SQL Server
+    <PageHeader
+      title="สถานะดึงข้อมูล ERP"
+      subtitle="ตรวจการเชื่อมต่อกับ Bplus (อ่านข้อมูลอย่างเดียว ไม่แก้ข้อมูลใน ERP)"
+    >
+      <template v-if="isManager" #secondary>
+        <button type="button" class="btn" :disabled="busy" @click="runAction('/sync-monitor/test-connection', 'ทดสอบเชื่อม SQL')">
+          ทดสอบการเชื่อมต่อ
         </button>
-        <button type="button" class="btn light" :disabled="busy" @click="runAction('/sync-monitor/test-customers-10', 'SELECT ลูกค้า 10 รายการ')">
+      </template>
+      <template v-if="isManager" #primary>
+        <button type="button" class="btn primary" :disabled="busy" @click="runAction('/sync-monitor/test-customers-10', 'ดึงตัวอย่างลูกค้า 10 รายการ')">
           ทดสอบดึงลูกค้า 10 รายการ
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div v-if="!isManager" class="error">เฉพาะ Admin หรือ Manager เท่านั้นที่ใช้งาน ERP Sync Monitor ได้</div>
     <SkeletonBlock v-else-if="isLoading && !status" variant="kpis" />
@@ -68,7 +68,7 @@
         <div class="section-head" style="padding-bottom:10px">
           <h3>ผลทดสอบดึงข้อมูลจริง ({{ previewRows.length }} รายการ)</h3>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap desktop-table-only">
           <table class="table">
             <thead><tr><th v-for="col in Object.keys(previewRows[0])" :key="col">{{ col }}</th></tr></thead>
             <tbody>
@@ -78,13 +78,21 @@
             </tbody>
           </table>
         </div>
+        <div class="mob-cards panel-pad">
+          <div v-for="(r, i) in previewRows" :key="`pm-${i}`" class="card mob-card">
+            <div v-for="col in Object.keys(previewRows[0])" :key="col" class="minirow">
+              <span class="muted">{{ col }}</span>
+              <strong>{{ r[col] ?? '—' }}</strong>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="card">
         <div class="section-head" style="padding-bottom:10px"><h3>ประวัติข้อผิดพลาดล่าสุด</h3></div>
-        <div class="table-wrap">
+        <div class="table-wrap desktop-table-only">
           <table class="table">
-            <thead><tr><th>เวลา</th><th>Kind</th><th>Key</th><th>รายละเอียด</th></tr></thead>
+            <thead><tr><th>เวลา</th><th>ประเภท</th><th>รหัส</th><th>รายละเอียด</th></tr></thead>
             <tbody>
               <tr v-for="e in status.errors || []" :key="e.id">
                 <td>{{ new Date(e.created_at).toLocaleString('th-TH') }}</td>
@@ -92,9 +100,20 @@
                 <td>{{ e.record_key || '—' }}</td>
                 <td style="white-space:normal">{{ e.error_message }}</td>
               </tr>
-              <tr v-if="!(status.errors || []).length"><td colspan="4" class="placeholder">ยังไม่มีข้อผิดพลาดในการซิงค์</td></tr>
+              <tr v-if="!(status.errors || []).length"><td colspan="4" class="placeholder">ยังไม่มีข้อผิดพลาดในการดึงข้อมูล</td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="mob-cards panel-pad">
+          <div v-for="e in status.errors || []" :key="`em-${e.id}`" class="card mob-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <strong>{{ e.kind }}</strong>
+              <span class="tag red">{{ e.record_key || '—' }}</span>
+            </div>
+            <div class="small muted" style="margin:6px 0">{{ new Date(e.created_at).toLocaleString('th-TH') }}</div>
+            <div class="small">{{ e.error_message }}</div>
+          </div>
+          <div v-if="!(status.errors || []).length" class="placeholder">ยังไม่มีข้อผิดพลาดในการดึงข้อมูล</div>
         </div>
       </div>
     </template>
@@ -104,6 +123,7 @@
 <script setup>
 import { ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, fmt, invalidateCrmData, isManager } from '../composables/useCrmSession.js';

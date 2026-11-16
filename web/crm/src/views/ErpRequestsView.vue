@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">ERP IDENTITY WORKFLOW</div>
-        <h2>คำขอเปิดรหัสลูกค้าใน ERP</h2>
-        <p>ร้านใหม่ที่ตรวจแล้วและรอเปิดรหัสใน Bplus (ต้องเปิดรหัสใน Bplus เอง)</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>
-        <RouterLink to="/matching" class="btn light">🔗 ERP Customer Matching</RouterLink>
-      </div>
-    </div>
+    <PageHeader
+      title="คำขอเปิดรหัส ERP"
+      subtitle="ร้านใหม่ที่ตรวจแล้วและรอเปิดรหัสใน Bplus (ต้องเปิดรหัสใน Bplus เอง)"
+    >
+      <template #secondary>
+        <RouterLink to="/matching" class="btn light">🔗 จับคู่ลูกค้ากับ ERP</RouterLink>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="refetchAll">⟳ รีเฟรช</button>
+      </template>
+    </PageHeader>
 
     <div class="card panel-pad" style="margin-bottom:16px">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
@@ -146,6 +146,7 @@ import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, invalidateCrmData } from '../composables/useCrmSession.js';

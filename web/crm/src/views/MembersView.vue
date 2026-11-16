@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">MEMBER REGISTRY &amp; VERIFICATION</div>
-        <h2>ทะเบียนสมาชิก</h2>
-        <p>ดูบัญชีสมาชิก ตรวจคำขอผูกร้าน และอนุญาตให้ดูบิลและแต้ม</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>
-        <RouterLink to="/loyalty" class="btn light">💎 กติกา &amp; บัญชีแต้ม</RouterLink>
-      </div>
-    </div>
+    <PageHeader
+      title="ทะเบียนสมาชิก"
+      subtitle="ดูบัญชีสมาชิก ตรวจคำขอผูกร้าน และอนุญาตให้ดูบิลและแต้ม"
+    >
+      <template #secondary>
+        <RouterLink to="/loyalty" class="btn light">💎 กติกาแต้ม</RouterLink>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="refetchAll">⟳ รีเฟรช</button>
+      </template>
+    </PageHeader>
 
     <div class="card panel-pad" style="margin-bottom:16px">
       <div class="head-filter" style="margin-bottom:0">
@@ -273,6 +273,7 @@ import { computed, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, fmt } from '../composables/useCrmSession.js';

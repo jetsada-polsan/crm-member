@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">MOBILE / IPAD FIELD OPS &amp; PROFILE</div>
-        <h2>โปรไฟล์ &amp; ข้อมูลค้างส่ง</h2>
-        <p>ข้อมูลของคุณ ปุ่มลัดงานออกตลาด และรายการที่บันทึกไว้ตอนไม่มีเน็ต</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านใหม่</button>
+    <PageHeader
+      title="โปรไฟล์ & ข้อมูลค้างส่ง"
+      subtitle="ข้อมูลของคุณ ปุ่มลัดงานออกตลาด และรายการที่บันทึกไว้ตอนไม่มีเน็ต"
+    >
+      <template #secondary>
         <button type="button" class="btn light" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
-      </div>
-    </div>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านใหม่</button>
+      </template>
+    </PageHeader>
 
     <div class="card panel-pad" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
@@ -84,6 +84,7 @@
 
 <script setup>
 import { RouterLink } from 'vue-router';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import { askConfirm, uiState } from '../../../shared/composables/useUiStore.js';
 import {
   isManager,

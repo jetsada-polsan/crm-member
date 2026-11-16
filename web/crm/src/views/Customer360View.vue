@@ -1,13 +1,11 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">CUSTOMER 360° WORKSPACE</div>
-        <h2>ข้อมูลลูกค้าแบบละเอียด</h2>
-        <p>ดูข้อมูลร้าน ยอดซื้อใน ERP ประวัติเข้าพบ และสถานะสมาชิกได้ในหน้าเดียว</p>
-      </div>
-      <div class="head-actions">
-        <RouterLink to="/customers" class="btn">← กลับทะเบียนลูกค้า</RouterLink>
+    <PageHeader
+      title="ข้อมูลลูกค้าแบบละเอียด"
+      subtitle="ดูข้อมูลร้าน ยอดซื้อใน ERP ประวัติเข้าพบ และสถานะสมาชิกได้ในหน้าเดียว"
+    >
+      <template #secondary>
+        <RouterLink to="/customers" class="btn">← กลับรายการลูกค้า</RouterLink>
         <button
           v-if="selectedMasterId"
           type="button"
@@ -16,13 +14,15 @@
         >
           ⟳ รีเฟรช
         </button>
+      </template>
+      <template v-if="detail?.erp_customer || detail?.crm_lead" #primary>
         <button
           v-if="detail?.erp_customer"
           type="button"
           class="btn primary"
           @click="openVisitWizard({ kind: 'erp', id: detail.erp_customer.id })"
         >
-          📸 บันทึกเข้าพบลูกค้า ERP
+          📸 บันทึกเข้าพบลูกค้านี้
         </button>
         <button
           v-else-if="detail?.crm_lead"
@@ -30,10 +30,10 @@
           class="btn primary"
           @click="openVisitWizard({ kind: 'lead', id: detail.crm_lead.id })"
         >
-          📸 บันทึกเข้าพบร้านใหม่
+          📸 บันทึกเข้าพบร้านนี้
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Searchable Customer Master Picker -->
     <div class="card panel-pad" style="margin-bottom:16px">
@@ -358,6 +358,7 @@ import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import {

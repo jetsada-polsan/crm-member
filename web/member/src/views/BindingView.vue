@@ -1,12 +1,9 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">IDENTITY &amp; VERIFICATION</div>
-        <h2>ผูกบัญชี LINE &amp; ร้านค้า</h2>
-        <p>ยืนยันว่าคุณเป็นเจ้าของร้าน เพื่อดูยอดซื้อและสะสมแต้ม (ทีม POPSTAR ตรวจสอบให้)</p>
-      </div>
-    </div>
+    <PageHeader
+      title="ผูกบัญชี LINE & ร้านค้า"
+      subtitle="ยืนยันว่าคุณเป็นเจ้าของร้าน เพื่อดูยอดซื้อและสะสมแต้ม (ทีม POPSTAR ตรวจสอบให้)"
+    />
 
     <div class="dash-grid">
       <!-- LINE OA Binding -->
@@ -103,6 +100,7 @@
 
 <script setup>
 import { reactive, ref } from 'vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { me, memberMutate, refreshMemberSession } from '../composables/useMemberSession.js';
 

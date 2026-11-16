@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">REWARDS &amp; REDEMPTIONS</div>
-        <h2>ของรางวัล &amp; คำขอแลก</h2>
-        <p>จัดการรายการของรางวัล อนุมัติ และส่งมอบของให้สมาชิก</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      title="ของรางวัล & คำขอแลก"
+      subtitle="จัดการรายการของรางวัล อนุมัติ และส่งมอบของให้สมาชิก"
+    >
+      <template #secondary>
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>
-        <button type="button" class="btn primary" @click="rewardModalOpen = true">+ เพิ่มของรางวัลใหม่</button>
-      </div>
-    </div>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="rewardModalOpen = true">+ เพิ่มของรางวัล</button>
+      </template>
+    </PageHeader>
 
     <!-- Redemptions Queue -->
     <div class="card" style="margin-bottom:16px">
@@ -111,11 +111,23 @@
               <td>{{ fmt(rw.stock_qty) }}</td>
               <td><span class="tag" :class="rw.is_active ? 'green' : 'gray'">{{ rw.is_active ? 'เปิดให้แลก' : 'ปิด' }}</span></td>
             </tr>
-            <tr v-if="!(rewards || []).length">
-              <td colspan="5" class="placeholder">ยังไม่มีของรางวัลในแคตตาล็อก</td>
+              <tr v-if="!(rewards || []).length">
+              <td colspan="5" class="placeholder">ยังไม่มีของรางวัลในรายการ</td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <div v-if="!rewardsLoading" class="mob-cards panel-pad">
+        <div v-for="rw in rewards || []" :key="`rwm-${rw.id}`" class="card mob-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <strong>{{ rw.title }}</strong>
+            <span class="tag" :class="rw.is_active ? 'green' : 'gray'">{{ rw.is_active ? 'เปิดให้แลก' : 'ปิด' }}</span>
+          </div>
+          <div class="small muted" style="margin-top:6px">
+            {{ rw.reward_code }} · ใช้ {{ fmt(rw.points_cost) }} แต้ม · คงเหลือ {{ fmt(rw.stock_qty) }}
+          </div>
+        </div>
+        <div v-if="!(rewards || []).length" class="placeholder">ยังไม่มีของรางวัลในรายการ</div>
       </div>
     </div>
 
@@ -156,6 +168,7 @@
 import { ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, fmt } from '../composables/useCrmSession.js';

@@ -1,14 +1,11 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">LOYALTY &amp; VERIFICATION</div>
-        <h2>สมาชิก &amp; แต้มสะสม</h2>
-        <p>อนุมัติคำขอยืนยันเจ้าของร้าน (ต้องตรวจมากกว่าแค่เบอร์โทร)</p>
-      </div>
-    </div>
+    <PageHeader
+      title="สมาชิก & แต้มสะสม"
+      subtitle="อนุมัติคำขอยืนยันเจ้าของร้าน (ตรวจมากกว่าแค่เบอร์โทร)"
+    />
 
-    <div v-if="!isManager" class="error">เฉพาะผู้จัดการหรือผู้ดูแลระบบเท่านั้นที่เข้าถึงส่วนจัดการสมาชิกและ Loyalty ได้</div>
+    <div v-if="!isManager" class="error">เฉพาะผู้จัดการหรือผู้ดูแลระบบเท่านั้นที่เข้าถึงส่วนจัดการสมาชิกและแต้มสะสมได้</div>
     <SkeletonBlock v-else-if="isLoading" variant="cards" :rows="3" />
 
     <template v-else>
@@ -16,7 +13,7 @@
         <div class="section-head" style="padding-bottom:12px">
           <h3>คำขอยืนยันบัญชีร้านค้า ERP ({{ (verifications || []).length }})</h3>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap desktop-table-only">
           <table class="table">
             <thead><tr><th>สมาชิก</th><th>รหัสลูกค้าที่ขอ</th><th>เบอร์ติดต่อ</th><th>สถานะ</th><th>ดำเนินการ</th></tr></thead>
             <tbody>
@@ -26,8 +23,8 @@
                   <span v-if="v.requested_customer_code" class="tag blue">{{ v.requested_source_system || 'Source?' }} / {{ v.requested_customer_code }}</span>
                   <span v-else class="tag orange">ยังไม่มี ERP Code</span>
                   <div v-if="v.status === 'pending'" class="small muted" style="margin-top:6px">
-                    {{ selectedMasterIds[v.id] ? 'เลือก Internal Customer #' + selectedMasterIds[v.id] : 'ต้องเลือก Customer Master ก่อนอนุมัติ' }}
-                    <button type="button" class="btn light" style="margin-left:6px;padding:4px 8px" @click="openCustomerPicker(v)">ค้นหา Customer</button>
+                    {{ selectedMasterIds[v.id] ? 'เลือกร้านหลัก #' + selectedMasterIds[v.id] : 'ต้องเลือกร้านค้าหลักก่อนอนุมัติ' }}
+                    <button type="button" class="btn light" style="margin-left:6px;padding:4px 8px" @click="openCustomerPicker(v)">ค้นหาร้าน</button>
                   </div>
                 </td>
                 <td>{{ v.requested_phone || '—' }}</td>
@@ -41,6 +38,23 @@
               <tr v-if="!(verifications || []).length"><td colspan="5" class="placeholder">ยังไม่มีคำขอยืนยันสมาชิก</td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="mob-cards panel-pad">
+          <div v-for="v in verifications || []" :key="`mlv-m-${v.id}`" class="card mob-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <strong>{{ v.member_name }}</strong>
+              <span class="tag" :class="v.status === 'approved' ? 'green' : v.status === 'rejected' ? 'red' : 'orange'">{{ v.status }}</span>
+            </div>
+            <div class="small muted" style="margin:6px 0">
+              {{ v.requested_customer_code || 'ยังไม่มีรหัส ERP' }} · โทร: {{ v.requested_phone || '—' }}
+            </div>
+            <div v-if="v.status === 'pending'" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button type="button" class="btn light" @click="openCustomerPicker(v)">ค้นหาร้าน</button>
+              <button type="button" class="btn primary" @click="reviewVerification(v, 'approved')">อนุมัติ</button>
+              <button type="button" class="btn danger" @click="reviewVerification(v, 'rejected')">ปฏิเสธ</button>
+            </div>
+          </div>
+          <div v-if="!(verifications || []).length" class="placeholder">ยังไม่มีคำขอยืนยันสมาชิก</div>
         </div>
       </div>
 
@@ -94,6 +108,7 @@ import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, fmt, isManager } from '../composables/useCrmSession.js';
 

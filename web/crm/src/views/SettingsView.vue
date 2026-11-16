@@ -1,15 +1,13 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">SECURITY &amp; ACCESS CONTROL</div>
-        <h2>ตั้งค่า &amp; ผู้ใช้งาน</h2>
-        <p>สิทธิ์ผู้ใช้งาน สถานะระบบ และประวัติการใช้งานล่าสุด</p>
-      </div>
-      <div class="head-actions">
-        <button type="button" class="btn" @click="refetch">⟳ รีเฟรช</button>
-      </div>
-    </div>
+    <PageHeader
+      title="ตั้งค่า & ผู้ใช้งาน"
+      subtitle="สิทธิ์ผู้ใช้งาน สถานะระบบ และประวัติการใช้งานล่าสุด"
+    >
+      <template #primary>
+        <button type="button" class="btn primary" @click="refetch">⟳ รีเฟรช</button>
+      </template>
+    </PageHeader>
 
     <SkeletonBlock v-if="isLoading && !data" variant="cards" :rows="4" />
     <div v-else-if="isError" class="error">{{ error?.message || 'โหลดการตั้งค่าและ Audit Log ไม่สำเร็จ' }}</div>
@@ -107,6 +105,7 @@
 
 <script setup>
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { crmGet } from '../composables/useCrmSession.js';
 

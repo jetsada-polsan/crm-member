@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">POPSTAR CONNECT · สมาชิก</div>
-        <h2>ภาพรวมสมาชิก</h2>
-        <p>สถานะบัญชี ยอดซื้อ และแต้มสะสมของคุณ</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      title="ภาพรวมสมาชิก"
+      subtitle="สถานะบัญชี ยอดซื้อ และแต้มสะสมของคุณ"
+    >
+      <template #secondary>
         <RouterLink to="/binding" class="btn light">🔗 จัดการยืนยันร้านค้า &amp; LINE</RouterLink>
+      </template>
+      <template #primary>
         <RouterLink to="/rewards" class="btn primary">🎁 แลกของรางวัล</RouterLink>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Handoff Stepper + Identity Status Banner -->
     <div class="card panel-pad" style="margin-bottom:18px">
@@ -144,6 +144,7 @@
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { fmt, isMemberVerified, me, memberGet } from '../composables/useMemberSession.js';
 

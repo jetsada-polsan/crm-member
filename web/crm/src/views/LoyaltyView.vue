@@ -1,16 +1,16 @@
 <template>
   <div>
-    <div class="pagehead">
-      <div>
-        <div class="eyebrow">LOYALTY RULES &amp; LEDGER</div>
-        <h2>กติกาการให้แต้ม</h2>
-        <p>ตั้งเงื่อนไขให้แต้มจากบิลขาย หักแต้มเมื่อมีใบลดหนี้ และดูประวัติแต้ม</p>
-      </div>
-      <div class="head-actions">
+    <PageHeader
+      title="กติกาการให้แต้ม"
+      subtitle="ตั้งเงื่อนไขให้แต้มจากบิลขาย หักแต้มเมื่อมีใบลดหนี้ และดูประวัติแต้ม"
+    >
+      <template #secondary>
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>
-        <button type="button" class="btn primary" @click="ruleModalOpen = true">+ เพิ่มกติกาคะแนน</button>
-      </div>
-    </div>
+      </template>
+      <template #primary>
+        <button type="button" class="btn primary" @click="ruleModalOpen = true">+ เพิ่มกติกาแต้ม</button>
+      </template>
+    </PageHeader>
 
     <!-- Loyalty Rules -->
     <div class="card" style="margin-bottom:16px">
@@ -215,6 +215,7 @@
 import { ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, fmt } from '../composables/useCrmSession.js';
