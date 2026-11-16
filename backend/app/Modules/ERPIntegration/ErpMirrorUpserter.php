@@ -57,7 +57,7 @@ final class ErpMirrorUpserter
         $categoryCode = isset($rec['category_code']) ? trim((string) $rec['category_code']) : null;
         $categoryCode = $categoryCode === '' ? null : $categoryCode;
         $isExcluded = array_key_exists('is_excluded_kpi', $rec)
-            ? (bool) $rec['is_excluded_kpi']
+            ? filter_var($rec['is_excluded_kpi'], FILTER_VALIDATE_BOOLEAN)
             : SalesRules::isExcludedCategory($categoryCode);
 
         $exists = DB::table('erp_products')
@@ -188,7 +188,7 @@ final class ErpMirrorUpserter
         }
 
         $isExcluded = array_key_exists('is_excluded_kpi', $item)
-            ? (bool) $item['is_excluded_kpi']
+            ? filter_var($item['is_excluded_kpi'], FILTER_VALIDATE_BOOLEAN)
             : SalesRules::isExcludedCategory($iccatCode);
 
         $itemAmounts = SalesRules::normalizeAmounts(

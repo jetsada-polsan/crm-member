@@ -138,6 +138,7 @@ function Test-ConstantTimeString {
 function Convert-SqlValue {
     param($val)
     if ($null -eq $val -or $val -is [DBNull]) { return $null }
+    if ($val -is [bool]) { return $val }
     if ($val -is [DateTime]) { return $val.ToString("yyyy-MM-ddTHH:mm:sszzz") }
     if ($val -is [Decimal] -or $val -is [Double] -or $val -is [Single]) { return [string]$val }
     return ([string]$val).Trim()
@@ -464,7 +465,7 @@ try {
                         product_name = $it.product_name
                         iccat_code = $it.iccat_code
                         iccat_name = $it.iccat_name
-                        is_excluded_kpi = [bool]$it.is_excluded_kpi
+                        is_excluded_kpi = ($it.is_excluded_kpi -eq $true)
                         qty = $it.qty
                         unit_name = $it.unit_name
                         unit_price = $it.unit_price

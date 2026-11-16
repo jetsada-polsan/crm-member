@@ -139,14 +139,12 @@
                   v-for="item in billDetail.items"
                   :key="item.line_no"
                   class="ph-line"
-                  :class="{ muted: item.is_excluded_kpi }"
                 >
                   <div class="ph-line-main">
                     <b>{{ item.product_name || item.erp_product_code }}</b>
                     <small>
                       {{ fmt(item.qty) }} {{ item.unit_name || '' }}
                       <template v-if="Number(item.unit_price)"> × {{ fmt(item.unit_price) }} ฿</template>
-                      <template v-if="item.is_excluded_kpi"> · ค่าบริการ</template>
                     </small>
                   </div>
                   <b class="ph-line-amount">{{ fmt(item.before_vat_amount ?? item.net_amount) }} ฿</b>

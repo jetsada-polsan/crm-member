@@ -14,6 +14,26 @@ class SalesCalculationRulesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_false_string_from_bridge_does_not_classify_products_and_lines_as_services(): void
+    {
+        $now = now();
+        \App\Modules\ERPIntegration\ErpMirrorUpserter::upsertProduct('BPLUS', [
+            'erp_product_code' => 'FOOD-1', 'product_name' => 'Food',
+            'category_code' => 'FG', 'is_excluded_kpi' => 'False',
+        ], $now);
+        \App\Modules\ERPIntegration\ErpMirrorUpserter::upsertInvoiceWithItems('BPLUS', [
+            'branch_code' => '001', 'doc_type' => 'IV', 'invoice_no' => 'TEST-1',
+            'erp_customer_code' => 'AR1', 'sold_at' => '2026-01-01 12:00:00',
+            'dt_properties' => 307, 'status' => 'posted', 'before_vat_amount' => 100,
+            'items' => [[
+                'line_no' => 1, 'erp_product_code' => 'FOOD-1', 'product_name' => 'Food',
+                'qty' => 1, 'before_vat_amount' => 100, 'is_excluded_kpi' => 'False',
+            ]],
+        ], $now);
+        $this->assertDatabaseHas('erp_products', ['erp_product_code' => 'FOOD-1', 'is_excluded_kpi' => false]);
+        $this->assertDatabaseHas('erp_sales_items', ['invoice_no' => 'TEST-1', 'is_excluded_kpi' => false]);
+    }
+
     public function test_unknown_document_properties_fail_closed_in_sales_and_points(): void
     {
         $missing = SalesRules::classifyDocument(null, 'IV', 'posted', 'sale');
