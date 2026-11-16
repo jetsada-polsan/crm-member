@@ -9,7 +9,7 @@
       <!-- LINE OA Binding -->
       <div class="card panel-pad">
         <h3 style="margin-top:0">ผูกบัญชี LINE Official Account</h3>
-        <p class="small muted">สร้างรหัสเชื่อมบัญชีชั่วคราว (One-time Token) แล้วนำไปส่งในแชท LINE OA ของ Popstar</p>
+        <p class="small muted">สร้างรหัสชั่วคราวสำหรับเชื่อมบัญชี แล้วนำไปส่งในแชท LINE OA ของ POPSTAR</p>
 
         <div v-if="me?.line_binding" class="success">
           <strong>ผูกบัญชี LINE แล้ว:</strong>

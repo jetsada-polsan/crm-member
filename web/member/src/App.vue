@@ -11,10 +11,8 @@
     />
 
     <!-- Authenticated Member Workspace -->
-    <div v-else class="app">
-      <div :class="['sidebar-shade', { open: sidebarOpen }]" @click="sidebarOpen = false"></div>
-
-      <aside :class="['sidebar', { open: sidebarOpen }]" aria-label="เมนูสมาชิก">
+    <div v-else class="app app-flat">
+      <aside class="sidebar" aria-label="เมนูสมาชิก">
         <div class="logo">
           <div class="logo-mark">P</div>
           <div>
@@ -32,16 +30,15 @@
           active-class="active"
           @mouseenter="prefetchMemberView(item.name, { withData: true })"
           @focus="prefetchMemberView(item.name, { withData: true })"
-          @click="sidebarOpen = false"
         >
-          <span class="ni">{{ item.icon }}</span>
+          <span class="ni" aria-hidden="true">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
         </RouterLink>
 
         <div class="sidebar-bottom">
           <div class="avatar">{{ userInitial }}</div>
-          <div style="flex:1;min-width:0">
-            <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ me?.name }}</strong>
+          <div class="sidebar-user-meta">
+            <strong class="text-ellipsis">{{ me?.name }}</strong>
             <small>{{ me?.phone || me?.email }}</small>
           </div>
           <button
@@ -57,14 +54,6 @@
 
       <div class="main">
         <header class="topbar">
-          <button
-            type="button"
-            class="mobile-trigger topbtn"
-            aria-label="เปิดเมนู"
-            @click="sidebarOpen = true"
-          >
-            ☰
-          </button>
           <h1 class="topbar-title">{{ route.meta?.label || 'สมาชิก POPSTAR' }}</h1>
           <div class="breadcrumb">
             POPSTAR Connect · สมาชิก / <strong>{{ route.meta?.label || 'หน้าหลัก' }}</strong>
@@ -94,7 +83,7 @@
         </main>
       </div>
 
-      <nav class="mobile-nav" style="grid-template-columns:repeat(4,1fr)" aria-label="เมนูสมาชิกมือถือ">
+      <nav class="mobile-nav mobile-nav-4" aria-label="เมนูสมาชิกมือถือ">
         <RouterLink
           v-for="item in NAV_ITEMS"
           :key="`mob-${item.name}`"
@@ -102,7 +91,7 @@
           class="mobile-nav-item"
           active-class="active"
         >
-          <span class="mni">{{ item.icon }}</span>
+          <span class="mni" aria-hidden="true">{{ item.icon }}</span>
           <span>{{ item.shortLabel }}</span>
         </RouterLink>
       </nav>
@@ -115,7 +104,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, watch } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { askConfirm } from '../../shared/composables/useUiStore.js';
 import ConfirmDialog from '../../shared/components/ConfirmDialog.vue';
@@ -141,8 +130,6 @@ import {
 
 const route = useRoute();
 const router = useRouter();
-
-const sidebarOpen = ref(false);
 
 const NAV_ITEMS = [
   { name: 'overview', path: '/overview', icon: '🏠', label: 'ภาพรวมสมาชิก', shortLabel: 'ภาพรวม' },
@@ -183,7 +170,6 @@ async function handleLogout() {
 watch(
   () => route.name,
   (n) => {
-    sidebarOpen.value = false;
     if (logged.value && n) scheduleMemberPrefetch(n);
   }
 );

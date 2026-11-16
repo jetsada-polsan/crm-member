@@ -1,81 +1,61 @@
 <template>
   <div>
     <PageHeader
-      title="ภาพรวมสมาชิก"
-      subtitle="สถานะบัญชี ยอดซื้อ และแต้มสะสมของคุณ"
+      title="บัตรสมาชิกของฉัน"
+      subtitle="แต้มคงเหลือ ยอดซื้อ และสิทธิพิเศษของคุณ"
     >
       <template #secondary>
-        <RouterLink to="/binding" class="btn light">🔗 จัดการยืนยันร้านค้า &amp; LINE</RouterLink>
+        <RouterLink to="/invoices" class="btn light">🧾 ประวัติยอดซื้อ</RouterLink>
+        <RouterLink to="/binding" class="btn">🔗 ผูกบัญชี LINE &amp; ร้านค้า</RouterLink>
       </template>
       <template #primary>
         <RouterLink to="/rewards" class="btn primary">🎁 แลกของรางวัล</RouterLink>
       </template>
     </PageHeader>
 
-    <!-- Handoff Stepper + Identity Status Banner -->
-    <div class="card panel-pad" style="margin-bottom:18px">
-      <div class="stepper" style="margin-bottom:12px">
-        <div class="step-pill done">1. สมัครบัญชี Member</div>
-        <div :class="['step-pill', me?.line_binding ? 'done' : 'active']">
-          2. ผูก LINE OA ({{ me?.line_binding ? 'ผูกแล้ว' : 'ยังไม่ผูก' }})
-        </div>
-        <div :class="['step-pill', me?.erp_link?.erp_status === 'linked' ? 'done' : 'active']">
-          3. รหัสลูกค้า ERP ({{ me?.erp_link?.erp_customer_code || 'รอเชื่อม ERP' }})
-        </div>
-        <div :class="['step-pill', isMemberVerified ? 'done' : 'active']">
-          4. ยืนยันเจ้าของบัญชี ({{ isMemberVerified ? 'ยืนยันแล้ว' : 'รอตรวจสอบสิทธิ์' }})
-        </div>
-      </div>
-
-      <div v-if="!isMemberVerified" class="notice" style="margin-bottom:0">
-        <strong>บัญชียังไม่ปลดล็อกข้อมูลการเงิน ERP:</strong>
-        การจับคู่จากเบอร์โทรศัพท์อย่างเดียวจะไม่อนุมัติสิทธิ์อัตโนมัติ —
-        กรุณาส่งคำขอยืนยันในหน้า <RouterLink to="/binding"><b>ผูกบัญชี LINE &amp; ร้านค้า ERP</b></RouterLink>
-        เพื่อรอทีม Popstar ตรวจสอบความเป็นเจ้าของร้านค้า
-      </div>
-    </div>
-
-    <!-- Digital Member Card & KPI Grid -->
+    <!-- Primary Hero: Digital Member Card + Points Balance + Redeem Rewards CTA -->
     <div class="dash-grid" style="margin-bottom:18px">
       <div class="digital-member-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span class="small" style="opacity:.85">บัตรสมาชิก POPSTAR Connect</span>
-          <span class="tag" style="background:rgba(255,255,255,.18);color:#fff">
-            {{ isMemberVerified ? '✓ Verified Member' : 'รอการยืนยันสิทธิ์' }}
+        <div class="member-card-head">
+          <span class="small">บัตรสมาชิก POPSTAR Connect</span>
+          <span class="tag member-card-badge">
+            {{ isMemberVerified ? '✓ ยืนยันสิทธิ์แล้ว' : 'รอการยืนยันสิทธิ์' }}
           </span>
         </div>
-        <h2 style="margin:8px 0 4px;font-size:22px">{{ me?.erp_link?.erp_customer_name || me?.name }}</h2>
-        <div class="small" style="opacity:.85">
-          Member #{{ me?.id }} · {{ me?.phone || me?.email || '-' }}
-          <span v-if="me?.erp_link?.erp_customer_code"> · ERP {{ me.erp_link.erp_customer_code }}</span>
+        <h2 class="member-card-title">{{ me?.erp_link?.erp_customer_name || me?.name }}</h2>
+        <div class="member-card-meta">
+          รหัสสมาชิก #{{ me?.id }} · {{ me?.phone || me?.email || '-' }}
+          <span v-if="me?.erp_link?.erp_customer_code"> · รหัสลูกค้า {{ me.erp_link.erp_customer_code }}</span>
         </div>
-        <div style="margin-top:18px;display:flex;gap:18px;flex-wrap:wrap">
-          <div>
-            <div class="small" style="opacity:.75">คะแนนสะสมในพอร์ทัล</div>
-            <strong style="font-size:24px">{{ isMemberVerified ? fmt(pointsData?.balance || 0) : '🔒 รอยืนยัน' }}</strong>
+        <div class="member-card-foot">
+          <div class="member-points-group">
+            <div>
+              <div class="member-points-label">แต้มคงเหลือ</div>
+              <div class="member-points-num">{{ isMemberVerified ? fmt(pointsData?.balance || 0) : '🔒 รอยืนยัน' }}</div>
+            </div>
+            <div v-if="isMemberVerified && pointsData?.erp_point_balance != null">
+              <div class="member-points-label">แต้มใน Bplus</div>
+              <div class="member-points-num">{{ fmt(pointsData.erp_point_balance) }}</div>
+            </div>
           </div>
-          <div v-if="isMemberVerified && pointsData?.erp_point_balance != null">
-            <div class="small" style="opacity:.75">คะแนนในระบบ Bplus</div>
-            <strong style="font-size:24px">{{ fmt(pointsData.erp_point_balance) }}</strong>
-          </div>
+          <RouterLink to="/rewards" class="btn member-card-cta">
+            🎁 แลกของรางวัล
+          </RouterLink>
         </div>
       </div>
 
-      <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:0">
+      <div class="member-kpis-two">
         <div class="card kpi">
           <div class="kpi-top">
             <div class="kpi-icon">🧾</div>
-            <span class="tag blue">ERP</span>
+            <span class="tag blue">ยอดซื้อ</span>
           </div>
           <div class="kpi-label">บิลขายจริงที่เชื่อมแล้ว</div>
           <div class="kpi-value">{{ isMemberVerified ? fmt(me?.purchase_summary?.sale_invoice_count || 0) : '—' }}</div>
           <div v-if="isMemberVerified" class="kpi-foot">
             ซื้อ {{ fmt(me?.purchase_summary?.gross_purchase_before_vat) }} ฿ · คืน {{ fmt(me?.purchase_summary?.return_amount_before_vat) }} ฿
           </div>
-          <div v-if="isMemberVerified" class="kpi-foot">
-            บิลขาย {{ fmt(me?.purchase_summary?.sale_invoice_count) }} · ใบคืน {{ fmt(me?.purchase_summary?.return_count) }} · ล่าสุด {{ me?.purchase_summary?.last_purchase_at ? new Date(me.purchase_summary.last_purchase_at).toLocaleDateString('th-TH') : '—' }}
-          </div>
-          <div class="kpi-foot">{{ isMemberVerified ? `ยอดรวม ฿${fmt(totalNetSales)}` : 'รอปลดล็อกสิทธิ์ ERP' }}</div>
+          <div class="kpi-foot">{{ isMemberVerified ? `ยอดรวม ${fmt(totalNetSales)} ฿` : 'รอทีมงานอนุมัติสิทธิ์' }}</div>
         </div>
 
         <div class="card kpi">
@@ -85,8 +65,8 @@
               {{ me?.line_binding ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}
             </span>
           </div>
-          <div class="kpi-label">LINE Official Account</div>
-          <div class="kpi-value" style="font-size:15px;padding-top:6px">
+          <div class="kpi-label">บัญชี LINE</div>
+          <div class="kpi-value" style="font-size:16px;padding-top:6px">
             {{ me?.line_binding?.line_display_name || (me?.line_binding ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อม LINE') }}
           </div>
           <div class="kpi-foot">รับแจ้งเตือนบิลและแต้มทาง LINE</div>
@@ -94,14 +74,36 @@
       </div>
     </div>
 
+    <!-- Verification Progress / Unverified Banner -->
+    <div class="card panel-pad" style="margin-bottom:18px">
+      <div class="stepper" style="margin-bottom:12px">
+        <div class="step-pill done">1. สมัครบัญชีสมาชิก</div>
+        <div :class="['step-pill', me?.line_binding ? 'done' : 'active']">
+          2. ผูก LINE ({{ me?.line_binding ? 'ผูกแล้ว' : 'ยังไม่ผูก' }})
+        </div>
+        <div :class="['step-pill', me?.erp_link?.erp_status === 'linked' ? 'done' : 'active']">
+          3. รหัสลูกค้าร้าน ({{ me?.erp_link?.erp_customer_code || 'รอเชื่อมร้าน' }})
+        </div>
+        <div :class="['step-pill', isMemberVerified ? 'done' : 'active']">
+          4. ยืนยันเจ้าของร้าน ({{ isMemberVerified ? 'ยืนยันแล้ว' : 'รอตรวจสอบ' }})
+        </div>
+      </div>
+
+      <div v-if="!isMemberVerified" class="notice" style="margin-bottom:0">
+        <strong>บัญชียังรอการยืนยันเจ้าของร้าน:</strong>
+        กรุณาส่งคำขอยืนยันในหน้า <RouterLink to="/binding"><b>ผูกบัญชี LINE &amp; ร้านค้า</b></RouterLink>
+        เพื่อให้ทีม POPSTAR ตรวจสอบก่อนเปิดดูยอดซื้อและใช้แต้มสะสม
+      </div>
+    </div>
+
     <div v-if="isMemberVerified" class="middle">
       <div class="card panel-pad">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="margin:0">ประวัติยอดซื้อล่าสุด (Bplus Mirror)</h3>
+          <h3 style="margin:0">ประวัติยอดซื้อล่าสุด</h3>
           <RouterLink to="/invoices" class="small">ดูทั้งหมด →</RouterLink>
         </div>
         <div v-if="loadingInv"><SkeletonBlock variant="list" :rows="4" /></div>
-        <div v-else-if="!(invoices || []).length" class="placeholder">ยังไม่มีบิลขายที่ผ่านเงื่อนไข</div>
+        <div v-else-if="!(invoices || []).length" class="placeholder">ยังไม่มีบิลขายที่แสดงได้</div>
         <div v-else>
           <div v-for="inv in (invoices || []).slice(0, 5)" :key="inv.invoice_no" class="minirow">
             <div>
@@ -119,11 +121,11 @@
 
       <div class="card panel-pad">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="margin:0">ความเคลื่อนไหวคะแนนล่าสุด</h3>
+          <h3 style="margin:0">ความเคลื่อนไหวแต้มล่าสุด</h3>
           <RouterLink to="/rewards" class="small">แลกรางวัล →</RouterLink>
         </div>
         <div v-if="loadingPts"><SkeletonBlock variant="list" :rows="4" /></div>
-        <div v-else-if="!(pointsData?.ledger || []).length" class="placeholder">ยังไม่มีประวัติคะแนนใน Ledger</div>
+        <div v-else-if="!(pointsData?.ledger || []).length" class="placeholder">ยังไม่มีประวัติแต้มสะสม</div>
         <div v-else>
           <div v-for="row in (pointsData?.ledger || []).slice(0, 5)" :key="row.id" class="minirow">
             <div>
