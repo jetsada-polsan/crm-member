@@ -6,6 +6,24 @@
 
 ไม่ได้แตะ Bplus ERP / SQL Server · ไม่ได้ลบไฟล์ใด · ไม่ได้ push ขึ้น GitHub
 
+## เปิดผ่าน Apache ของ XAMPP — เสร็จแล้ว (2026-11-16)
+
+| ที่อยู่ | เปิดอะไร |
+|---|---|
+| http://localhost | htdocs เดิม (Index, Popstarfoods ฯลฯ) ไม่เปลี่ยน |
+| **http://popstar.localhost** | CRM (`web\crm\dist`) + `/api` → Laravel |
+| **http://member.popstar.localhost** | Member (`web\member\dist`) + `/api` → Laravel |
+| http://127.0.0.1:18090 | Laravel API (`backend\public`) ฟังเฉพาะในเครื่อง |
+
+- Config: `D:\xampp\apache\conf\extra\httpd-popstar.conf` (สำเนาอยู่ที่ `tools\apache\httpd-popstar.conf`) และ include ไว้ท้าย `httpd.conf`
+- `httpd.conf` (สำรอง `httpd.conf.bak-popstar`): เปิด `mod_proxy_http` + Include ไฟล์ข้างบน
+- `httpd-xampp.conf` (สำรอง `httpd-xampp.conf.bak-popstar`): เพิ่ม `LoadFile` สำหรับ `libsodium.dll`, `libssh2.dll`, `nghttp2.dll` ทำให้ `sodium` โหลดใน Apache ได้
+- **ผลทดสอบ:** localhost / Popstarfoods ได้ 200, `popstar.localhost` ได้ 200 "Popstar CRM", `member.popstar.localhost` ได้ 200 "Popstar MEMBER", `/api/crm/csrf` และ `/api/member/csrf` ได้ 200, login (บัญชีที่ไม่มีอยู่) ได้ 422 "Invalid credentials" แสดงว่า PostgreSQL ผ่าน Apache ใช้งานได้, `.env` ยังได้ 403/404 ทุกเส้นทาง
+- **ข้อจำกัด:** extension `curl` โหลดใน Apache ไม่ได้ เพราะ Apache ใช้ OpenSSL 3.5.1 ของตัวเอง ส่วน PHP สร้างกับ 3.5.9 จึงขึ้นคำเตือนตอน start (ไม่ทำให้ Apache ล้ม) แต่ Laravel `Http::` / Guzzle เปลี่ยนไปใช้ stream ของ PHP เอง ทดสอบแล้วได้ 200 ส่วน CLI (queue, scheduler) มี curl ปกติ
+- **Queue worker:** `tools\run-scheduler.vbs` (Task Scheduler ทุก 1 นาที) รัน `queue:work --stop-when-empty` ต่อจาก `schedule:run` จึงไม่ต้องเปิด `start-popstar.bat` ค้างไว้ (log: `backend\storage\logs\queue.log`)
+- `start-popstar.bat` ยังใช้ได้เป็นทางเลือก (พอร์ต 8000 / 18081 / 18082)
+- ⚠️ Apache ถูกรีสตาร์ทด้วยคำสั่งตอนตั้งค่า ถ้า XAMPP Control Panel แสดงสถานะไม่ตรง ให้กด Stop → Start ใหม่ 1 ครั้ง
+
 ## Database — เสร็จแล้ว (2026-11-16)
 
 - **รหัส postgres:** ตอนติดตั้งผ่าน winget ไม่ได้ตั้งรหัสไว้ จึงรีเซ็ตด้วย `tools\reset-postgres-password.ps1` ซึ่งผู้ใช้รันเองใน Admin PowerShell ผู้ใช้เป็นคนตั้งรหัส สคริปต์แก้ `pg_hba.conf` ชั่วคราวแล้วคืนค่าเดิม และบันทึกรหัสลง `backend\.pgpass-setup.txt` (git-ignored)
