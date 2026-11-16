@@ -1,13 +1,13 @@
 <template>
   <main class="auth-shell">
-    <section class="auth-visual" aria-label="POPSTAR Business Platform">
+    <section class="auth-visual" aria-label="POPSTAR Connect">
       <div class="auth-glow"></div>
       <div class="auth-head">
         <div class="auth-brand">
           <div class="auth-mark">P</div>
           <div>
-            <strong>POPSTAR</strong>
-            <small>BUSINESS PLATFORM</small>
+            <strong>POPSTAR Connect</strong>
+            <small>ทีมขาย · ร้านค้า · สมาชิก</small>
           </div>
         </div>
         <div class="auth-secure" title="เซสชันแยกสิทธิ์และป้องกัน CSRF">
@@ -17,9 +17,9 @@
       </div>
 
       <div class="auth-hero">
-        <div class="auth-eyebrow">ONE PLATFORM. UNLIMITED POSSIBILITIES.</div>
-        <h1>Where business<br /><span>moves forward.</span></h1>
-        <p>เชื่อมทุกโอกาสทางธุรกิจไว้ในที่เดียว ตั้งแต่ลูกค้าใหม่ ทีมขายภาคสนาม ไปจนถึงสมาชิกและการวิเคราะห์ยอดขายอย่างชาญฉลาด</p>
+        <div class="auth-eyebrow">POPSTAR CONNECT</div>
+        <h1>เชื่อมทีมขาย<br /><span>กับลูกค้าทุกร้าน</span></h1>
+        <p>ออกตลาด บันทึกเข้าพบ ติดตามโอกาสขาย และดูแลสมาชิกสะสมแต้ม ครบในแอปเดียว ใช้งานง่ายบนมือถือ</p>
       </div>
 
       <div class="auth-experience" aria-hidden="true">
@@ -73,7 +73,7 @@
       </div>
 
       <div class="auth-visual-foot">
-        <span>© 2026 POPSTAR BUSINESS PLATFORM</span>
+        <span>© 2026 POPSTAR CONNECT</span>
         <span>DESIGNED FOR GROWTH ✦</span>
       </div>
     </section>

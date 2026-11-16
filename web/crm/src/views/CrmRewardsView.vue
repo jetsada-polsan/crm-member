@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">REWARDS &amp; REDEMPTIONS</div>
-        <h2>ของรางวัล &amp; คิวแลกของรางวัล</h2>
-        <p>จัดการแคตตาล็อกของรางวัลสมาชิก พร้อมอนุมัติ ส่งมอบ (Fulfill) หรือยกเลิกคิวแลกรางวัล</p>
+        <h2>ของรางวัล &amp; คำขอแลก</h2>
+        <p>จัดการรายการของรางวัล อนุมัติ และส่งมอบของให้สมาชิก</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>

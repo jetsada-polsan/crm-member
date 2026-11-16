@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">LOYALTY RULES &amp; LEDGER</div>
-        <h2>กติกาคะแนนสะสม &amp; Point Ledger</h2>
-        <p>กำหนดเงื่อนไขการให้แต้มจากบิลขาย Bplus ERP, หักแต้มอัตโนมัติเมื่อเกิดใบลดหนี้ 308 และตรวจสอบ/Reverse สมุดบัญชีคะแนน</p>
+        <h2>กติกาการให้แต้ม</h2>
+        <p>ตั้งเงื่อนไขให้แต้มจากบิลขาย หักแต้มเมื่อมีใบลดหนี้ และดูประวัติแต้ม</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>

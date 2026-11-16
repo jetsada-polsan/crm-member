@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">ERP IDENTITY WORKFLOW</div>
-        <h2>คำขอเปิดบัญชีลูกค้า Bplus ERP (ERP Creation Queue)</h2>
-        <p>คิวร้านค้าใหม่ที่ฝ่ายขายตรวจสอบแล้วและต้องการเปิดบัญชีลูกค้าใน Bplus ERP (ระบบจะไม่สร้างรหัสใน ERP อัตโนมัติ)</p>
+        <h2>คำขอเปิดรหัสลูกค้าใน ERP</h2>
+        <p>ร้านใหม่ที่ตรวจแล้วและรอเปิดรหัสใน Bplus (ต้องเปิดรหัสใน Bplus เอง)</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>

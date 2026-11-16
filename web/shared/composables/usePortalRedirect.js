@@ -40,6 +40,15 @@ export function getPortalUrl(targetPortal, path = '/') {
     return `${String(configured).replace(/\/$/, '')}${normalizedPath}`;
   }
   const { protocol, hostname, port } = window.location;
+
+  // Name-based hosts (Apache vhosts / production): popstar.localhost <-> member.popstar.localhost
+  const isIpHost = /^[\d.]+$/.test(hostname) || hostname.includes(':') || hostname === 'localhost';
+  if (!port && !isIpHost) {
+    const baseHost = hostname.replace(/^member\./, '');
+    const targetHost = targetPortal === 'crm' ? baseHost : `member.${baseHost}`;
+    return `${protocol}//${targetHost}${normalizedPath}`;
+  }
+
   let targetPort = port;
   if (targetPortal === 'crm') {
     targetPort = port === '5174' || port === '5173' ? '5173' : '18081';

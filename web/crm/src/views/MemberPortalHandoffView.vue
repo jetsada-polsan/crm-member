@@ -3,12 +3,12 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">{{ isRegisterMode ? 'MEMBER REGISTRATION ONBOARDING' : 'MEMBER PORTAL SEPARATION' }}</div>
-        <h2>{{ isRegisterMode ? 'สมัครสมาชิก &amp; ยืนยันตัวตนร้านค้า (Member Registration)' : 'Member Registration &amp; Portal Handoff' }}</h2>
-        <p>พอร์ทัลสำหรับลูกค้าและร้านค้าสมัครสมาชิก ตรวจสอบบิล ERP และแลกของรางวัล โดยแยก Authentication Guard ออกจากทีมขาย 100%</p>
+        <h2>{{ isRegisterMode ? 'วิธีสมัครสมาชิก' : 'เปิดหน้าสมาชิก' }}</h2>
+        <p>หน้าสำหรับร้านค้าสมัครสมาชิก ดูบิล และแลกของรางวัล (แยกบัญชีจากทีมขาย)</p>
       </div>
       <div class="head-actions">
         <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn primary">
-          ↗ เปิด Member Portal (พอร์ต 18082)
+          ↗ เปิดหน้าสมาชิก
         </a>
       </div>
     </div>

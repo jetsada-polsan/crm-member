@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">EXPLICIT MATCHING REVIEW</div>
-        <h2>ERP Customer Matching (ตรวจสอบคู่เทียบก่อนเชื่อม)</h2>
-        <p>ระบบคำนวณคู่เทียบระหว่าง CRM Lead กับลูกค้า Bplus ERP แต่ต้องให้ผู้ดูแลยืนยันด้วยตนเองเท่านั้น ห้ามเชื่อมจากเบอร์โทรอัตโนมัติ</p>
+        <h2>จับคู่ลูกค้ากับ ERP</h2>
+        <p>ตรวจคู่ที่ระบบแนะนำ แล้วยืนยันเองว่าร้านใหม่คือลูกค้ารายไหนใน ERP</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn" @click="refetch">⟳ โหลดใหม่</button>

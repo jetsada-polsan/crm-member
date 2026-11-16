@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">BPLUS ERP MIRROR</div>
-        <h2>ทะเบียนลูกค้า ERP (Read-Only)</h2>
-        <p>ข้อมูลลูกค้าและยอดขายสุทธิก่อน VAT ที่ซิงค์ตรงจาก Bplus SQL Server โดยห้ามแก้ไขจาก CRM</p>
+        <h2>ลูกค้าใน ERP</h2>
+        <p>ข้อมูลลูกค้าและยอดขายจาก Bplus (ดูได้อย่างเดียว ถ้าจะแก้ต้องแก้ใน Bplus)</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn" @click="refetch">⟳ รีเฟรช</button>

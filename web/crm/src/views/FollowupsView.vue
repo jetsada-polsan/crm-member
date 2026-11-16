@@ -4,7 +4,7 @@
       <div>
         <div class="eyebrow">FOLLOW-UP TASKS</div>
         <h2>งานติดตามผล</h2>
-        <p>ปิดงานแบบตอบสนองทันที (Optimistic UI) และย้อนกลับอัตโนมัติหากเซิร์ฟเวอร์แจ้งผิดพลาด</p>
+        <p>งานที่ต้องโทรหรือกลับไปเยี่ยมร้าน กดเสร็จได้ทันที</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn primary" @click="taskModalOpen = true">＋ เพิ่มงานติดตาม</button>

@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">FIELD VISIT EVIDENCE</div>
-        <h2>บันทึกการเข้าพบร้านค้า &amp; หลักฐาน</h2>
-        <p>แสดง Device Time แยกกับ Server Time, สถานะ GPS Permission, และรูปถ่ายหลักฐาน (คลิกดูขยายได้)</p>
+        <h2>บันทึกเข้าพบร้าน</h2>
+        <p>ประวัติการเข้าพบ พร้อมรูปถ่าย เวลา และพิกัด GPS (แตะรูปเพื่อดูขยาย)</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn primary" @click="openVisitWizard()">📸 เริ่มบันทึกเข้าพบ (9 ขั้นตอน)</button>

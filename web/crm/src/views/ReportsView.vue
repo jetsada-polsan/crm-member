@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">REPORTS &amp; RECONCILIATION</div>
-        <h2>รายงานการขาย &amp; รายงานออกตลาด 6 ข้อ</h2>
-        <p>เทียบยอดขายจริงก่อน VAT (แยกใบจอง 207 และลดหนี้ 308) และส่งออก CSV / พิมพ์รายงานเข้าพบ</p>
+        <h2>รายงานยอดขาย &amp; การออกตลาด</h2>
+        <p>ยอดขายจริงก่อน VAT (ไม่รวมใบจอง หักใบลดหนี้) ส่งออก CSV หรือพิมพ์รายงาน</p>
       </div>
       <div class="head-actions">
         <a :href="reconUrl('csv')" class="btn">⬇ Reconciliation CSV</a>

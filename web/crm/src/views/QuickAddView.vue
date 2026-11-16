@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">FIELD SALES ACQUISITION</div>
-        <h2>เพิ่มร้านค้าใหม่ (Quick Add &amp; Duplicate Guard)</h2>
-        <p>บันทึกร้านค้าใหม่จากหน้างานพร้อมเช็คชื่อ/เบอร์/พิกัดซ้ำ โดยแยกจากฐานข้อมูล Bplus ERP อย่างปลอดภัย</p>
+        <h2>เพิ่มร้านค้าใหม่</h2>
+        <p>บันทึกร้านใหม่จากหน้างาน ระบบจะเตือนถ้าชื่อ เบอร์ หรือพิกัดซ้ำ</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn primary" @click="openQuickAdd()">＋ เปิดฟอร์มเพิ่มร้านใหม่ (3 ช่องด่วน)</button>

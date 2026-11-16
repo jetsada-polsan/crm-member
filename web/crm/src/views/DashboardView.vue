@@ -4,7 +4,7 @@
       <div>
         <div class="eyebrow">BUSINESS OVERVIEW</div>
         <h2>ภาพรวมฝ่ายขาย 👋</h2>
-        <p>ติดตามลูกค้าใหม่ ประสิทธิภาพทีมขาย ยอดขาย ERP ก่อน VAT และการเข้าพบลูกค้า</p>
+        <p>ลูกค้าใหม่ การเข้าพบ งานค้าง และยอดขายก่อน VAT</p>
       </div>
       <div class="head-actions">
         <button class="btn" type="button" @click="refetchAll">⟳ รีเฟรช</button>
@@ -29,7 +29,7 @@
           <span class="tag green">วันนี้ +{{ fmt(dashboard?.acquisition?.leads_today) }}</span>
         </div>
         <div class="kpi-label">ลูกค้าใหม่เดือนนี้</div>
-        <div class="kpi-value">{{ fmt(dashboard?.acquisition?.leads_this_month ?? dashboard?.acquisition?.total_leads) }} <span style="font-size:11px;font-weight:400;color:#99a4b5">ราย</span></div>
+        <div class="kpi-value">{{ fmt(dashboard?.acquisition?.leads_this_month ?? dashboard?.acquisition?.total_leads) }} <span style="font-size:14px;font-weight:500;color:#5f6b80">ราย</span></div>
         <div class="kpi-foot">สะสมทั้งหมด {{ fmt(dashboard?.acquisition?.total_leads) }} ร้าน (รออนุมัติ {{ fmt(dashboard?.acquisition?.pending_approval) }})</div>
       </div>
 
@@ -39,7 +39,7 @@
           <span class="tag green">เดือนนี้ {{ fmt(dashboard?.visit_performance?.visits_this_month) }}</span>
         </div>
         <div class="kpi-label">เข้าพบลูกค้าสะสม</div>
-        <div class="kpi-value">{{ fmt(dashboard?.visit_performance?.total_visits) }} <span style="font-size:11px;font-weight:400;color:#99a4b5">ครั้ง</span></div>
+        <div class="kpi-value">{{ fmt(dashboard?.visit_performance?.total_visits) }} <span style="font-size:14px;font-weight:500;color:#5f6b80">ครั้ง</span></div>
         <div class="kpi-foot">เสร็จสิ้นติดตาม {{ fmt(dashboard?.visit_performance?.completed_tasks) }} งาน</div>
       </div>
 
@@ -49,7 +49,7 @@
           <span class="tag orange">ต้องติดตาม</span>
         </div>
         <div class="kpi-label">งานติดตามที่ค้าง</div>
-        <div class="kpi-value">{{ fmt(dashboard?.visit_performance?.open_tasks) }} <span style="font-size:11px;font-weight:400;color:#99a4b5">งาน</span></div>
+        <div class="kpi-value">{{ fmt(dashboard?.visit_performance?.open_tasks) }} <span style="font-size:14px;font-weight:500;color:#5f6b80">งาน</span></div>
         <div class="kpi-foot">ข้อมูลขั้นต่ำรอเติม {{ fmt(dashboard?.acquisition?.minimal_drafts) }} ร้าน</div>
       </div>
 
@@ -59,7 +59,7 @@
           <span class="tag blue">BPLUS ERP</span>
         </div>
         <div class="kpi-label">ยอดซื้อสุทธิจริงก่อน VAT ({{ conversionRate }}% ผูกเป็น ERP)</div>
-        <div class="kpi-value">{{ fmt(dashboard?.sales_kpis?.net_sales_before_vat ?? dashboard?.posted_sales_net) }} <span style="font-size:11px;font-weight:400;color:#99a4b5">฿</span></div>
+        <div class="kpi-value">{{ fmt(dashboard?.sales_kpis?.net_sales_before_vat ?? dashboard?.posted_sales_net) }} <span style="font-size:14px;font-weight:500;color:#5f6b80">฿</span></div>
         <div class="kpi-foot">ลูกค้า ERP {{ fmt(dashboard?.customers) }} ราย · บิลขาย {{ fmt(dashboard?.posted_invoices) }} ใบ · คืน/ลดหนี้ 308: {{ fmt(dashboard?.sales_kpis?.return_308_before_vat) }} ฿</div>
       </div>
     </div>

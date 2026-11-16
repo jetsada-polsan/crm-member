@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">FIELD TERRITORY MAP</div>
-        <h2>แผนที่ร้านค้า &amp; ปักหมุด GPS</h2>
-        <p>คลิกเลือกจุดบนแผนที่หรือใช้ GPS เพื่อผูกพิกัดให้ลูกค้า ERP หรือ Lead (ข้อมูล GPS ไม่ถูก Sync ERP เขียนทับ)</p>
+        <h2>แผนที่ร้านค้า</h2>
+        <p>ดูร้านบนแผนที่ และปักหมุดตำแหน่งร้านด้วย GPS</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn light" @click="getGps">📍 รับพิกัด GPS ปัจจุบัน</button>

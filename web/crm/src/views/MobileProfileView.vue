@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">MOBILE / IPAD FIELD OPS &amp; PROFILE</div>
-        <h2>Mobile / iPad Field App &amp; Offline Sync</h2>
-        <p>ศูนย์ปฏิบัติการภาคสนามสำหรับมือถือ/แท็บเล็ต ปุ่มด่วนขนาดใหญ่, Offline Draft Queue และข้อมูลพนักงาน</p>
+        <h2>โปรไฟล์ &amp; ข้อมูลค้างส่ง</h2>
+        <p>ข้อมูลของคุณ ปุ่มลัดงานออกตลาด และรายการที่บันทึกไว้ตอนไม่มีเน็ต</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านใหม่</button>
@@ -100,7 +100,7 @@ import {
 async function confirmLogout() {
   const ok = await askConfirm({
     title: 'ออกจากระบบ',
-    message: 'ต้องการออกจากระบบ Popstar CRM หรือไม่?',
+    message: 'ต้องการออกจากระบบ POPSTAR Connect หรือไม่?',
     confirmLabel: 'ออกจากระบบ',
     tone: 'danger',
   });

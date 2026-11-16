@@ -4,7 +4,7 @@
       <div>
         <div class="eyebrow">ROUTE PLANS</div>
         <h2>แผนออกตลาดประจำวัน</h2>
-        <p>จัดการเส้นทางออกตลาดสำหรับทีมขายภาคสนาม</p>
+        <p>วางแผนร้านที่ต้องไปเยี่ยมในแต่ละวัน</p>
       </div>
       <div v-if="isManager" class="head-actions">
         <button type="button" class="btn primary" @click="modalOpen = true">＋ สร้างแผนออกตลาด</button>

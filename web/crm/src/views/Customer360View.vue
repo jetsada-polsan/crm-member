@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">CUSTOMER 360° WORKSPACE</div>
-        <h2>Customer 360° &amp; Identity Architecture</h2>
-        <p>รวมข้อมูลจาก 4 ฐานแยกส่วนชัดเจน: Internal Master · Bplus ERP (Read-Only) · CRM Lead · Member Account</p>
+        <h2>ข้อมูลลูกค้าแบบละเอียด</h2>
+        <p>ดูข้อมูลร้าน ยอดซื้อใน ERP ประวัติเข้าพบ และสถานะสมาชิกได้ในหน้าเดียว</p>
       </div>
       <div class="head-actions">
         <RouterLink to="/customers" class="btn">← กลับทะเบียนลูกค้า</RouterLink>

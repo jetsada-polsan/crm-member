@@ -18,8 +18,8 @@
         <div class="logo">
           <div class="logo-mark">P</div>
           <div>
-            <h1>POPSTAR</h1>
-            <small>Member Portal v4</small>
+            <h1>POPSTAR <span>Connect</span></h1>
+            <small>สมาชิก &amp; สะสมแต้ม</small>
           </div>
         </div>
 
@@ -46,8 +46,7 @@
           </div>
           <button
             type="button"
-            class="close"
-            style="background:#223250;color:#fff;width:32px;height:32px;font-size:13px"
+            class="logout-btn"
             aria-label="ออกจากระบบ"
             @click="handleLogout"
           >
@@ -66,10 +65,12 @@
           >
             ☰
           </button>
+          <h1 class="topbar-title">{{ route.meta?.label || 'สมาชิก POPSTAR' }}</h1>
           <div class="breadcrumb">
-            Popstar Member / <strong>{{ route.meta?.label || 'พอร์ทัลสมาชิก' }}</strong>
+            POPSTAR Connect · สมาชิก / <strong>{{ route.meta?.label || 'หน้าหลัก' }}</strong>
           </div>
           <div class="grow"></div>
+          <button type="button" class="topbtn mobile-only-sync" aria-label="ออกจากระบบ" @click="handleLogout">⏻</button>
           <div class="profile">
             <div class="avatar">{{ userInitial }}</div>
             <div>
@@ -88,7 +89,7 @@
             </Transition>
           </RouterView>
           <footer class="footer">
-            Popstar Member Portal · แยกบัญชีสมาชิกออกจาก CRM Staff และต้องยืนยันสิทธิ์ก่อนเปิดข้อมูล ERP
+            POPSTAR Connect · สะสมแต้ม ดูยอดซื้อ และแลกของรางวัลได้ในที่เดียว
           </footer>
         </main>
       </div>
@@ -172,7 +173,7 @@ async function handleMemberRegister(payload) {
 async function handleLogout() {
   const ok = await askConfirm({
     title: 'ยืนยันการออกจากระบบ',
-    message: 'ต้องการออกจากระบบ Popstar Member Portal ใช่หรือไม่?',
+    message: 'ต้องการออกจากระบบสมาชิก POPSTAR Connect ใช่หรือไม่?',
     confirmLabel: 'ออกจากระบบ',
   });
   if (!ok) return;

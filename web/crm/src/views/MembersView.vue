@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">MEMBER REGISTRY &amp; VERIFICATION</div>
-        <h2>สมาชิก &amp; Member Verification Queue</h2>
-        <p>จัดการบัญชี Member Portal, ตรวจคำขอเชื่อมบัญชีร้านค้า ERP และควบคุมสิทธิ์เข้าถึงข้อมูลบิลและแต้ม</p>
+        <h2>ทะเบียนสมาชิก</h2>
+        <p>ดูบัญชีสมาชิก ตรวจคำขอผูกร้าน และอนุญาตให้ดูบิลและแต้ม</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>

@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">ACQUISITION PIPELINE</div>
-        <h2>โอกาสการขาย &amp; Lead Pipeline</h2>
-        <p>ย้ายสถานะแบบทันที (Optimistic UI พร้อมคืนค่าอัตโนมัติหากผิดพลาด) และคลิกดู/แก้ไขใน Drawer</p>
+        <h2>โอกาสการขาย</h2>
+        <p>ติดตามร้านใหม่ทีละขั้น ตั้งแต่ติดต่อครั้งแรกจนเปิดรหัสใน ERP</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn primary" @click="openQuickAdd()">＋ เพิ่มร้านค้าใหม่</button>
@@ -34,7 +34,7 @@
             <span class="tag" :class="stageTagClass(l.pipeline_stage)">{{ stageLabel(l.pipeline_stage) }}</span>
             <select
               :value="l.pipeline_stage"
-              style="font-size:11px;padding:4px 6px;border-radius:7px;border:1px solid var(--border)"
+              style="font-size:14px;padding:6px 10px;min-height:40px;border-radius:10px;border:1px solid var(--border);background:#fff"
               @click.stop
               @change.stop="moveStage(l, $event.target.value)"
             >
@@ -48,7 +48,7 @@
             <button
               type="button"
               class="btn light"
-              style="width:100%;font-size:11px;padding:5px 8px"
+              style="width:100%;font-size:14px;padding:8px 10px"
               @click.stop="requestErp(l)"
             >
               📨 ขอเปิดบัญชี ERP

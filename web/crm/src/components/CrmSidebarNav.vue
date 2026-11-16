@@ -264,26 +264,26 @@ function toggleExpandAll() {
 .navsearch-icon {
   position: absolute;
   left: 10px;
-  font-size: 12px;
+  font-size: 14px;
   opacity: 0.72;
   pointer-events: none;
 }
 
 .navsearch-input {
   width: 100%;
-  min-height: 36px;
-  padding: 7px 30px 7px 30px;
+  min-height: 44px;
+  padding: 9px 36px 9px 36px;
   border-radius: 10px;
   border: 1px solid rgba(148, 173, 219, 0.22);
   background: rgba(255, 255, 255, 0.06);
   color: #f8fbff;
-  font-size: 12px;
+  font-size: 15px;
   outline: none;
   transition: border-color 0.16s ease, background 0.16s ease;
 }
 
 .navsearch-input::placeholder {
-  color: #879bc0;
+  color: #9aaccd;
 }
 
 .navsearch-input:focus {
@@ -294,9 +294,9 @@ function toggleExpandAll() {
 .navsearch-clear {
   position: absolute;
   right: 5px;
-  width: 26px;
-  height: 26px;
-  min-height: 26px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
   padding: 0;
   border: 0;
   border-radius: 7px;
@@ -312,18 +312,18 @@ function toggleExpandAll() {
   align-items: center;
   justify-content: space-between;
   padding: 0 4px;
-  font-size: 10.5px;
-  color: #7c92ba;
+  font-size: 12.5px;
+  color: #9aaccd;
 }
 
 .nav-expand-btn {
   border: 0;
   background: transparent;
-  color: #8eb3ff;
-  font-size: 11px;
+  color: #a9c4ff;
+  font-size: 13px;
   font-weight: 500;
-  padding: 2px 6px;
-  min-height: 26px;
+  padding: 4px 8px;
+  min-height: 32px;
   border-radius: 6px;
 }
 
@@ -354,8 +354,8 @@ function toggleExpandAll() {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 9px;
-  min-height: 36px;
+  padding: 10px 10px;
+  min-height: 44px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -370,7 +370,7 @@ function toggleExpandAll() {
 }
 
 .navgroup-icon {
-  font-size: 13px;
+  font-size: 16px;
   width: 18px;
   text-align: center;
   flex-shrink: 0;
@@ -379,9 +379,9 @@ function toggleExpandAll() {
 .navgroup-title {
   flex: 1;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -397,7 +397,7 @@ function toggleExpandAll() {
 }
 
 .navgroup-count {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: #93a7cb;
   background: rgba(255, 255, 255, 0.08);
@@ -407,7 +407,7 @@ function toggleExpandAll() {
 }
 
 .navgroup-chevron {
-  font-size: 11px;
+  font-size: 13px;
   color: #8ea3c9;
   transition: transform 0.18s ease;
   transform: rotate(-90deg);
@@ -426,15 +426,16 @@ function toggleExpandAll() {
 }
 
 .navgroup-items :deep(.navitem) {
-  padding: 8px 10px;
-  font-size: 12.5px;
-  border-radius: 9px;
-  gap: 9px;
+  padding: 10px 11px;
+  font-size: 15px;
+  border-radius: 10px;
+  gap: 11px;
+  min-height: 44px;
 }
 
 .navgroup-items :deep(.ni) {
-  font-size: 15px;
-  width: 20px;
+  font-size: 18px;
+  width: 24px;
 }
 
 .navitem-label {
@@ -446,8 +447,8 @@ function toggleExpandAll() {
 }
 
 .navbadge {
-  padding: 2px 7px;
-  font-size: 10px;
+  padding: 2px 8px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
@@ -456,8 +457,8 @@ function toggleExpandAll() {
   padding: 18px 10px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
-  color: #8fa2c5;
-  font-size: 12px;
+  color: #a8b8d6;
+  font-size: 14px;
 }
 
 .navempty p {
@@ -467,7 +468,7 @@ function toggleExpandAll() {
 @media (max-width: 1024px) {
   .navgroup-toggle,
   .navgroup-items :deep(.navitem) {
-    min-height: 40px;
+    min-height: 48px;
   }
 }
 </style>

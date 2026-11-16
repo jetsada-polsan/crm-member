@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">BPLUS LOCAL BRIDGE</div>
-        <h2>สถานะการเชื่อมต่อ ERP BPLUS</h2>
-        <p>อ่านข้อมูลแบบ Read-Only SELECT-Only ผ่าน Local VPN Bridge (ไม่ทับพิกัด GPS และภาพ CRM)</p>
+        <h2>สถานะดึงข้อมูล ERP</h2>
+        <p>ตรวจการเชื่อมต่อกับ Bplus (อ่านข้อมูลอย่างเดียว ไม่แก้ข้อมูลใน ERP)</p>
       </div>
       <div v-if="isManager" class="head-actions">
         <button type="button" class="btn" :disabled="busy" @click="runAction('/sync-monitor/test-connection', 'ทดสอบ SQL Auth')">

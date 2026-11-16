@@ -4,7 +4,7 @@
       <span class="small">{{ label || 'กำลังอัปโหลดหลักฐาน...' }}</span>
       <div style="display:flex;align-items:center;gap:8px">
         <strong class="small">{{ percent }}%</strong>
-        <button v-if="cancellable" type="button" class="btn danger" style="padding:3px 9px;font-size:11px" @click="$emit('cancel')">
+        <button v-if="cancellable" type="button" class="btn danger" style="padding:6px 12px;font-size:13.5px;min-height:36px" @click="$emit('cancel')">
           ยกเลิก
         </button>
       </div>

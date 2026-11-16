@@ -156,7 +156,7 @@
           สมัครสมาชิกใหม่ →
         </button>
       </template>
-      <br />POPSTAR Business Platform · Protected Auth Guards
+      <br />POPSTAR Connect · ทีมขาย &amp; สมาชิก
     </p>
   </div>
 </template>

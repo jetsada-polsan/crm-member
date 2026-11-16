@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">IDENTITY &amp; VERIFICATION</div>
-        <h2>ผูกบัญชี LINE &amp; ร้านค้า ERP</h2>
-        <p>การจับคู่เบอร์โทรหรือชื่อร้านไม่เปิดข้อมูล ERP อัตโนมัติ — ต้องผ่านการยืนยันตัวตนจากทีม Popstar</p>
+        <h2>ผูกบัญชี LINE &amp; ร้านค้า</h2>
+        <p>ยืนยันว่าคุณเป็นเจ้าของร้าน เพื่อดูยอดซื้อและสะสมแต้ม (ทีม POPSTAR ตรวจสอบให้)</p>
       </div>
     </div>
 

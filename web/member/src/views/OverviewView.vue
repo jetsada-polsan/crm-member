@@ -2,9 +2,9 @@
   <div>
     <div class="pagehead">
       <div>
-        <div class="eyebrow">POPSTAR MEMBER PORTAL</div>
+        <div class="eyebrow">POPSTAR CONNECT · สมาชิก</div>
         <h2>ภาพรวมสมาชิก</h2>
-        <p>แสดงสถานะการยืนยันตัวตน ยอดซื้อจาก Bplus ERP และคะแนนสะสมของคุณ</p>
+        <p>สถานะบัญชี ยอดซื้อ และแต้มสะสมของคุณ</p>
       </div>
       <div class="head-actions">
         <RouterLink to="/binding" class="btn light">🔗 จัดการยืนยันร้านค้า &amp; LINE</RouterLink>
@@ -39,7 +39,7 @@
     <div class="dash-grid" style="margin-bottom:18px">
       <div class="digital-member-card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span class="small" style="opacity:.85">บัตรสมาชิกดิจิทัล POPSTAR</span>
+          <span class="small" style="opacity:.85">บัตรสมาชิก POPSTAR Connect</span>
           <span class="tag" style="background:rgba(255,255,255,.18);color:#fff">
             {{ isMemberVerified ? '✓ Verified Member' : 'รอการยืนยันสิทธิ์' }}
           </span>

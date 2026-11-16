@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">CUSTOMER DIRECTORY</div>
-        <h2>ทะเบียนลูกค้า &amp; Customer Master</h2>
-        <p>ค้นหาลูกค้าแบบ Server-side Pagination พร้อมแยกตัวตน ERP, CRM Lead และ Member ชัดเจน</p>
+        <h2>ทะเบียนลูกค้า</h2>
+        <p>ค้นหาร้านค้าทั้งหมด ทั้งลูกค้าใน ERP ร้านใหม่ และสมาชิก</p>
       </div>
       <div class="head-actions">
         <button v-if="isManager" type="button" class="btn" @click="openWorkflow('requests')">คำขอเปิดรหัส ERP</button>

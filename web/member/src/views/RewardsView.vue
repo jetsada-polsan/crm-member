@@ -4,7 +4,7 @@
       <div>
         <div class="eyebrow">LOYALTY REWARDS</div>
         <h2>แลกของรางวัล</h2>
-        <p>ใช้คะแนนสะสมแลกสิทธิพิเศษและตรวจสอบคูปองรางวัลของคุณ</p>
+        <p>ใช้แต้มแลกของรางวัล และดูคูปองของคุณ</p>
       </div>
       <div class="card" style="padding:10px 16px;display:inline-flex;align-items:center;gap:8px">
         <span>คะแนนของคุณ:</span>

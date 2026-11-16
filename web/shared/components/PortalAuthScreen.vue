@@ -52,7 +52,7 @@ const headerCopy = computed(() => {
   if (props.loading) {
     return {
       title: 'กำลังตรวจสอบสิทธิ์',
-      subtitle: 'กำลังตรวจสอบสถานะเซสชันของคุณบนระบบ POPSTAR...',
+      subtitle: 'กำลังตรวจสอบสถานะเซสชันของคุณบน POPSTAR Connect...',
     };
   }
   if (showRegister.value) {

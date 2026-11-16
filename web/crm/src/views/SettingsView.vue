@@ -3,8 +3,8 @@
     <div class="pagehead">
       <div>
         <div class="eyebrow">SECURITY &amp; ACCESS CONTROL</div>
-        <h2>Settings &amp; Access Control Overview</h2>
-        <p>ตรวจสอบสิทธิ์ผู้ใช้งาน CRM (Staff Roles), สถานะความปลอดภัยและการแยกฐานข้อมูล รวมถึง Audit Log ล่าสุด (ไม่แสดงรหัสผ่านหรือ Token ลับ)</p>
+        <h2>ตั้งค่า &amp; ผู้ใช้งาน</h2>
+        <p>สิทธิ์ผู้ใช้งาน สถานะระบบ และประวัติการใช้งานล่าสุด</p>
       </div>
       <div class="head-actions">
         <button type="button" class="btn" @click="refetch">⟳ รีเฟรช</button>

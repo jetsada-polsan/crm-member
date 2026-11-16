@@ -20,8 +20,8 @@
         <div class="logo">
           <div class="logo-mark">P</div>
           <div>
-            <h1>POPSTAR</h1>
-            <small>CRM &amp; Field Sales v4</small>
+            <h1>POPSTAR <span>Connect</span></h1>
+            <small>ทีมขาย &amp; ออกตลาด</small>
           </div>
         </div>
 
@@ -41,8 +41,7 @@
           </div>
           <button
             type="button"
-            class="close"
-            style="background:#223250;color:#fff;width:32px;height:32px;font-size:13px"
+            class="logout-btn"
             title="ออกจากระบบ"
             aria-label="ออกจากระบบ"
             @click="handleLogout"
@@ -62,12 +61,13 @@
           >
             ☰
           </button>
+          <h1 class="topbar-title">{{ pageTitle }}</h1>
           <div class="breadcrumb">
-            Popstar CRM
+            POPSTAR Connect
             <template v-if="activeNavMeta?.group?.title">
               / <span class="muted">{{ activeNavMeta.group.title }}</span>
             </template>
-            / <strong>{{ route.meta?.label || activeNavMeta?.item?.label || 'Workspace' }}</strong>
+            / <strong>{{ pageTitle }}</strong>
           </div>
           <div class="grow"></div>
 
@@ -81,18 +81,30 @@
             <kbd>Ctrl K</kbd>
           </button>
 
+          <div class="topbar-actions">
+            <button
+              v-if="offlineDrafts.length"
+              type="button"
+              class="btn light"
+              :disabled="offlineSyncing"
+              @click="syncPendingOfflineDrafts"
+            >
+              ☁️ ซิงค์ ({{ offlineDrafts.length }})
+            </button>
+            <button type="button" class="btn light" @click="openQuickAdd">+ เพิ่มร้าน</button>
+            <button type="button" class="btn primary" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
+          </div>
+
           <button
             v-if="offlineDrafts.length"
             type="button"
-            class="btn light"
+            class="topbtn mobile-only-sync"
             :disabled="offlineSyncing"
+            :aria-label="`ซิงค์ข้อมูลค้างส่ง ${offlineDrafts.length} รายการ`"
             @click="syncPendingOfflineDrafts"
           >
-            ☁️ ซิงค์ ({{ offlineDrafts.length }})
+            ☁️
           </button>
-
-          <button type="button" class="btn light" @click="openQuickAdd">+ เพิ่มร้าน</button>
-          <button type="button" class="btn primary" @click="openVisitWizard()">📸 เข้าพบ</button>
 
           <div class="profile">
             <div class="avatar">{{ userInitial }}</div>
@@ -112,100 +124,91 @@
             </Transition>
           </RouterView>
           <footer class="footer">
-            Popstar Business Platform · Vue Router + TanStack Query · Bplus ERP Read-Only Mirror Isolation
+            POPSTAR Connect · เชื่อมทีมขาย ร้านค้า และสมาชิก ไว้ในที่เดียว
           </footer>
         </main>
       </div>
 
-      <!-- Mobile 5-Tab Bottom Navigation (<800px) -->
-      <nav class="mobile-nav" aria-label="เมนูด่วนมือถือ">
+      <!-- Bottom tab bar for phones & tablets (<=1024px) -->
+      <nav class="mobile-nav" aria-label="เมนูหลักบนมือถือ">
         <RouterLink to="/dashboard" class="mobile-nav-item" active-class="active">
-          <span class="mni">🏠</span>
+          <span class="mni" aria-hidden="true">🏠</span>
           <span>หน้าหลัก</span>
         </RouterLink>
         <RouterLink to="/customers" class="mobile-nav-item" active-class="active">
-          <span class="mni">🏪</span>
+          <span class="mni" aria-hidden="true">🏪</span>
           <span>ลูกค้า</span>
         </RouterLink>
-        <button type="button" class="mobile-nav-item" @click="openQuickAdd">
-          <span class="mni" style="color:var(--blue);font-size:21px">➕</span>
-          <span style="color:var(--blue);font-weight:600">เพิ่มร้าน</span>
+        <button
+          type="button"
+          class="mobile-nav-item mobile-nav-main"
+          aria-label="งานด่วน: เพิ่มร้าน บันทึกเข้าพบ"
+          @click="mobileQuickOpen = true"
+        >
+          <span class="mni" aria-hidden="true">＋</span>
+          <span>งานด่วน</span>
         </button>
         <RouterLink to="/visits" class="mobile-nav-item" active-class="active">
-          <span class="mni">📸</span>
-          <span>งานออกตลาด</span>
+          <span class="mni" aria-hidden="true">📍</span>
+          <span>ออกตลาด</span>
         </RouterLink>
-        <RouterLink to="/profile" class="mobile-nav-item" active-class="active">
-          <span class="mni">👤</span>
-          <span>โปรไฟล์</span>
-        </RouterLink>
+        <button
+          type="button"
+          :class="['mobile-nav-item', { active: sidebarOpen }]"
+          aria-label="เปิดเมนูทั้งหมด"
+          @click="sidebarOpen = true"
+        >
+          <span class="mni" aria-hidden="true">☰</span>
+          <span>เมนู</span>
+        </button>
       </nav>
 
-      <!-- Mobile Floating Field Action Shortcut -->
-      <button
-        type="button"
-        class="fab-add"
-        aria-label="ทางลัดงานออกตลาด"
-        @click="mobileQuickOpen = true"
-      >
-        +
-      </button>
-
-      <!-- Mobile Quick Action Sheet -->
+      <!-- Quick actions sheet (center button of the bottom bar) -->
       <MobileBottomSheet
         :open="mobileQuickOpen"
-        title="ทางลัดออกตลาดภาคสนาม"
+        title="งานด่วน"
         @close="mobileQuickOpen = false"
       >
-        <div style="display:grid;gap:10px">
-          <button
-            type="button"
-            class="btn primary"
-            style="min-height:48px;justify-content:flex-start"
-            @click="runMobileAction(openQuickAdd)"
-          >
-            ➕ เพิ่มร้านค้าใหม่ (Quick Add)
+        <div class="quick-grid">
+          <button type="button" class="quick-tile primary" @click="runMobileAction(() => openVisitWizard())">
+            <span class="quick-icon" aria-hidden="true">📸</span>
+            <strong>บันทึกเข้าพบ</strong>
+            <small>ถ่ายรูป + พิกัด GPS</small>
           </button>
-          <button
-            type="button"
-            class="btn light"
-            style="min-height:48px;justify-content:flex-start"
-            @click="runMobileAction(() => openVisitWizard())"
-          >
-            📸 บันทึกหลักฐานการเข้าพบ (Visit Evidence)
+          <button type="button" class="quick-tile" @click="runMobileAction(openQuickAdd)">
+            <span class="quick-icon" aria-hidden="true">➕</span>
+            <strong>เพิ่มร้านใหม่</strong>
+            <small>ตรวจชื่อ/เบอร์ซ้ำให้</small>
           </button>
-          <button
-            type="button"
-            class="btn"
-            style="min-height:48px;justify-content:flex-start"
-            @click="runMobileAction(() => router.push('/map'))"
-          >
-            🗺️ แผนที่ร้านค้า &amp; ปักหมุด GPS
+          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/plans'))">
+            <span class="quick-icon" aria-hidden="true">📅</span>
+            <strong>แผนวันนี้</strong>
+            <small>ร้านที่ต้องไปเยี่ยม</small>
           </button>
-          <button
-            type="button"
-            class="btn"
-            style="min-height:48px;justify-content:flex-start"
-            @click="runMobileAction(() => router.push('/plans'))"
-          >
-            📅 แผนออกตลาดวันนี้
+          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/followups'))">
+            <span class="quick-icon" aria-hidden="true">✅</span>
+            <strong>งานติดตาม</strong>
+            <small>งานค้าง / นัดหมาย</small>
           </button>
-          <button
-            type="button"
-            class="btn"
-            style="min-height:48px;justify-content:flex-start"
-            @click="runMobileAction(() => router.push('/followups'))"
-          >
-            ✅ งานติดตามผล (Follow-ups)
+          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/map'))">
+            <span class="quick-icon" aria-hidden="true">🗺️</span>
+            <strong>แผนที่ร้าน</strong>
+            <small>ร้านใกล้ตัว</small>
+          </button>
+          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/pipeline'))">
+            <span class="quick-icon" aria-hidden="true">🎯</span>
+            <strong>โอกาสการขาย</strong>
+            <small>สถานะลูกค้าใหม่</small>
           </button>
           <button
             v-if="offlineDrafts.length"
             type="button"
-            class="btn light"
-            style="min-height:48px;justify-content:flex-start"
+            class="quick-tile wide"
             @click="runMobileAction(syncPendingOfflineDrafts)"
           >
-            ☁️ ซิงค์ Draft ค้างส่ง ({{ offlineDrafts.length }} รายการ)
+            <span class="quick-icon" aria-hidden="true">☁️</span>
+            <strong>ส่งข้อมูลค้างส่ง ({{ offlineDrafts.length }})</strong>
+            <small>บันทึกตอนไม่มีเน็ต</small>
           </button>
         </div>
       </MobileBottomSheet>
@@ -297,6 +300,10 @@ const activeNavMeta = computed(() =>
   findNavMetaByRouteName(visibleNavGroups.value, String(route.name || ''))
 );
 
+const pageTitle = computed(
+  () => activeNavMeta.value?.item?.label || route.meta?.label || 'POPSTAR Connect'
+);
+
 const commandItems = computed(() => {
   const routes = CRM_ROUTES.filter((r) => r.name && !r.meta?.hiddenInNav && (!r.meta?.adminOnly || isManager.value)).map((r) => {
     const meta = findNavMetaByRouteName(CRM_NAV_GROUPS, r.name);
@@ -363,7 +370,7 @@ async function handleMemberRegister(payload) {
 async function handleLogout() {
   const ok = await askConfirm({
     title: 'ยืนยันการออกจากระบบ',
-    message: 'ต้องการออกจากระบบ Popstar CRM ในเซสชันนี้ใช่หรือไม่?',
+    message: 'ต้องการออกจากระบบ POPSTAR Connect ใช่หรือไม่?',
     confirmLabel: 'ออกจากระบบ',
     cancelLabel: 'อยู่ต่อ',
   });
