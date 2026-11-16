@@ -65,6 +65,7 @@ export const CRM_ROUTES = [
   { path: '/rewards', name: 'rewards', component: viewLoaders.rewards, meta: { label: 'ของรางวัล', adminOnly: true } },
   { path: '/member', name: 'member', component: viewLoaders.member, meta: { label: 'สมาชิก & คะแนน', adminOnly: true, hiddenInNav: true } },
   { path: '/reports', name: 'reports', component: viewLoaders.reports, meta: { label: 'รายงานยอดขาย' } },
+  { path: '/presentation/visits', name: 'visit-presentation', component: () => import('./views/VisitPresentationView.vue'), meta: { label: 'นำเสนอออกตลาด', presentation: true, hiddenInNav: true } },
   { path: '/settings', name: 'settings', component: viewLoaders.settings, meta: { label: 'ตั้งค่า & ผู้ใช้งาน', adminOnly: true } },
   { path: '/more', name: 'more', component: viewLoaders.more, meta: { label: 'เพิ่มเติม', hiddenInNav: true } },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

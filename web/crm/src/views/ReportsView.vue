@@ -13,6 +13,8 @@
       </template>
     </PageHeader>
 
+    <VisitPresentationPanel />
+
     <div class="card panel-pad" style="margin-bottom:16px">
       <div class="head-filter" style="margin-bottom:0">
         <div>
@@ -207,6 +209,7 @@ import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
+import VisitPresentationPanel from '../components/VisitPresentationPanel.vue';
 import { crmGet, crmMutate, fmt, isManager } from '../composables/useCrmSession.js';
 
 const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
