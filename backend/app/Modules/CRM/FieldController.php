@@ -1101,11 +1101,20 @@ final class FieldController
             'l.pinned_at',
             'c.customer_name',
             'c.erp_customer_code',
+            'c.phone as erp_phone',
+            'c.province as erp_province',
+            'c.address as erp_address',
+            'c.salesperson_name as erp_salesperson_name',
             'd.shop_name',
             'd.shop_type',
             'd.pipeline_stage',
             'd.approval_status',
-            'd.converted_erp_customer_id'
+            'd.converted_erp_customer_id',
+            'd.phone as lead_phone',
+            'd.province as lead_province',
+            'd.district as lead_district',
+            'd.address as lead_address',
+            'd.owner_staff_id as lead_owner_staff_id'
         )->limit(1000)->get()->all();
 
         $seen = [];
@@ -1140,11 +1149,20 @@ final class FieldController
                 DB::raw('COALESCE(v.checkin_at, v.visited_at) as pinned_at'),
                 'c.customer_name',
                 'c.erp_customer_code',
+                'c.phone as erp_phone',
+                'c.province as erp_province',
+                'c.address as erp_address',
+                'c.salesperson_name as erp_salesperson_name',
                 'd.shop_name',
                 'd.shop_type',
                 'd.pipeline_stage',
                 'd.approval_status',
-                'd.converted_erp_customer_id'
+                'd.converted_erp_customer_id',
+                'd.phone as lead_phone',
+                'd.province as lead_province',
+                'd.district as lead_district',
+                'd.address as lead_address',
+                'd.owner_staff_id as lead_owner_staff_id'
             )->limit(1000)->get();
 
             foreach ($visitPins as $vp) {
@@ -1163,7 +1181,201 @@ final class FieldController
             }
         }
 
-        return response()->json($pins);
+        return response()->json($this->enrichPinsWithVisitsAndPhotos($pins, $isManager, (int) $this->user()->id));
+    }
+
+    private function enrichPinsWithVisitsAndPhotos(array $pins, bool $isManager, int $userId): array
+    {
+        if ($pins === []) {
+            return [];
+        }
+
+        $erpIds = [];
+        $leadIds = [];
+        $authorizedLeadIds = [];
+        foreach ($pins as $pin) {
+            if ($pin->erp_customer_id !== null) {
+                $erpIds[(int) $pin->erp_customer_id] = true;
+            }
+            if ($pin->crm_lead_id !== null) {
+                $leadId = (int) $pin->crm_lead_id;
+                $leadIds[$leadId] = true;
+                if ($isManager || (int) ($pin->lead_owner_staff_id ?? 0) === $userId) {
+                    $authorizedLeadIds[$leadId] = true;
+                }
+            }
+        }
+
+        $visitCountByKey = [];
+        $latestVisitByKey = [];
+        $visitPinKeys = [];
+
+        if ($erpIds !== [] || $leadIds !== []) {
+            $visits = DB::table('crm_customer_visits as v')
+                ->leftJoin('staff_users as s', 's.id', '=', 'v.staff_user_id')
+                ->where(function ($w) use ($erpIds, $leadIds): void {
+                    if ($erpIds !== []) {
+                        $w->orWhereIn('v.erp_customer_id', array_keys($erpIds));
+                    }
+                    if ($leadIds !== []) {
+                        $w->orWhereIn('v.crm_lead_id', array_keys($leadIds));
+                    }
+                })
+                ->when(! $isManager, fn ($q) => $q->where('v.staff_user_id', $userId))
+                ->select(
+                    'v.id',
+                    'v.erp_customer_id',
+                    'v.crm_lead_id',
+                    'v.visited_at',
+                    'v.checkin_at',
+                    'v.result',
+                    'v.note',
+                    'v.follow_up_action',
+                    'v.follow_up_date',
+                    'v.supplier_name',
+                    'v.product_types',
+                    's.name as staff_name'
+                )
+                ->orderByDesc('v.visited_at')
+                ->orderByDesc('v.id')
+                ->limit(2000)
+                ->get();
+
+            foreach ($visits as $v) {
+                $keys = [];
+                if ($v->erp_customer_id !== null) {
+                    $keys[] = 'erp:'.$v->erp_customer_id;
+                }
+                if ($v->crm_lead_id !== null) {
+                    $keys[] = 'lead:'.$v->crm_lead_id;
+                }
+                foreach ($keys as $k) {
+                    $visitCountByKey[$k] = ($visitCountByKey[$k] ?? 0) + 1;
+                    if (! isset($latestVisitByKey[$k])) {
+                        $latestVisitByKey[$k] = [
+                            'id' => (int) $v->id,
+                            'visited_at' => $v->visited_at,
+                            'checkin_at' => $v->checkin_at,
+                            'result' => $v->result,
+                            'staff_name' => $v->staff_name,
+                            'note' => $v->note,
+                            'follow_up_action' => $v->follow_up_action,
+                            'follow_up_date' => $v->follow_up_date,
+                            'supplier_name' => $v->supplier_name,
+                            'product_types' => $v->product_types,
+                        ];
+                    }
+                    $visitPinKeys[(int) $v->id][] = $k;
+                }
+            }
+        }
+
+        $photosByKey = [];
+        $appendPhoto = static function (string $key, array $photo) use (&$photosByKey): void {
+            $dedup = $photo['kind'].':'.$photo['id'];
+            $photosByKey[$key][$dedup] = $photo;
+        };
+
+        if ($visitPinKeys !== []) {
+            $visitPhotos = DB::table('crm_visit_photos')
+                ->whereIn('visit_id', array_keys($visitPinKeys))
+                ->orderByDesc('captured_at')
+                ->orderByDesc('id')
+                ->limit(3000)
+                ->get();
+
+            foreach ($visitPhotos as $p) {
+                $item = [
+                    'id' => (int) $p->id,
+                    'kind' => 'visit',
+                    'url' => "/api/crm/photos/{$p->id}?inline=1",
+                    'category' => $p->category,
+                    'captured_at' => $p->captured_at ?? $p->created_at,
+                    'consent_confirmed' => (bool) $p->consent_confirmed,
+                    'compressed_on_client' => (bool) ($p->compressed_on_client ?? false),
+                    'latitude' => $p->latitude,
+                    'longitude' => $p->longitude,
+                    'visit_id' => (int) $p->visit_id,
+                ];
+                foreach ($visitPinKeys[(int) $p->visit_id] ?? [] as $k) {
+                    $appendPhoto($k, $item);
+                }
+            }
+        }
+
+        if ($authorizedLeadIds !== []) {
+            $leadPhotos = DB::table('crm_lead_photos')
+                ->whereIn('crm_lead_id', array_keys($authorizedLeadIds))
+                ->orderByDesc('captured_at')
+                ->orderByDesc('id')
+                ->limit(2000)
+                ->get();
+
+            foreach ($leadPhotos as $p) {
+                $appendPhoto('lead:'.$p->crm_lead_id, [
+                    'id' => (int) $p->id,
+                    'kind' => 'lead',
+                    'url' => "/api/crm/lead-photos/{$p->id}?inline=1",
+                    'category' => $p->category,
+                    'captured_at' => $p->captured_at ?? $p->created_at,
+                    'consent_confirmed' => (bool) $p->consent_confirmed,
+                    'compressed_on_client' => (bool) ($p->compressed_on_client ?? false),
+                    'latitude' => $p->latitude,
+                    'longitude' => $p->longitude,
+                    'crm_lead_id' => (int) $p->crm_lead_id,
+                ]);
+            }
+        }
+
+        foreach ($pins as $pin) {
+            $keys = [];
+            if ($pin->erp_customer_id !== null) {
+                $keys[] = 'erp:'.$pin->erp_customer_id;
+            }
+            if ($pin->crm_lead_id !== null) {
+                $keys[] = 'lead:'.$pin->crm_lead_id;
+            }
+
+            $latestVisit = null;
+            $visitCount = 0;
+            $mergedPhotos = [];
+            foreach ($keys as $k) {
+                $visitCount = max($visitCount, $visitCountByKey[$k] ?? 0);
+                if ($latestVisit === null && isset($latestVisitByKey[$k])) {
+                    $latestVisit = $latestVisitByKey[$k];
+                }
+                foreach ($photosByKey[$k] ?? [] as $dedup => $photo) {
+                    $mergedPhotos[$dedup] = $photo;
+                }
+            }
+
+            $photoList = array_values($mergedPhotos);
+            usort($photoList, static fn ($a, $b) => strcmp((string) ($b['captured_at'] ?? ''), (string) ($a['captured_at'] ?? '')) ?: ($b['id'] <=> $a['id']));
+
+            $pin->phone = $pin->erp_phone ?? $pin->lead_phone ?? null;
+            $pin->province = $pin->erp_province ?? $pin->lead_province ?? null;
+            $pin->district = $pin->lead_district ?? null;
+            $pin->shop_address = $pin->address ?? $pin->lead_address ?? $pin->erp_address ?? null;
+            $pin->salesperson_name = $pin->erp_salesperson_name ?? null;
+            $pin->visit_count = $visitCount;
+            $pin->latest_visit = $latestVisit;
+            $pin->photo_count = count($photoList);
+            $pin->photos = array_slice($photoList, 0, 12);
+
+            unset(
+                $pin->erp_phone,
+                $pin->erp_province,
+                $pin->erp_address,
+                $pin->erp_salesperson_name,
+                $pin->lead_phone,
+                $pin->lead_province,
+                $pin->lead_district,
+                $pin->lead_address,
+                $pin->lead_owner_staff_id
+            );
+        }
+
+        return $pins;
     }
 
     public function storePin(Request $r): JsonResponse

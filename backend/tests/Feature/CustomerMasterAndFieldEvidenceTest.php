@@ -259,12 +259,17 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->postJson('/api/crm/field-visits', $payload)->assertStatus(403);
         $this->postJson('/api/crm/field-visits', [...$payload, 'erp_customer_id' => $otherErpId])->assertStatus(409);
 
-        // Visit check-in GPS auto-saved to crm_customer_locations and exposed to owning rep on /api/crm/pins
+        // Visit check-in GPS auto-saved to crm_customer_locations and exposed with latest visit & authorized photos on /api/crm/pins
         $this->actingAs($rep, 'staff');
         $repPins = $this->getJson('/api/crm/pins')->assertOk()->json();
         $this->assertCount(1, $repPins);
         $this->assertSame($erpId, (int) $repPins[0]['erp_customer_id']);
         $this->assertSame(13.7563, round((float) $repPins[0]['latitude'], 4));
+        $this->assertSame(1, (int) $repPins[0]['visit_count']);
+        $this->assertSame($visitId, (int) $repPins[0]['latest_visit']['id']);
+        $this->assertSame(1, (int) $repPins[0]['photo_count']);
+        $this->assertCount(1, $repPins[0]['photos']);
+        $this->assertSame("/api/crm/photos/{$photoRes['id']}?inline=1", $repPins[0]['photos'][0]['url']);
 
         // Legacy/historical visit rows with GPS (without crm_customer_locations row) also appear for authorized staff
         DB::table('crm_customer_visits')->insert([
@@ -296,10 +301,15 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         ])->assertStatus(201);
         $updatedPins = $this->getJson('/api/crm/pins')->assertOk()->json();
         $this->assertSame(15.2287, round((float) $updatedPins[0]['latitude'], 4));
+        $this->assertSame(2, (int) $updatedPins[0]['visit_count']);
 
-        // Manager sees both pinned locations and unpinned historical visit check-in GPS
+        // Manager sees both pinned locations + visit photos across reps
         $mgr = $this->createStaff('manager');
         $this->actingAs($mgr, 'staff');
-        $this->assertCount(2, $this->getJson('/api/crm/pins')->assertOk()->json());
+        $mgrPins = $this->getJson('/api/crm/pins')->assertOk()->json();
+        $this->assertCount(2, $mgrPins);
+        $erpPin = collect($mgrPins)->firstWhere('erp_customer_id', $erpId);
+        $this->assertSame(1, (int) $erpPin['photo_count']);
+        $this->get($erpPin['photos'][0]['url'])->assertOk();
     }
 }
