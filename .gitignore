@@ -1,0 +1,21 @@
+.env
+.env.*
+!.env.example
+/sync-agent/config.env
+/vendor/
+/node_modules/
+**/dist/
+*.sqlite3
+*.db
+__pycache__/
+*.pyc
+.DS_Store
+storage/logs/*.log
+
+# local Windows setup
+.pgpass-setup.txt
+**/.pgpass-setup.txt
+setup-log.txt
+*.bak-docker
+_docker_backup/
+/backend/storage/logs/*.log

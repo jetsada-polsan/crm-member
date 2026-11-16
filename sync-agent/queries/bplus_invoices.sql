@@ -1,0 +1,133 @@
+-- Read-only SELECT query mapped from Bplus ERP DOCINFO + DOCTYPE + ARDETAIL/AROE + TRANSTKH + BRANCH + SALESMAN (SQL11001205, SQL10501001, SQL11001043)
+SELECT TOP (?)
+  branch_code,
+  doc_type,
+  di_key,
+  dt_properties,
+  doc_category,
+  invoice_no,
+  erp_customer_code,
+  salesperson_code,
+  salesperson_name,
+  sold_at,
+  before_vat_amount,
+  vat_amount,
+  gross_amount,
+  net_amount,
+  status
+FROM (
+  SELECT
+    DOCINFO.DI_KEY AS di_key,
+    CAST(COALESCE(BRANCH.BR_CODE, '001') AS varchar(32)) AS branch_code,
+    CAST(DOCTYPE.DT_DOCCODE AS varchar(32)) AS doc_type,
+    CAST(DOCTYPE.DT_PROPERTIES AS int) AS dt_properties,
+    CASE
+      WHEN DOCTYPE.DT_PROPERTIES = 308 THEN 'return'
+      ELSE 'sale'
+    END AS doc_category,
+    CAST(DOCINFO.DI_REF AS varchar(80)) AS invoice_no,
+    CAST(ARFILE.AR_CODE AS varchar(64)) AS erp_customer_code,
+    CAST(COALESCE(SM.SLMN_CODE, ARC_SM.SLMN_CODE, ARFILE.AR_SLMNCODE) AS varchar(32)) AS salesperson_code,
+    CAST(COALESCE(SM.SLMN_NAME, ARC_SM.SLMN_NAME) AS nvarchar(120)) AS salesperson_name,
+    DOCINFO.DI_DATE AS sold_at,
+    CAST(
+      CASE
+        WHEN DOCTYPE.DT_PROPERTIES = 308
+          THEN -ABS(COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0))
+        ELSE (COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0))
+      END AS decimal(16, 2)
+    ) AS before_vat_amount,
+    CAST(
+      CASE
+        WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(ARDETAIL.ARD_B_VAT, 0))
+        ELSE COALESCE(ARDETAIL.ARD_B_VAT, 0)
+      END AS decimal(16, 2)
+    ) AS vat_amount,
+    CAST(
+      CASE
+        WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(ARDETAIL.ARD_B_AMT, 0))
+        ELSE COALESCE(ARDETAIL.ARD_B_AMT, 0)
+      END AS decimal(16, 2)
+    ) AS gross_amount,
+    CAST(
+      CASE
+        WHEN DOCTYPE.DT_PROPERTIES = 308
+          THEN -ABS(COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0))
+        ELSE (COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0))
+      END AS decimal(16, 2)
+    ) AS net_amount,
+    CASE
+      WHEN DOCINFO.DI_ACTIVE = 1 THEN 'cancelled'
+      WHEN DOCINFO.DI_ACTIVE = 0 AND DOCTYPE.DT_PROPERTIES = 308 THEN 'returned'
+      WHEN DOCINFO.DI_ACTIVE = 0 THEN 'posted'
+      ELSE 'other'
+    END AS status
+  FROM DOCINFO
+  INNER JOIN DOCTYPE
+    ON DOCINFO.DI_DT = DOCTYPE.DT_KEY
+  INNER JOIN ARDETAIL
+    ON DOCINFO.DI_KEY = ARDETAIL.ARD_DI
+  INNER JOIN ARFILE
+    ON ARDETAIL.ARD_AR = ARFILE.AR_KEY
+  LEFT JOIN TRANSTKH
+    ON DOCINFO.DI_KEY = TRANSTKH.TRH_DI
+  LEFT JOIN BRANCH
+    ON TRANSTKH.TRH_BR = BRANCH.BR_KEY
+  OUTER APPLY (
+    SELECT TOP 1 S.SLMN_CODE, S.SLMN_NAME
+    FROM SLDETAIL SD
+    INNER JOIN SALESMAN S ON S.SLMN_KEY = SD.SLD_SLMN
+    WHERE SD.SLD_DI = DOCINFO.DI_KEY
+    ORDER BY S.SLMN_CODE ASC
+  ) AS SM
+  LEFT JOIN SALESMAN ARC_SM
+    ON ARC_SM.SLMN_CODE = ARFILE.AR_SLMNCODE
+  WHERE DOCTYPE.DT_PROPERTIES IN (302, 307, 308, 337)
+    AND DOCINFO.DI_REF IS NOT NULL
+    AND DOCINFO.DI_DATE >= '20260101'
+    AND DOCINFO.DI_KEY > ?
+
+  UNION ALL
+
+  SELECT
+    DOCINFO.DI_KEY AS di_key,
+    CAST(COALESCE(BRANCH.BR_CODE, '001') AS varchar(32)) AS branch_code,
+    CAST(DOCTYPE.DT_DOCCODE AS varchar(32)) AS doc_type,
+    CAST(DOCTYPE.DT_PROPERTIES AS int) AS dt_properties,
+    'reservation' AS doc_category,
+    CAST(DOCINFO.DI_REF AS varchar(80)) AS invoice_no,
+    CAST(ARFILE.AR_CODE AS varchar(64)) AS erp_customer_code,
+    CAST(COALESCE(SM.SLMN_CODE, ARC_SM.SLMN_CODE, ARFILE.AR_SLMNCODE) AS varchar(32)) AS salesperson_code,
+    CAST(COALESCE(SM.SLMN_NAME, ARC_SM.SLMN_NAME) AS nvarchar(120)) AS salesperson_name,
+    DOCINFO.DI_DATE AS sold_at,
+    CAST(COALESCE(AROE.AROE_B_SV, 0) + COALESCE(AROE.AROE_B_SNV, 0) AS decimal(16, 2)) AS before_vat_amount,
+    CAST(COALESCE(AROE.AROE_B_VAT, 0) AS decimal(16, 2)) AS vat_amount,
+    CAST(COALESCE(AROE.AROE_B_AMT, 0) AS decimal(16, 2)) AS gross_amount,
+    CAST(COALESCE(AROE.AROE_B_SV, 0) + COALESCE(AROE.AROE_B_SNV, 0) AS decimal(16, 2)) AS net_amount,
+    CASE
+      WHEN DOCINFO.DI_ACTIVE = 1 THEN 'cancelled'
+      WHEN DOCINFO.DI_ACTIVE = 0 THEN 'reserved'
+      ELSE 'other'
+    END AS status
+  FROM DOCINFO
+  INNER JOIN DOCTYPE
+    ON DOCINFO.DI_DT = DOCTYPE.DT_KEY
+  INNER JOIN AROE
+    ON DOCINFO.DI_KEY = AROE.AROE_DI
+  INNER JOIN ARFILE
+    ON AROE.AROE_AR = ARFILE.AR_KEY
+  LEFT JOIN TRANSTKH
+    ON DOCINFO.DI_KEY = TRANSTKH.TRH_DI
+  LEFT JOIN BRANCH
+    ON TRANSTKH.TRH_BR = BRANCH.BR_KEY
+  LEFT JOIN SALESMAN SM
+    ON AROE.AROE_SLMN = SM.SLMN_KEY
+  LEFT JOIN SALESMAN ARC_SM
+    ON ARC_SM.SLMN_CODE = ARFILE.AR_SLMNCODE
+  WHERE DOCTYPE.DT_PROPERTIES = 207
+    AND DOCINFO.DI_REF IS NOT NULL
+    AND DOCINFO.DI_DATE >= '20260101'
+    AND DOCINFO.DI_KEY > ?
+) AS merged
+WHERE doc_category <> 'reservation'
+ORDER BY di_key ASC;

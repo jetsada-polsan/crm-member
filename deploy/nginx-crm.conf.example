@@ -1,0 +1,19 @@
+# Replace crm.example.com, /opt/popstar-business-platform-v2, php-fpm socket accordingly.
+server {
+    listen 80;
+    server_name crm.example.com;
+    root /opt/popstar-business-platform-v2/web/crm/dist;
+    index index.html;
+    add_header X-Content-Type-Options nosniff always;
+    location / { try_files $uri $uri/ /index.html; }
+    location ^~ /api/ { rewrite ^ /index.php last; }
+    location = /index.php {
+        internal;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /opt/popstar-business-platform-v2/backend/public/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+    location ~ \.php$ { return 404; }
+    location ~ /\. { deny all; }
+}

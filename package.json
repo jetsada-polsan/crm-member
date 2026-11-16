@@ -1,0 +1,22 @@
+{
+  "name": "popstar-business-platform-v4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:crm && npm run build:member",
+    "build:crm": "vite build --config web/crm/vite.config.js",
+    "build:member": "vite build --config web/member/vite.config.js",
+    "dev:crm": "vite --config web/crm/vite.config.js",
+    "dev:member": "vite --config web/member/vite.config.js"
+  },
+  "dependencies": {
+    "vue": "^3.5.0",
+    "vue-router": "^4.6.5",
+    "@tanstack/vue-query": "^5.90.0",
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "@vitejs/plugin-vue": "^6.0.0"
+  }
+}

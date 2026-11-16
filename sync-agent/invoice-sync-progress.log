@@ -1,0 +1,7 @@
+fetched=100 cursor=2063980
+fetched=200 cursor=2064167
+fetched=300 cursor=2064303
+fetched=400 cursor=2064432
+fetched=500 cursor=2064586
+fetched=600 cursor=2064868
+failed Invoice 690101/100020001 has more than 200 lines; refusing incomplete sync.
