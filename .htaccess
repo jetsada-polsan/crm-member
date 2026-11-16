@@ -1,0 +1,3 @@
+# POPSTAR runs via start-popstar.bat (artisan serve + node), not Apache.
+# Block Apache from serving project files such as backend/.env.
+Require all denied

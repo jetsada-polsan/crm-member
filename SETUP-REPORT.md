@@ -1,10 +1,21 @@
-# SETUP-REPORT — POPSTAR Platform: Docker → Windows (PHP 8.4 + PostgreSQL)
+# SETUP-REPORT — POPSTAR Platform: Docker → XAMPP + PostgreSQL
 
 วันที่: 2026-11-16
-โปรเจกต์: `D:\crm-member\popstar-business-platform-v4` (Laravel อยู่ใน `backend\`)
+โปรเจกต์: **`D:\xampp\htdocs\popstar-business-platform-v4`** (Laravel อยู่ใน `backend\`)
 สถานะ: **เสร็จทุกขั้น ยกเว้นตั้งค่า Database (ขั้น 3 / migrate) ที่ยังรอไฟล์ `.pgpass-setup.txt`**
 
 ไม่ได้แตะ Bplus ERP / SQL Server · ไม่ได้ลบไฟล์ใด · ไม่ได้ push ขึ้น GitHub
+
+## อัปเดตล่าสุด — ย้ายไป XAMPP (`D:\xampp`)
+
+- **PHP ที่ใช้ตอนนี้: XAMPP PHP 8.5.12 (`D:\xampp\php\php.exe`)** แทน `C:\php84` ซึ่งยังเก็บไว้เป็นสำรอง
+  - `php.ini` สำรองเป็น `php.ini.bak-popstar` แล้วเปิด `pdo_pgsql pgsql intl zip gd bcmath fileinfo mbstring openssl curl sodium exif`
+  - ปิดบรรทัด `extension=php_openssl.dll` ที่ซ้ำ (ทำให้มีคำเตือน "already loaded")
+  - คัดลอก `libpq.dll` ไปไว้ที่ `apache\bin`
+  - ผลบน PHP 8.5: composer platform check ผ่าน, **tests 23 / 376 ผ่าน**, backend `/api/crm/csrf` และหน้า CRM `/login` ได้ 200
+- **โปรเจกต์อยู่ที่ `D:\xampp\htdocs\popstar-business-platform-v4`** ใช้การคัดลอก (robocopy ครบ 15,452 ไฟล์ / 158.1 MB รวม `.git`) เพราะย้ายตรงๆ ไม่ได้ (โฟลเดอร์ถูกเปิดค้างโดย process อื่น) **ต้นฉบับยังอยู่ที่ `D:\crm-member\popstar-business-platform-v4`** ถ้าตรวจแล้วว่าที่ใหม่ใช้งานได้ ลบหรือเปลี่ยนชื่อต้นฉบับเองได้
+- **ความปลอดภัย:** Apache ของ XAMPP เสิร์ฟทุกไฟล์ใน htdocs ทำให้ดาวน์โหลด `backend/.env` ได้ (ทดสอบแล้วได้ 200) จึงเพิ่ม `.htaccess` (`Require all denied`) ที่ root โปรเจกต์ ตอนนี้ทั้งโฟลเดอร์ได้ 403 **ห้ามลบไฟล์นี้** ส่วนระบบยังรันผ่าน `start-popstar.bat` เหมือนเดิม ไม่ได้ผ่าน Apache
+- `start-popstar.bat`, `tools\run-scheduler.vbs` และ Task Scheduler `POPSTAR schedule-run` ชี้ไปที่ PHP ของ XAMPP และพาธใหม่แล้ว
 
 ---
 

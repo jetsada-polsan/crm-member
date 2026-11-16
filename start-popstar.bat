@@ -5,7 +5,7 @@ rem CRM      : http://127.0.0.1:18081
 rem Member   : http://127.0.0.1:18082
 setlocal
 set "ROOT=%~dp0"
-set "PHP=C:\php84\php.exe"
+set "PHP=D:\xampp\php\php.exe"
 if not exist "%PHP%" ( echo [ERROR] PHP not found at %PHP% & pause & exit /b 1 )
 
 net start postgresql-x64-17 >nul 2>&1
