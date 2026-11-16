@@ -96,6 +96,14 @@ export function prefetchRouteView(name, { withData = false } = {}) {
       queryKey: ['crm', 'dashboard'],
       queryFn: ({ signal }) => crmGet('/dashboard', { signal }),
     });
+    crmQueryClient.prefetchQuery({
+      queryKey: ['crm', 'plans'],
+      queryFn: ({ signal }) => crmGet('/plans', { signal }),
+    });
+    crmQueryClient.prefetchQuery({
+      queryKey: ['crm', 'tasks'],
+      queryFn: ({ signal }) => crmGet('/tasks', { signal }),
+    });
   } else if (name === 'customers') {
     crmQueryClient.prefetchQuery({
       queryKey: ['crm', 'master', { page: 1, perPage: 25, q: '', masterFilter: 'all', erpStatus: 'all', leadStage: '' }],

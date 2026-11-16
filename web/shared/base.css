@@ -82,8 +82,15 @@ a{color:var(--blue);text-decoration:none}
 .kpi-icon.purple{background:#efe9ff}
 .kpi-label{font-size:14px;color:var(--muted);margin:12px 0 2px;font-weight:500}
 .kpi-value{font-size:28px;letter-spacing:-.4px;font-weight:700;color:var(--ink);line-height:1.3}
-.kpi-value span{font-size:14px!important}
+.kpi-value span,.kpi-unit{font-size:14px;font-weight:500;color:var(--muted)}
 .kpi-foot{font-size:12.5px;color:var(--muted);margin-top:6px}
+.dash-stack{display:flex;flex-direction:column;gap:16px}
+.today-work-section{display:flex;flex-direction:column;gap:16px}
+.today-work-section.order-first{order:-1}
+.today-hero{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:18px 20px;border-left:4px solid var(--blue)}
+.today-hero-meta h3{margin:0;font-size:18px;color:var(--ink)}
+.today-hero-meta p{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.today-visit-btn{min-height:52px;padding:12px 22px;font-size:16px}
 .up{color:var(--green);font-weight:600}
 .down{color:#b7791f}
 
@@ -374,6 +381,8 @@ html,body{max-width:100%;overflow-x:hidden}
   .pagehead-secondary > :is(.btn,a,button){background:transparent;border-color:transparent;color:var(--blue);box-shadow:none;padding:8px 12px;width:auto}
   .head-actions{display:grid;grid-template-columns:1fr 1fr}
   .head-actions .btn{width:100%}
+  .today-hero{flex-direction:column;align-items:stretch}
+  .today-visit-btn{width:100%}
   .head-filter input,.head-filter select{flex:1 1 100%;font-size:16px}
   .desktop-table-only{display:none}
   .mob-cards{display:block}
