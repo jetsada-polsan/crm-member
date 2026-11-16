@@ -451,8 +451,11 @@ try {
                 $invoices = Invoke-ReadOnlySql -SqlFile "bplus_invoices.sql" -Limit $limit -AfterDocumentKey $afterKey
                 foreach ($inv in $invoices) {
                     if (-not $inv.di_key) { throw "Invoice result is missing its ERP document key; refusing incomplete line sync." }
-                    $items = Invoke-ReadOnlySql -SqlFile "bplus_sales_items.sql" -Limit 201 -DocumentKey ([long]$inv.di_key)
-                    if ($items.Count -gt 200) { throw "Invoice $($inv.invoice_no) has more than 200 lines; refusing incomplete sync." }
+                    # Large wholesale bills can exceed 200 lines (e.g. 690101/100020001 stalled the invoice cursor).
+                    # Fetch one extra row so a truncated read is still detected and refused instead of saved partially.
+                    $maxInvoiceLines = 2000
+                    $items = Invoke-ReadOnlySql -SqlFile "bplus_sales_items.sql" -Limit ($maxInvoiceLines + 1) -DocumentKey ([long]$inv.di_key)
+                    if ($items.Count -gt $maxInvoiceLines) { throw "Invoice $($inv.invoice_no) has more than $maxInvoiceLines lines; refusing incomplete sync." }
                     $inv["items"] = @(
                       foreach ($it in $items) {
                         @{

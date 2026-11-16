@@ -75,7 +75,7 @@ final class SyncController
             'records.*.gross_amount' => ['nullable', 'numeric', 'between:-999999999999.99,999999999999.99'],
             'records.*.net_amount' => ['required_without_all:records.*.before_vat_amount,records.*.gross_amount', 'nullable', 'numeric', 'between:-999999999999.99,999999999999.99'],
             'records.*.status' => ['required', Rule::in(['posted', 'cancelled', 'returned', 'reserved', 'draft'])],
-            'records.*.items' => ['nullable', 'array', 'max:200'],
+            'records.*.items' => ['nullable', 'array', 'max:2000'],
             'records.*.items_complete' => ['nullable', 'boolean'],
             'records.*.items.*.line_no' => ['required_with:records.*.items', 'integer', 'min:1'],
             'records.*.items.*.erp_product_code' => ['required_with:records.*.items', 'string', 'max:64'],

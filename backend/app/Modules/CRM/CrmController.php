@@ -5,6 +5,7 @@ namespace App\Modules\CRM;
 use App\Modules\ERPIntegration\SalesRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -12,14 +13,7 @@ final class CrmController
 {
     private function accessibleCustomers(string $alias = 'erp_customers')
     {
-        $user = Auth::guard('staff')->user();
-        $q = DB::table('erp_customers as '.$alias);
-        if (! in_array($user->role, ['admin', 'manager'], true)) {
-            // If salesperson_code is NULL, this intentionally returns no data.
-            $q->where($alias.'.salesperson_code', $user->salesperson_code ?? '__unassigned__');
-        }
-
-        return $q;
+        return CustomerAccess::query($alias);
     }
 
     private function salesScopeFilter(object $user, bool $isManager): ?callable
@@ -434,6 +428,7 @@ final class CrmController
             ->select('p.id as erp_product_id', 'p.source_system', 'p.erp_product_code', 'p.product_name', 'p.unit',
                 'seg.id as segment_id', 'seg.size_code', 'seg.size_label')
             ->orderBy('p.erp_product_code')->limit(1000)->get();
+
         return response()->json($query);
     }
 
@@ -464,6 +459,7 @@ final class CrmController
                 'updated_at' => $now,
             ]
         );
+
         return response()->json(['ok' => true, 'erp_product_code' => $productCode, 'size_code' => mb_strtoupper(trim($d['size_code']), 'UTF-8')]);
     }
 
@@ -472,6 +468,7 @@ final class CrmController
         $user = Auth::guard('staff')->user();
         abort_unless(in_array($user->role, ['admin', 'manager'], true), 403, 'Manager or admin access required');
         DB::table('erp_product_size_segments')->where('id', $segmentId)->delete();
+
         return response()->json(['ok' => true]);
     }
 
@@ -488,11 +485,11 @@ final class CrmController
             'per_page' => ['nullable', 'integer', 'min:10', 'max:500'],
             'period' => ['nullable', 'in:day,month'],
         ]);
-        $from = \Illuminate\Support\Carbon::parse($filters['from'] ?? now()->startOfMonth()->toDateString())->startOfDay();
-        $to = \Illuminate\Support\Carbon::parse($filters['to'] ?? now()->toDateString())->endOfDay();
+        $from = Carbon::parse($filters['from'] ?? now()->startOfMonth()->toDateString())->startOfDay();
+        $to = Carbon::parse($filters['to'] ?? now()->toDateString())->endOfDay();
         abort_if($to->lt($from), 422, 'The end date must be on or after the start date.');
         $period = $filters['period'] ?? 'day';
-        abort_if($from->lt(\Illuminate\Support\Carbon::parse('2026-01-01')), 422, 'Sales history starts on 1 January 2026.');
+        abort_if($from->lt(Carbon::parse('2026-01-01')), 422, 'Sales history starts on 1 January 2026.');
         abort_if($period === 'day' && $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) > 30, 422, 'Choose a range of 31 days or less for the daily matrix.');
         abort_if($period === 'month' && $from->diffInMonths($to) > 23, 422, 'Choose a range of 24 months or less.');
         $source = strtoupper(trim((string) ($filters['source_system'] ?? config('popstar.erp_source_system', 'BPLUS'))));
@@ -513,9 +510,9 @@ final class CrmController
             })->leftJoin('erp_product_size_segments as seg', 'seg.erp_product_id', '=', 'p.id');
         }
         $base->join('erp_customers as c', function ($join): void {
-                $join->on('c.source_system', '=', 'inv.source_system')
-                    ->on('c.erp_customer_code', '=', 'inv.erp_customer_code');
-            })
+            $join->on('c.source_system', '=', 'inv.source_system')
+                ->on('c.erp_customer_code', '=', 'inv.erp_customer_code');
+        })
             ->where('inv.source_system', $source)
             ->whereBetween('inv.sold_at', [$from, $to]);
         if (! $isManager) {
@@ -555,7 +552,7 @@ final class CrmController
         )->groupBy('c.id', 'c.erp_customer_code', 'c.customer_name', 'c.route_code', 'c.route_name');
         foreach ($dates as $date) {
             $alias = 'day_'.str_replace('-', '', $date);
-            $dateStart = \Illuminate\Support\Carbon::parse($date.($period === 'month' ? '-01' : ''))->startOfDay();
+            $dateStart = Carbon::parse($date.($period === 'month' ? '-01' : ''))->startOfDay();
             $dateEnd = $period === 'month' ? $dateStart->copy()->addMonth() : $dateStart->copy()->addDay();
             $query->selectRaw("COALESCE(SUM(CASE WHEN inv.sold_at >= ? AND inv.sold_at < ? THEN {$amount} ELSE 0 END), 0) as {$alias}", [$dateStart, $dateEnd]);
         }
@@ -1026,8 +1023,8 @@ final class CrmController
             'ec.erp_customer_code',
             'ec.customer_name as erp_customer_name',
             'cm.internal_customer_code',
-            DB::raw("(SELECT mla.binding_status FROM member_line_accounts mla WHERE mla.member_account_id = m.id AND mla.revoked_at IS NULL ORDER BY mla.id DESC LIMIT 1) as line_binding_status"),
-            DB::raw("(SELECT COALESCE(SUM(lpl.points_delta), 0) FROM loyalty_points_ledger lpl WHERE lpl.member_account_id = m.id) as points_balance")
+            DB::raw('(SELECT mla.binding_status FROM member_line_accounts mla WHERE mla.member_account_id = m.id AND mla.revoked_at IS NULL ORDER BY mla.id DESC LIMIT 1) as line_binding_status'),
+            DB::raw('(SELECT COALESCE(SUM(lpl.points_delta), 0) FROM loyalty_points_ledger lpl WHERE lpl.member_account_id = m.id) as points_balance')
         )
             ->orderByDesc('m.id')
             ->limit(250)

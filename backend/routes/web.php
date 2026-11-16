@@ -6,6 +6,7 @@ use App\Modules\ERPIntegration\ErpLocalSyncController;
 use App\Modules\CRM\StaffAuthController;
 use App\Modules\CRM\CrmController;
 use App\Modules\CRM\CustomerMasterController;
+use App\Modules\CRM\CustomerPurchaseController;
 use App\Modules\CRM\FieldController;
 use App\Modules\Member\MemberAuthController;
 use App\Modules\Member\MemberController;
@@ -32,7 +33,10 @@ Route::prefix('api/crm')->group(function () {
         Route::get('/dashboard', [CrmController::class, 'dashboard']);
         Route::get('/salespersons', [CrmController::class, 'salespersons']);
         Route::get('/customers', [CrmController::class, 'customers']);
-        Route::get('/customers/{id}', [CrmController::class, 'customerDetail']);
+        Route::get('/customers/{id}', [CrmController::class, 'customerDetail'])->whereNumber('id');
+        Route::get('/customers/{id}/invoices', [CustomerPurchaseController::class, 'invoices'])->whereNumber('id');
+        Route::get('/customers/{id}/invoices/{invoiceId}', [CustomerPurchaseController::class, 'invoiceDetail'])->whereNumber(['id', 'invoiceId']);
+        Route::get('/customers/{id}/purchase-insights', [CustomerPurchaseController::class, 'insights'])->whereNumber('id');
         Route::get('/visits', [CrmController::class, 'visits']);
         Route::post('/visits', [CrmController::class, 'storeVisit'])->middleware('throttle:30,1');
 

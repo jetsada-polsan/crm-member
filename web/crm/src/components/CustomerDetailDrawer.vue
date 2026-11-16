@@ -104,14 +104,7 @@
         </div>
       </div>
 
-      <div v-if="data.erp_customer && data.invoices?.length" class="card panel-pad" style="margin-bottom:14px">
-        <strong style="display:block;margin-bottom:8px">ประวัติใบขายจริงและใบคืนจาก Bplus</strong>
-        <div v-for="invoice in data.invoices.slice(0, 10)" :key="invoice.id" style="padding:10px 0;border-bottom:1px solid #e5eaf2">
-          <div class="minirow"><span><b>{{ invoice.invoice_no }}</b><div class="small muted">{{ new Date(invoice.sold_at).toLocaleDateString('th-TH') }} · {{ invoice.doc_category === 'return' ? 'ใบคืน' : 'ใบขาย' }}</div></span>
-          <b :style="{ color: invoice.doc_category === 'return' ? 'var(--red)' : 'var(--ink)' }">{{ fmt(invoice.before_vat_amount) }} ฿</b></div>
-          <div v-for="item in invoice.items || []" :key="item.line_no" class="small muted">{{ item.product_name || item.erp_product_code }} · {{ fmt(item.qty) }} {{ item.unit_name || '' }}</div>
-        </div>
-      </div>
+      <CustomerPurchaseHistory v-if="data.erp_customer" :customer-id="data.erp_customer.id" style="margin-bottom:14px" />
 
       <div v-if="data.follow_up_tasks?.length" class="card panel-pad" style="margin-bottom:14px">
         <strong>งานติดตามลูกค้า</strong>
@@ -202,18 +195,7 @@
           <b style="color:var(--green)">{{ fmt(data.sales_summary?.net_purchase_before_vat ?? data.total_posted_net) }} ฿</b>
         </div>
       </div>
-      <div class="card panel-pad">
-        <strong style="display:block;margin-bottom:8px">ประวัติบิลขาย ERP ({{ data.invoices?.length || 0 }} รายการล่าสุด)</strong>
-        <div v-for="inv in (data.invoices || []).slice(0, 12)" :key="inv.id" class="minirow">
-          <div>
-            <b>{{ inv.invoice_no }}</b>
-            <div class="small muted">{{ inv.doc_type }} ({{ inv.dt_properties || '—' }}) · {{ new Date(inv.sold_at).toLocaleDateString('th-TH') }}</div>
-            <div v-for="item in (data.items || []).filter((row) => row.invoice_no === inv.invoice_no && row.branch_code === inv.branch_code && row.doc_type === inv.doc_type)" :key="item.line_no" class="small muted">{{ item.product_name || item.erp_product_code }} · {{ fmt(item.qty) }} {{ item.unit_name || '' }}</div>
-          </div>
-          <b>{{ fmt(inv.before_vat_amount ?? inv.net_amount) }} ฿</b>
-        </div>
-        <div v-if="!(data.invoices || []).length" class="small muted">ไม่มีประวัติบิลขายใน ERP</div>
-      </div>
+      <CustomerPurchaseHistory :customer-id="data.customer.id" />
     </template>
 
     <!-- CRM LEAD DETAIL + EDIT + PHOTOS + REVIEW -->
@@ -313,6 +295,7 @@ import { useQuery } from '@tanstack/vue-query';
 import SlideOverDrawer from '../../../shared/components/SlideOverDrawer.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import UploadProgressBar from '../../../shared/components/UploadProgressBar.vue';
+import CustomerPurchaseHistory from './CustomerPurchaseHistory.vue';
 import { apiUploadWithProgress } from '../../../shared/api/http.js';
 import { compressImageFile } from '../../../shared/utils/imageCompress.js';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
