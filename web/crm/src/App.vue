@@ -16,7 +16,11 @@
 
     <!-- Authenticated SPA Workspace -->
     <div v-else class="app app-flat">
-      <aside class="sidebar" aria-label="เมนูหลัก POPSTAR Connect">
+      <div
+        :class="['sidebar-shade', { open: mobileSidebarOpen }]"
+        @click="mobileSidebarOpen = false"
+      ></div>
+      <aside :class="['sidebar', { open: mobileSidebarOpen }]" aria-label="เมนูหลัก POPSTAR Connect">
         <div class="logo">
           <div class="logo-mark">P</div>
           <div>
@@ -30,8 +34,9 @@
           :active-route-name="String(route.name || '')"
           :offline-draft-count="offlineDrafts.length"
           @prefetch="(name) => prefetchRouteView(name, { withData: true })"
-          @open-visit="openVisitWizard()"
-          @open-quick-add="openQuickAdd()"
+          @navigate="mobileSidebarOpen = false"
+          @open-visit="mobileSidebarOpen = false; openVisitWizard()"
+          @open-quick-add="mobileSidebarOpen = false; openQuickAdd()"
         />
 
         <div class="sidebar-bottom">
@@ -60,6 +65,14 @@
 
       <div class="main">
         <header class="topbar">
+          <button
+            type="button"
+            class="topbtn mobile-menu-btn"
+            aria-label="เปิดเมนูหลัก"
+            @click="mobileSidebarOpen = !mobileSidebarOpen"
+          >
+            ☰
+          </button>
           <button
             v-if="showMobileBack"
             type="button"
@@ -319,6 +332,7 @@ const route = useRoute();
 const router = useRouter();
 
 const mobileQuickOpen = ref(false);
+const mobileSidebarOpen = ref(false);
 
 const visibleNavGroups = computed(() => filterNavGroups(CRM_NAV_GROUPS, isManager.value));
 
@@ -449,6 +463,7 @@ watch(
   () => route.name,
   (name) => {
     mobileQuickOpen.value = false;
+    mobileSidebarOpen.value = false;
     if (logged.value && name) {
       scheduleIdlePrefetch(name);
     }
@@ -471,6 +486,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.mobile-menu-btn,
 .mobile-back-btn,
 .mobile-top-quick {
   display: none;
@@ -523,6 +539,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1024px) {
+  .mobile-menu-btn,
   .mobile-back-btn {
     display: grid;
     width: 40px;
@@ -530,7 +547,9 @@ onUnmounted(() => {
     border-radius: 11px;
     font-size: 18px;
     font-weight: 700;
-    background: #f4f7fc;
+    background: #f0f9ff;
+    border-color: #bae6fd;
+    color: #0284c7;
   }
 
   .mobile-top-quick {
