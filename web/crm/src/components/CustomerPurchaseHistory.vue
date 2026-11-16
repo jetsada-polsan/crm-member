@@ -366,7 +366,7 @@ const billsPerMonthText = computed(() => {
   border-radius: 11px; padding: 6px 2px; display: flex; flex-direction: column; line-height: 1.2;
 }
 .ph-bill-date b { font-size: 13.5px; }
-.ph-bill-date small { font-size: 11.5px; opacity: .85; }
+.ph-bill-date small { font-size: 12px; opacity: .85; }
 .ph-bill-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ph-bill-main b { font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ph-bill-main small { font-size: 12.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
