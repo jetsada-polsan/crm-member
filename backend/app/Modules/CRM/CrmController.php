@@ -1137,11 +1137,30 @@ final class CrmController
         $activeRules = DB::table('loyalty_rules')->where('is_active', true)->count();
         $totalRules = DB::table('loyalty_rules')->count();
 
+        $lineRaw = \App\Modules\LINE\LineConfig::allRaw();
+        $lineSecret = \App\Modules\LINE\LineConfig::channelSecret();
+        $lineToken = \App\Modules\LINE\LineConfig::channelAccessToken();
+        $boundLineMembers = DB::table('member_line_accounts')->whereNull('revoked_at')->count();
+        $lineWebhookEvents = DB::table('line_webhook_events')->count();
+
         return response()->json([
             'staff_users' => $staff,
             'auto_sync' => $autoSyncStats,
             'available_salespersons' => $availableSalespersons,
             'available_reservations' => $availableReservations,
+            'line_settings' => [
+                'line_channel_id' => $lineRaw['line_channel_id'] ?? '',
+                'line_bot_basic_id' => $lineRaw['line_bot_basic_id'] ?? '',
+                'line_liff_id' => $lineRaw['line_liff_id'] ?? '',
+                'line_welcome_message' => \App\Modules\LINE\LineConfig::welcomeMessage(),
+                'secret_configured' => $lineSecret !== '',
+                'secret_masked' => \App\Modules\LINE\LineConfig::maskSecret($lineSecret),
+                'access_token_configured' => $lineToken !== '',
+                'access_token_masked' => \App\Modules\LINE\LineConfig::maskSecret($lineToken),
+                'webhook_path' => '/api/line/webhook',
+                'bound_member_count' => $boundLineMembers,
+                'webhook_event_count' => $lineWebhookEvents,
+            ],
             'audit_logs' => $auditLogs,
             'security_posture' => [
                 'erp_mirror_readonly' => true,
@@ -1150,11 +1169,45 @@ final class CrmController
                 'bridge_url_configured' => trim((string) config('popstar.local_bridge_url', '')) !== '',
                 'local_bridge_token_configured' => trim((string) config('popstar.local_bridge_token', '')) !== '',
                 'sync_token_configured' => trim((string) config('popstar.sync_api_token', '')) !== '',
-                'line_channel_configured' => trim((string) config('popstar.line_channel_secret', '')) !== '',
+                'line_channel_configured' => $lineSecret !== '' && $lineToken !== '',
                 'active_loyalty_rules' => $activeRules,
                 'total_loyalty_rules' => $totalRules,
             ],
         ]);
+    }
+
+    public function updateLineSettings(Request $request): JsonResponse
+    {
+        $actor = Auth::guard('staff')->user();
+        abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+
+        $d = $request->validate([
+            'line_channel_id' => ['nullable', 'string', 'max:120'],
+            'line_bot_basic_id' => ['nullable', 'string', 'max:120'],
+            'line_liff_id' => ['nullable', 'string', 'max:160'],
+            'line_channel_secret' => ['nullable', 'string', 'max:500'],
+            'line_channel_access_token' => ['nullable', 'string', 'max:2000'],
+            'line_welcome_message' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        \App\Modules\LINE\LineConfig::save($d, (int) $actor->id);
+
+        DB::table('crm_audit_logs')->insert([
+            'entity_type' => 'line_settings',
+            'entity_id' => 1,
+            'action' => 'updated',
+            'actor_staff_id' => $actor->id,
+            'changes' => json_encode([
+                'line_channel_id' => $d['line_channel_id'] ?? null,
+                'line_bot_basic_id' => $d['line_bot_basic_id'] ?? null,
+                'line_liff_id' => $d['line_liff_id'] ?? null,
+                'secret_updated' => ! empty($d['line_channel_secret']),
+                'token_updated' => ! empty($d['line_channel_access_token']),
+            ], JSON_UNESCAPED_UNICODE),
+            'created_at' => now(),
+        ]);
+
+        return response()->json(['ok' => true]);
     }
 
     public function autoSyncStaffFromErp(): JsonResponse

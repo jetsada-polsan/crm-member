@@ -514,6 +514,23 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
             'longitude' => 104.8,
             'source' => 'manual',
         ])->assertStatus(403);
+        $this->postJson('/api/crm/settings/line', [
+            'line_channel_secret' => 'exec-cannot-save',
+        ])->assertStatus(403);
         $this->postJson('/api/crm/logout', [])->assertOk();
+
+        // Admin saves LINE OA tokens via /api/crm/settings/line and webhook immediately uses saved secret
+        $this->actingAs($admin, 'staff');
+        $this->postJson('/api/crm/settings/line', [
+            'line_bot_basic_id' => '@popstar',
+            'line_channel_id' => '2009998888',
+            'line_channel_secret' => 'db_line_secret_123456',
+            'line_channel_access_token' => 'db_line_access_token_abcdef',
+        ])->assertOk();
+
+        $overview = $this->getJson('/api/crm/settings/overview')->assertOk()->json();
+        $this->assertTrue((bool) $overview['line_settings']['secret_configured']);
+        $this->assertTrue((bool) $overview['line_settings']['access_token_configured']);
+        $this->assertSame('@popstar', $overview['line_settings']['line_bot_basic_id']);
     }
 }

@@ -11,7 +11,7 @@ final class LineWebhookController
 {
     public function __invoke(Request $request): JsonResponse
     {
-        $secret = (string) config('popstar.line_channel_secret', '');
+        $secret = LineConfig::channelSecret();
         $signature = (string) $request->header('x-line-signature', '');
         $body = $request->getContent();
 
@@ -27,7 +27,7 @@ final class LineWebhookController
             return response()->json(['error' => 'Invalid JSON'], 400);
         }
 
-        $accessToken = (string) config('popstar.line_channel_access_token', '');
+        $accessToken = LineConfig::channelAccessToken();
         $boundCount = 0;
 
         foreach (($payload['events'] ?? []) as $event) {
@@ -43,7 +43,7 @@ final class LineWebhookController
                 continue; // Idempotent webhook replay protection
             }
 
-            $replyText = 'ยินดีต้อนรับสู่ Popstar สมาชิก กรุณาเข้าสู่ระบบและยืนยันการผูกบัญชีก่อนดูยอดซื้อและคะแนน';
+            $replyText = LineConfig::welcomeMessage();
 
             if ($eventType === 'message' && ($event['message']['type'] ?? '') === 'text' && $lineUserId) {
                 $text = trim((string) ($event['message']['text'] ?? ''));

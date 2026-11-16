@@ -262,6 +262,124 @@
           </div>
         </div>
       </div>
+
+      <!-- LINE Official Account (LINE OA) & Webhook Token Configuration -->
+      <div class="card panel-pad" style="margin-bottom:16px">
+        <div class="staff-head">
+          <div>
+            <h3 style="margin:0">💬 ตั้งค่าเชื่อมต่อ LINE Official Account (ผูก LINE สมาชิก &amp; โทเค็น)</h3>
+            <small class="muted">
+              นำค่า Channel ID, Channel Secret และ Channel Access Token จาก LINE Developers Console มาวางเพื่อเปิดระบบผูกบัญชีสมาชิกผ่าน LINE
+            </small>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <span
+              class="tag"
+              :class="data.line_settings?.secret_configured && data.line_settings?.access_token_configured ? 'green' : 'orange'"
+            >
+              {{
+                data.line_settings?.secret_configured && data.line_settings?.access_token_configured
+                  ? '✓ ตั้งค่าโทเค็นครบพร้อมใช้งาน'
+                  : '⏳ รอใส่โทเค็นจาก LINE Developers'
+              }}
+            </span>
+            <span class="tag blue">
+              ผูก LINE แล้ว {{ fmt(data.line_settings?.bound_member_count || 0) }} บัญชี
+            </span>
+          </div>
+        </div>
+
+        <div class="line-webhook-box" style="margin-top:12px">
+          <div>
+            <span class="small muted">Webhook URL สำหรับนำไปวางใน LINE Developers (Messaging API → Webhook URL):</span>
+            <div style="margin-top:2px">
+              <code class="login-code-pill">{{ fullWebhookUrl }}</code>
+            </div>
+          </div>
+          <button type="button" class="btn light row-btn" @click="copyWebhookUrl">
+            📋 คัดลอก Webhook URL
+          </button>
+        </div>
+
+        <form class="form" style="margin-top:14px" @submit.prevent="saveLineConfig">
+          <div class="field">
+            <label>LINE OA Basic ID (ไอดีแอดเพื่อน เช่น @popstar)</label>
+            <input
+              v-model="lineForm.line_bot_basic_id"
+              :disabled="isExecutive"
+              placeholder="เช่น @popstarfoods"
+            />
+          </div>
+
+          <div class="field">
+            <label>Messaging API Channel ID</label>
+            <input
+              v-model="lineForm.line_channel_id"
+              :disabled="isExecutive"
+              placeholder="เช่น 2001234567"
+            />
+          </div>
+
+          <div class="field">
+            <label>
+              Channel Secret
+              <span v-if="data.line_settings?.secret_masked" class="tag green" style="margin-left:6px">
+                บันทึกแล้ว ({{ data.line_settings.secret_masked }})
+              </span>
+            </label>
+            <input
+              v-model="lineForm.line_channel_secret"
+              type="password"
+              :disabled="isExecutive"
+              autocomplete="new-password"
+              :placeholder="data.line_settings?.secret_configured ? 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน Channel Secret เดิม' : 'วาง Channel Secret จาก LINE Developers...'"
+            />
+          </div>
+
+          <div class="field">
+            <label>
+              LIFF ID (ถ้ามี สำหรับเปิดหน้าสมาชิกใน LINE)
+            </label>
+            <input
+              v-model="lineForm.line_liff_id"
+              :disabled="isExecutive"
+              placeholder="เช่น 2001234567-AbCdEfGh"
+            />
+          </div>
+
+          <div class="field span2">
+            <label>
+              Channel Access Token (Long-lived)
+              <span v-if="data.line_settings?.access_token_masked" class="tag green" style="margin-left:6px">
+                บันทึกแล้ว ({{ data.line_settings.access_token_masked }})
+              </span>
+            </label>
+            <input
+              v-model="lineForm.line_channel_access_token"
+              type="password"
+              :disabled="isExecutive"
+              autocomplete="new-password"
+              :placeholder="data.line_settings?.access_token_configured ? 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน Access Token เดิม' : 'วาง Channel Access Token (Long-lived) จากแท็บ Messaging API...'"
+            />
+          </div>
+
+          <div class="field span2">
+            <label>ข้อความตอบกลับต้อนรับอัตโนมัติ (เมื่อลูกค้าทักแชท LINE OA)</label>
+            <textarea
+              v-model="lineForm.line_welcome_message"
+              rows="2"
+              :disabled="isExecutive"
+              placeholder="ยินดีต้อนรับสู่ Popstar สมาชิก..."
+            />
+          </div>
+
+          <div v-if="!isExecutive" class="field span2" style="display:flex;justify-content:flex-end">
+            <button type="submit" class="btn primary" :disabled="savingLine">
+              {{ savingLine ? 'กำลังบันทึกการตั้งค่า LINE...' : '💾 บันทึกโทเค็นและการตั้งค่า LINE OA' }}
+            </button>
+          </div>
+        </form>
+      </div>
     </template>
 
     <!-- 1. Modal: Edit Name / Role / Reservation Binding -->
@@ -402,7 +520,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
@@ -417,6 +535,57 @@ const { data, isLoading, isError, error, refetch } = useQuery({
 
 const roleFilter = ref('all');
 const searchQuery = ref('');
+
+const savingLine = ref(false);
+const lineForm = ref({
+  line_bot_basic_id: '',
+  line_channel_id: '',
+  line_liff_id: '',
+  line_channel_secret: '',
+  line_channel_access_token: '',
+  line_welcome_message: '',
+});
+
+watch(
+  () => data.value?.line_settings,
+  (ls) => {
+    if (!ls) return;
+    lineForm.value.line_bot_basic_id = ls.line_bot_basic_id || '';
+    lineForm.value.line_channel_id = ls.line_channel_id || '';
+    lineForm.value.line_liff_id = ls.line_liff_id || '';
+    lineForm.value.line_welcome_message = ls.line_welcome_message || '';
+  },
+  { immediate: true }
+);
+
+const fullWebhookUrl = computed(() => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://popstar.localhost';
+  return `${origin}${data.value?.line_settings?.webhook_path || '/api/line/webhook'}`;
+});
+
+async function copyWebhookUrl() {
+  try {
+    await navigator.clipboard.writeText(fullWebhookUrl.value);
+    toast.success('คัดลอก Webhook URL แล้ว', fullWebhookUrl.value);
+  } catch {
+    toast.info('Webhook URL', fullWebhookUrl.value);
+  }
+}
+
+async function saveLineConfig() {
+  savingLine.value = true;
+  try {
+    await crmMutate('/settings/line', 'POST', lineForm.value);
+    lineForm.value.line_channel_secret = '';
+    lineForm.value.line_channel_access_token = '';
+    toast.success('บันทึกโทเค็นและการตั้งค่า LINE OA เรียบร้อย');
+    await refetch();
+  } catch (err) {
+    toast.error('บันทึกการตั้งค่า LINE ไม่สำเร็จ', err);
+  } finally {
+    savingLine.value = false;
+  }
+}
 
 const modalOpen = ref(false);
 const editingId = ref(null);
@@ -746,6 +915,18 @@ async function saveStaff() {
 .doc-chip-row {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+.line-webhook-box {
+  background: #f8fafd;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
