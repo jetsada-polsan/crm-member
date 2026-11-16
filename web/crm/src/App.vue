@@ -3,7 +3,7 @@
     <!-- Session check on refresh: neutral loader, never the login form -->
     <AppBootSplash v-if="!authChecked" message="กำลังตรวจสอบการเข้าสู่ระบบ…" />
 
-    <!-- Futuristic Auth Shell (only when really signed out) -->
+    <!-- Auth Shell (only when really signed out) -->
     <PortalAuthScreen
       v-else-if="!logged"
       default-role="staff"
@@ -12,11 +12,9 @@
       :submit-register="handleMemberRegister"
     />
 
-    <!-- Modern Authenticated SPA Workspace -->
-    <div v-else class="app">
-      <div :class="['sidebar-shade', { open: sidebarOpen }]" @click="sidebarOpen = false"></div>
-
-      <aside :class="['sidebar', { open: sidebarOpen }]" aria-label="เมนูหลัก CRM">
+    <!-- Authenticated SPA Workspace -->
+    <div v-else class="app app-flat">
+      <aside class="sidebar" aria-label="เมนูหลัก POPSTAR Connect">
         <div class="logo">
           <div class="logo-mark">P</div>
           <div>
@@ -30,14 +28,14 @@
           :active-route-name="String(route.name || '')"
           :offline-draft-count="offlineDrafts.length"
           @prefetch="(name) => prefetchRouteView(name, { withData: true })"
-          @navigate="sidebarOpen = false"
+          @open-visit="openVisitWizard()"
         />
 
         <div class="sidebar-bottom">
           <div class="avatar">{{ userInitial }}</div>
-          <div style="flex:1;min-width:0">
-            <strong style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ me?.name }}</strong>
-            <small>{{ me?.role }} {{ me?.salesperson_code ? `· ${me.salesperson_code}` : '' }}</small>
+          <div class="sidebar-user-meta">
+            <strong class="text-ellipsis">{{ me?.name }}</strong>
+            <small>{{ roleLabel }}{{ me?.salesperson_code ? ` · ${me.salesperson_code}` : '' }}</small>
           </div>
           <button
             type="button"
@@ -53,14 +51,6 @@
 
       <div class="main">
         <header class="topbar">
-          <button
-            type="button"
-            class="mobile-trigger topbtn"
-            aria-label="เปิดเมนู"
-            @click="sidebarOpen = true"
-          >
-            ☰
-          </button>
           <h1 class="topbar-title">{{ pageTitle }}</h1>
           <div class="breadcrumb">
             POPSTAR Connect
@@ -74,10 +64,10 @@
           <button
             type="button"
             class="cmd-chip"
-            aria-label="เปิดค้นหาด่วน (Ctrl+K)"
+            aria-label="ค้นหาเมนูและหน้าต่างๆ (Ctrl+K)"
             @click="uiState.commandPaletteOpen = true"
           >
-            <span>⌘ เมนูด่วน &amp; ค้นหา</span>
+            <span>⌘ ค้นหาเมนู</span>
             <kbd>Ctrl K</kbd>
           </button>
 
@@ -89,7 +79,7 @@
               :disabled="offlineSyncing"
               @click="syncPendingOfflineDrafts"
             >
-              ☁️ ซิงค์ ({{ offlineDrafts.length }})
+              ☁️ ส่งข้อมูล ({{ offlineDrafts.length }})
             </button>
             <button type="button" class="btn light" @click="openQuickAdd">+ เพิ่มร้าน</button>
             <button type="button" class="btn primary" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
@@ -100,7 +90,7 @@
             type="button"
             class="topbtn mobile-only-sync"
             :disabled="offlineSyncing"
-            :aria-label="`ซิงค์ข้อมูลค้างส่ง ${offlineDrafts.length} รายการ`"
+            :aria-label="`ส่งข้อมูลค้างส่ง ${offlineDrafts.length} รายการ`"
             @click="syncPendingOfflineDrafts"
           >
             ☁️
@@ -110,7 +100,7 @@
             <div class="avatar">{{ userInitial }}</div>
             <div>
               <strong>{{ me?.name }}</strong>
-              <small>{{ me?.salesperson_code || me?.role }}</small>
+              <small>{{ me?.salesperson_code || roleLabel }}</small>
             </div>
           </div>
         </header>
@@ -133,7 +123,7 @@
       <nav class="mobile-nav" aria-label="เมนูหลักบนมือถือ">
         <RouterLink to="/dashboard" class="mobile-nav-item" active-class="active">
           <span class="mni" aria-hidden="true">🏠</span>
-          <span>หน้าหลัก</span>
+          <span>วันนี้</span>
         </RouterLink>
         <RouterLink to="/customers" class="mobile-nav-item" active-class="active">
           <span class="mni" aria-hidden="true">🏪</span>
@@ -142,73 +132,50 @@
         <button
           type="button"
           class="mobile-nav-item mobile-nav-main"
-          aria-label="งานด่วน: เพิ่มร้าน บันทึกเข้าพบ"
+          aria-label="เพิ่มหรือบันทึกเข้าพบ"
           @click="mobileQuickOpen = true"
         >
           <span class="mni" aria-hidden="true">＋</span>
-          <span>งานด่วน</span>
+          <span>บันทึก</span>
         </button>
         <RouterLink to="/visits" class="mobile-nav-item" active-class="active">
           <span class="mni" aria-hidden="true">📍</span>
           <span>ออกตลาด</span>
         </RouterLink>
-        <button
-          type="button"
-          :class="['mobile-nav-item', { active: sidebarOpen }]"
-          aria-label="เปิดเมนูทั้งหมด"
-          @click="sidebarOpen = true"
-        >
-          <span class="mni" aria-hidden="true">☰</span>
-          <span>เมนู</span>
-        </button>
+        <RouterLink to="/more" class="mobile-nav-item" active-class="active">
+          <span class="mni" aria-hidden="true">⋯</span>
+          <span>เพิ่มเติม</span>
+        </RouterLink>
       </nav>
 
-      <!-- Quick actions sheet (center button of the bottom bar) -->
+      <!-- Center (+) Bottom Sheet: Only 2 big primary actions -->
       <MobileBottomSheet
         :open="mobileQuickOpen"
-        title="งานด่วน"
+        title="ทำรายการด่วน"
         @close="mobileQuickOpen = false"
       >
-        <div class="quick-grid">
-          <button type="button" class="quick-tile primary" @click="runMobileAction(() => openVisitWizard())">
+        <div class="sheet-two-actions">
+          <button
+            type="button"
+            class="quick-tile primary sheet-big-btn"
+            @click="runMobileAction(() => openVisitWizard())"
+          >
             <span class="quick-icon" aria-hidden="true">📸</span>
-            <strong>บันทึกเข้าพบ</strong>
-            <small>ถ่ายรูป + พิกัด GPS</small>
-          </button>
-          <button type="button" class="quick-tile" @click="runMobileAction(openQuickAdd)">
-            <span class="quick-icon" aria-hidden="true">➕</span>
-            <strong>เพิ่มร้านใหม่</strong>
-            <small>ตรวจชื่อ/เบอร์ซ้ำให้</small>
-          </button>
-          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/plans'))">
-            <span class="quick-icon" aria-hidden="true">📅</span>
-            <strong>แผนวันนี้</strong>
-            <small>ร้านที่ต้องไปเยี่ยม</small>
-          </button>
-          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/followups'))">
-            <span class="quick-icon" aria-hidden="true">✅</span>
-            <strong>งานติดตาม</strong>
-            <small>งานค้าง / นัดหมาย</small>
-          </button>
-          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/map'))">
-            <span class="quick-icon" aria-hidden="true">🗺️</span>
-            <strong>แผนที่ร้าน</strong>
-            <small>ร้านใกล้ตัว</small>
-          </button>
-          <button type="button" class="quick-tile" @click="runMobileAction(() => router.push('/pipeline'))">
-            <span class="quick-icon" aria-hidden="true">🎯</span>
-            <strong>โอกาสการขาย</strong>
-            <small>สถานะลูกค้าใหม่</small>
+            <div>
+              <strong>บันทึกเข้าพบ</strong>
+              <small>ถ่ายรูปและบันทึกพิกัดร้านค้า</small>
+            </div>
           </button>
           <button
-            v-if="offlineDrafts.length"
             type="button"
-            class="quick-tile wide"
-            @click="runMobileAction(syncPendingOfflineDrafts)"
+            class="quick-tile sheet-big-btn"
+            @click="runMobileAction(openQuickAdd)"
           >
-            <span class="quick-icon" aria-hidden="true">☁️</span>
-            <strong>ส่งข้อมูลค้างส่ง ({{ offlineDrafts.length }})</strong>
-            <small>บันทึกตอนไม่มีเน็ต</small>
+            <span class="quick-icon" aria-hidden="true">🏪</span>
+            <div>
+              <strong>เพิ่มร้านใหม่</strong>
+              <small>บันทึกร้านค้าใหม่พร้อมตรวจเบอร์ซ้ำ</small>
+            </div>
           </button>
         </div>
       </MobileBottomSheet>
@@ -291,10 +258,11 @@ import {
 const route = useRoute();
 const router = useRouter();
 
-const sidebarOpen = ref(false);
 const mobileQuickOpen = ref(false);
 
 const visibleNavGroups = computed(() => filterNavGroups(CRM_NAV_GROUPS, isManager.value));
+
+const roleLabel = computed(() => (isManager.value ? 'ผู้จัดการ' : 'พนักงานขาย'));
 
 const activeNavMeta = computed(() =>
   findNavMetaByRouteName(visibleNavGroups.value, String(route.name || ''))
@@ -319,20 +287,20 @@ const commandItems = computed(() => {
   });
   return [
     {
-      id: 'act:quick-add',
-      icon: '➕',
-      label: 'เพิ่มร้านค้าใหม่ (Quick Add)',
-      hint: 'ตรวจชื่อ/เบอร์/พิกัดซ้ำก่อนบันทึก',
-      section: 'คำสั่งด่วน',
-      action: openQuickAdd,
-    },
-    {
       id: 'act:visit',
       icon: '📸',
-      label: 'บันทึกเข้าพบร้านค้า (Visit Evidence)',
-      hint: 'GPS + รูปถ่ายหน้างาน + แบบสอบถาม 6 ข้อ',
+      label: 'บันทึกเข้าพบ',
+      hint: 'ถ่ายรูป พิกัดร้าน และแบบสอบถามเข้าพบ',
       section: 'คำสั่งด่วน',
       action: () => openVisitWizard(),
+    },
+    {
+      id: 'act:quick-add',
+      icon: '🏪',
+      label: 'เพิ่มร้านใหม่',
+      hint: 'ตรวจชื่อและเบอร์โทรซ้ำก่อนบันทึก',
+      section: 'คำสั่งด่วน',
+      action: openQuickAdd,
     },
     ...routes,
   ];
@@ -393,7 +361,7 @@ function onWindowOnline() {
 watch(
   () => route.name,
   (name) => {
-    sidebarOpen.value = false;
+    mobileQuickOpen.value = false;
     if (logged.value && name) {
       scheduleIdlePrefetch(name);
     }

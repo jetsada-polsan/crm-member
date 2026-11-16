@@ -24,12 +24,13 @@ const viewLoaders = {
   member: () => import('./views/MemberLoyaltyView.vue'),
   reports: () => import('./views/ReportsView.vue'),
   settings: () => import('./views/SettingsView.vue'),
+  more: () => import('./views/MoreView.vue'),
 };
 
 export const CRM_ROUTES = [
   { path: '/', redirect: '/dashboard' },
-  { path: '/dashboard', name: 'dashboard', component: viewLoaders.dashboard, meta: { label: 'ภาพรวมธุรกิจ' } },
-  { path: '/customers', name: 'customers', component: viewLoaders.customers, meta: { label: 'ทะเบียนลูกค้า' } },
+  { path: '/dashboard', name: 'dashboard', component: viewLoaders.dashboard, meta: { label: 'วันนี้' } },
+  { path: '/customers', name: 'customers', component: viewLoaders.customers, meta: { label: 'ลูกค้า' } },
   { path: '/pipeline', name: 'pipeline', component: viewLoaders.pipeline, meta: { label: 'โอกาสการขาย' } },
   {
     path: '/customer-360/:id?',
@@ -37,13 +38,13 @@ export const CRM_ROUTES = [
     component: viewLoaders['customer-360'],
     meta: { label: 'ข้อมูลลูกค้าแบบละเอียด', navPath: '/customer-360' },
   },
-  { path: '/map', name: 'map', component: viewLoaders.map, meta: { label: 'แผนที่ร้านค้า' } },
+  { path: '/map', name: 'map', component: viewLoaders.map, meta: { label: 'แผนที่ร้าน' } },
   { path: '/profile', name: 'profile', component: viewLoaders.profile, meta: { label: 'โปรไฟล์ & ข้อมูลค้างส่ง' } },
   { path: '/quick-add', name: 'quick-add', component: viewLoaders['quick-add'], meta: { label: 'เพิ่มร้านใหม่' } },
-  { path: '/visits', name: 'visits', component: viewLoaders.visits, meta: { label: 'บันทึกเข้าพบร้านค้า' } },
+  { path: '/visits', name: 'visits', component: viewLoaders.visits, meta: { label: 'ออกตลาด' } },
   { path: '/plans', name: 'plans', component: viewLoaders.plans, meta: { label: 'แผนออกตลาด' } },
   { path: '/followups', name: 'followups', component: viewLoaders.followups, meta: { label: 'งานติดตามผล' } },
-  { path: '/erp-requests', name: 'erp-requests', component: viewLoaders['erp-requests'], meta: { label: 'คำขอเปิด ERP', adminOnly: true } },
+  { path: '/erp-requests', name: 'erp-requests', component: viewLoaders['erp-requests'], meta: { label: 'คำขอเปิดรหัส ERP', adminOnly: true } },
   { path: '/matching', name: 'matching', component: viewLoaders.matching, meta: { label: 'จับคู่ลูกค้ากับ ERP', adminOnly: true } },
   { path: '/erp-customers', name: 'erp-customers', component: viewLoaders['erp-customers'], meta: { label: 'ลูกค้าใน ERP' } },
   { path: '/sync', name: 'sync', component: viewLoaders.sync, meta: { label: 'สถานะดึงข้อมูล ERP', adminOnly: true } },
@@ -52,7 +53,7 @@ export const CRM_ROUTES = [
     path: '/member-registration',
     name: 'member-registration',
     component: viewLoaders['member-registration'],
-    meta: { label: 'การสมัครสมาชิก', mode: 'register' },
+    meta: { label: 'วิธีสมัครสมาชิก', mode: 'register' },
   },
   {
     path: '/member-portal',
@@ -61,10 +62,11 @@ export const CRM_ROUTES = [
     meta: { label: 'เปิดหน้าสมาชิก', mode: 'portal' },
   },
   { path: '/loyalty', name: 'loyalty', component: viewLoaders.loyalty, meta: { label: 'กติกาแต้ม', adminOnly: true } },
-  { path: '/rewards', name: 'rewards', component: viewLoaders.rewards, meta: { label: 'ของรางวัล & แลกแต้ม', adminOnly: true } },
-  { path: '/member', name: 'member', component: viewLoaders.member, meta: { label: 'สมาชิก & คะแนน (รวม)', adminOnly: true, hiddenInNav: true } },
-  { path: '/reports', name: 'reports', component: viewLoaders.reports, meta: { label: 'รายงานและวิเคราะห์' } },
+  { path: '/rewards', name: 'rewards', component: viewLoaders.rewards, meta: { label: 'ของรางวัล', adminOnly: true } },
+  { path: '/member', name: 'member', component: viewLoaders.member, meta: { label: 'สมาชิก & คะแนน', adminOnly: true, hiddenInNav: true } },
+  { path: '/reports', name: 'reports', component: viewLoaders.reports, meta: { label: 'รายงานยอดขาย' } },
   { path: '/settings', name: 'settings', component: viewLoaders.settings, meta: { label: 'ตั้งค่า & ผู้ใช้งาน', adminOnly: true } },
+  { path: '/more', name: 'more', component: viewLoaders.more, meta: { label: 'เพิ่มเติม', hiddenInNav: true } },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ];
 
