@@ -436,6 +436,17 @@ function openFirstPhoto(pin) {
   background: #fff;
 }
 
+.map-store-table {
+  white-space: normal;
+}
+
+.map-store-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+
 .map-store-row {
   cursor: pointer;
   transition: background-color 0.12s ease;

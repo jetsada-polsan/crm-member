@@ -25,36 +25,104 @@ let lastFitSignature = '';
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
-function computeMarkerPositions(pins) {
-  const buckets = new Map();
+function extractValidPins(pins) {
   const valid = [];
-
   for (const p of pins) {
     const lat = Number(p.latitude);
     const lng = Number(p.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-    const key = `${lat.toFixed(4)}:${lng.toFixed(4)}`;
-    if (!buckets.has(key)) buckets.set(key, []);
-    const item = { pin: p, lat, lng, key };
-    buckets.get(key).push(item);
-    valid.push(item);
+    valid.push({ pin: p, lat, lng });
+  }
+  return valid;
+}
+
+function fitMapToValidPins(valid, forceFit) {
+  const signature = valid.map((v) => String(v.pin.id)).join(',');
+  if (!valid.length) {
+    lastFitSignature = '';
+    return;
+  }
+  if (!props.autoFit || (!forceFit && signature === lastFitSignature)) {
+    return;
+  }
+  lastFitSignature = signature;
+  const pts = valid.map((v) => [v.lat, v.lng]);
+  if (pts.length === 1) {
+    map.setView(pts[0], Math.max(map.getZoom(), 15), { animate: false });
+  } else {
+    map.fitBounds(L.latLngBounds(pts), { padding: [56, 56], maxZoom: 15, animate: false });
+  }
+}
+
+function computePixelSpreadPositions(valid) {
+  const withPoint = valid.map((v) => ({
+    ...v,
+    pt: map.latLngToLayerPoint([v.lat, v.lng]),
+  }));
+
+  // Group pins whose marker icons would overlap in current screen pixels (< 44px apart).
+  const clusters = [];
+  const MERGE_DISTANCE_PX = 44;
+  for (const item of withPoint) {
+    let targetCluster = null;
+    for (const cluster of clusters) {
+      const dx = item.pt.x - cluster.anchorPt.x;
+      const dy = item.pt.y - cluster.anchorPt.y;
+      if (Math.hypot(dx, dy) < MERGE_DISTANCE_PX) {
+        targetCluster = cluster;
+        break;
+      }
+    }
+    if (!targetCluster) {
+      clusters.push({
+        anchorLat: item.lat,
+        anchorLng: item.lng,
+        anchorPt: item.pt,
+        items: [item],
+      });
+    } else {
+      targetCluster.items.push(item);
+    }
   }
 
-  return valid.map((item) => {
-    const groupList = buckets.get(item.key);
-    if (!groupList || groupList.length <= 1) {
-      return { ...item, displayLat: item.lat, displayLng: item.lng, overlapped: false };
+  const placed = [];
+  for (const cluster of clusters) {
+    if (cluster.items.length === 1) {
+      const only = cluster.items[0];
+      placed.push({
+        ...only,
+        displayLat: only.lat,
+        displayLng: only.lng,
+        anchorLat: only.lat,
+        anchorLng: only.lng,
+        isSpiderfied: false,
+      });
+      continue;
     }
-    const idx = groupList.indexOf(item);
-    const angle = (2 * Math.PI * idx) / groupList.length - Math.PI / 4;
-    const radius = 0.00028;
-    return {
-      ...item,
-      displayLat: item.lat + Math.sin(angle) * radius,
-      displayLng: item.lng + Math.cos(angle) * radius * 1.15,
-      overlapped: true,
-    };
-  });
+
+    const n = cluster.items.length;
+    const radiusPx = n === 2 ? 38 : Math.max(40, Math.min(64, 28 + n * 5));
+    const startAngle = n === 2 ? 0 : -Math.PI / 2;
+
+    cluster.items.forEach((item, idx) => {
+      const angle = startAngle + (2 * Math.PI * idx) / n;
+      const offsetPt = L.point(
+        cluster.anchorPt.x + Math.cos(angle) * radiusPx,
+        cluster.anchorPt.y + Math.sin(angle) * radiusPx
+      );
+      const ll = map.layerPointToLatLng(offsetPt);
+      placed.push({
+        ...item,
+        displayLat: ll.lat,
+        displayLng: ll.lng,
+        anchorLat: cluster.anchorLat,
+        anchorLng: cluster.anchorLng,
+        isSpiderfied: true,
+      });
+    });
+  }
+
+  return { placed, clusters };
 }
 
 function makeMarkerIcon(pin, isSelected) {
@@ -70,15 +138,47 @@ function makeMarkerIcon(pin, isSelected) {
   });
 }
 
-function redraw(fit = false) {
+function redraw(forceFit = false) {
   if (!map || !group) return;
   group.clearLayers();
   markerCoordsById.clear();
 
-  const positioned = computeMarkerPositions(props.pins);
-  const boundsPoints = [];
+  const valid = extractValidPins(props.pins);
+  fitMapToValidPins(valid, forceFit);
+  if (!valid.length) return;
 
-  for (const item of positioned) {
+  const { placed, clusters } = computePixelSpreadPositions(valid);
+
+  // Draw spider legs & shared anchor points first (underneath markers).
+  for (const cluster of clusters) {
+    if (cluster.items.length <= 1) continue;
+    L.circleMarker([cluster.anchorLat, cluster.anchorLng], {
+      radius: 4.5,
+      color: '#334155',
+      weight: 2,
+      fillColor: '#ffffff',
+      fillOpacity: 1,
+      interactive: false,
+    }).addTo(group);
+  }
+
+  for (const item of placed) {
+    if (item.isSpiderfied) {
+      L.polyline(
+        [
+          [item.anchorLat, item.anchorLng],
+          [item.displayLat, item.displayLng],
+        ],
+        {
+          color: '#64748b',
+          weight: 1.75,
+          dashArray: '4 4',
+          opacity: 0.78,
+          interactive: false,
+        }
+      ).addTo(group);
+    }
+
     const { pin, displayLat, displayLng } = item;
     const isSelected = props.selectedPinId != null && String(pin.id) === String(props.selectedPinId);
     const label = esc(pinDisplayName(pin));
@@ -93,7 +193,7 @@ function redraw(fit = false) {
 
     marker.bindTooltip(tooltipHtml, {
       direction: 'top',
-      offset: [0, -18],
+      offset: [0, -20],
       opacity: 0.96,
       className: 'cm-tooltip',
     });
@@ -103,17 +203,6 @@ function redraw(fit = false) {
     });
 
     markerCoordsById.set(String(pin.id), [displayLat, displayLng]);
-    boundsPoints.push([displayLat, displayLng]);
-  }
-
-  const signature = positioned.map((x) => String(x.pin.id)).join(',');
-  if (props.autoFit && boundsPoints.length && (fit || signature !== lastFitSignature)) {
-    lastFitSignature = signature;
-    if (boundsPoints.length === 1) {
-      map.setView(boundsPoints[0], Math.max(map.getZoom(), 15), { animate: false });
-    } else {
-      map.fitBounds(L.latLngBounds(boundsPoints), { padding: [48, 48], maxZoom: 15, animate: false });
-    }
   }
 }
 
@@ -138,6 +227,8 @@ function redrawPicked() {
   }
 }
 
+const onZoomEnd = () => redraw(false);
+
 onMounted(() => {
   map = L.map(element.value, { zoomControl: true }).setView([15.2287, 104.8564], 10);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -145,6 +236,7 @@ onMounted(() => {
     attribution: '© OpenStreetMap contributors',
   }).addTo(map);
   group = L.layerGroup().addTo(map);
+  map.on('zoomend', onZoomEnd);
   map.on('click', (e) => {
     if (props.selectMode) {
       emit('picked', {
@@ -155,9 +247,15 @@ onMounted(() => {
   });
   redraw(true);
   redrawPicked();
-  setTimeout(() => map?.invalidateSize(), 60);
+  setTimeout(() => {
+    map?.invalidateSize();
+    redraw(true);
+  }, 80);
   if (typeof ResizeObserver !== 'undefined' && element.value) {
-    resizeObs = new ResizeObserver(() => map?.invalidateSize());
+    resizeObs = new ResizeObserver(() => {
+      map?.invalidateSize();
+      redraw(false);
+    });
     resizeObs.observe(element.value);
   }
 });
@@ -178,6 +276,7 @@ watch(
 watch(() => props.pickedLocation, redrawPicked, { deep: true });
 
 onBeforeUnmount(() => {
+  map?.off('zoomend', onZoomEnd);
   resizeObs?.disconnect();
   map?.remove();
 });
@@ -189,6 +288,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .cm-canvas {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid #dbe3ef;
