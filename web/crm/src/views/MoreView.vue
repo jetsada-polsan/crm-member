@@ -6,7 +6,17 @@
         <div class="avatar more-avatar">{{ userInitial }}</div>
         <div class="more-profile-info">
           <div class="more-role-pill">
-            <span>{{ isManager ? '👑 ผู้จัดการ / ผู้ดูแลระบบ' : '🚀 พนักงานขายออกตลาด' }}</span>
+            <span>
+              {{
+                me?.role === 'admin'
+                  ? '👑 แอดมินระบบ'
+                  : me?.role === 'executive'
+                    ? '👔 ผู้บริหาร (ดูข้อมูลทั้งระบบ · แก้ไขไม่ได้)'
+                    : isManager
+                      ? '👑 ผู้จัดการ'
+                      : '🚀 พนักงานขายออกตลาด'
+              }}
+            </span>
             <span v-if="me?.salesperson_code" class="more-code-pill">รหัส {{ me.salesperson_code }}</span>
             <span
               v-if="Array.isArray(me?.reservation_doc_types) && me.reservation_doc_types.length"

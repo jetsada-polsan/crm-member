@@ -15,7 +15,7 @@ final class ErpLocalSyncController
     private function requireAdmin(): void
     {
         $user = Auth::guard('staff')->user();
-        abort_unless($user && in_array($user->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+        abort_unless($user && in_array($user->role, ['admin', 'manager', 'executive'], true), 403, 'Admin or manager role required');
     }
 
     private function bridgeUrl(string $path): string

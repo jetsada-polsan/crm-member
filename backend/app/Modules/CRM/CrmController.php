@@ -237,7 +237,7 @@ final class CrmController
     {
         $customerQuery = $this->accessibleCustomers('erp_customers');
         $user = Auth::guard('staff')->user();
-        $isManager = in_array($user->role, ['admin', 'manager'], true);
+        $isManager = CustomerAccess::isManager($user);
         $salesFilter = $this->salesScopeFilter($user, $isManager);
 
         $salesSummary = SalesRules::summarizeInvoices($salesFilter);
@@ -462,7 +462,7 @@ final class CrmController
     public function productSizeSegments(Request $request): JsonResponse
     {
         $user = Auth::guard('staff')->user();
-        abort_unless(in_array($user->role, ['admin', 'manager'], true), 403, 'Manager or admin access required');
+        abort_unless(CustomerAccess::isManager($user), 403, 'Manager or admin access required');
         $filters = $request->validate([
             'source_system' => ['nullable', 'string', 'max:32'],
             'q' => ['nullable', 'string', 'max:120'],
@@ -548,7 +548,7 @@ final class CrmController
         abort_if($period === 'month' && $from->diffInMonths($to) > 23, 422, 'Choose a range of 24 months or less.');
         $source = strtoupper(trim((string) ($filters['source_system'] ?? config('popstar.erp_source_system', 'BPLUS'))));
         $user = Auth::guard('staff')->user();
-        $isManager = in_array($user->role, ['admin', 'manager'], true);
+        $isManager = CustomerAccess::isManager($user);
 
         $bySize = ! empty($filters['size_code']);
         $base = DB::table('erp_sales_invoices as inv');
@@ -635,7 +635,7 @@ final class CrmController
         ]);
 
         $user = Auth::guard('staff')->user();
-        $isManager = in_array($user->role, ['admin', 'manager'], true);
+        $isManager = CustomerAccess::isManager($user);
         $salesFilter = $this->salesScopeFilter($user, $isManager);
 
         $dateAndRoleFilter = function ($query, string $invAlias) use ($filters, $salesFilter): void {
@@ -766,7 +766,7 @@ final class CrmController
     public function memberLinks(): JsonResponse
     {
         $user = Auth::guard('staff')->user();
-        abort_unless(in_array($user->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+        abort_unless(CustomerAccess::isManager($user), 403, 'Admin or manager role required');
 
         $links = DB::table('member_erp_links as l')
             ->join('member_accounts as m', 'm.id', '=', 'l.member_account_id')
@@ -940,7 +940,7 @@ final class CrmController
             ->leftJoin('erp_customers as c', 'c.id', '=', 'v.erp_customer_id')
             ->leftJoin('crm_leads as l', 'l.id', '=', 'v.crm_lead_id')
             ->leftJoin('staff_users as s', 's.id', '=', 'v.staff_user_id');
-        if (! in_array($user->role, ['admin', 'manager'], true)) {
+        if (! CustomerAccess::isManager($user)) {
             $query->where('v.staff_user_id', $user->id);
         }
 
@@ -1041,7 +1041,7 @@ final class CrmController
     public function members(Request $request): JsonResponse
     {
         $user = Auth::guard('staff')->user();
-        abort_unless(in_array($user->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+        abort_unless(CustomerAccess::isManager($user), 403, 'Admin or manager role required');
 
         $search = trim((string) $request->query('q', ''));
         $likeOp = SalesRules::likeOperator();
@@ -1091,7 +1091,7 @@ final class CrmController
     public function settingsOverview(): JsonResponse
     {
         $user = Auth::guard('staff')->user();
-        abort_unless(in_array($user->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+        abort_unless(CustomerAccess::isManager($user), 403, 'Admin or manager role required');
 
         $autoSyncStats = CustomerAccess::syncStaffFromErp();
 
@@ -1179,7 +1179,7 @@ final class CrmController
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:180', 'unique:staff_users,email'],
             'password' => ['required', 'string', 'min:8', 'max:120'],
-            'role' => ['required', 'in:admin,manager,sales'],
+            'role' => ['required', 'in:admin,manager,executive,sales'],
             'salesperson_code' => ['nullable', 'string', 'max:64'],
             'reservation_doc_types' => ['nullable'],
             'is_active' => ['nullable', 'boolean'],
@@ -1232,7 +1232,7 @@ final class CrmController
             'name' => ['sometimes', 'required', 'string', 'max:120'],
             'email' => ['sometimes', 'required', 'email', 'max:180', 'unique:staff_users,email,'.$id],
             'password' => ['nullable', 'string', 'min:8', 'max:120'],
-            'role' => ['sometimes', 'required', 'in:admin,manager,sales'],
+            'role' => ['sometimes', 'required', 'in:admin,manager,executive,sales'],
             'salesperson_code' => ['nullable', 'string', 'max:64'],
             'reservation_doc_types' => ['nullable'],
             'is_active' => ['sometimes', 'boolean'],

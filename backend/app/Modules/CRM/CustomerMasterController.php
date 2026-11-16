@@ -22,7 +22,7 @@ final class CustomerMasterController
 
     private function isManager(): bool
     {
-        return in_array($this->user()->role, ['admin', 'manager'], true);
+        return CustomerAccess::isManager($this->user());
     }
 
     private static function clip(?string $value, int $max): ?string

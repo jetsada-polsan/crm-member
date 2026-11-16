@@ -15,11 +15,33 @@ use Illuminate\Support\Facades\Hash;
  */
 final class CustomerAccess
 {
+    public const DEFAULT_EXECUTIVES = [
+        ['slug' => 'sia', 'email' => 'sia@popstar.local', 'name' => 'เสี่ย (ผู้บริหารสูงสุด)', 'aliases' => ['เสี่ย', 'sia']],
+        ['slug' => 'jae', 'email' => 'jae@popstar.local', 'name' => 'เจ๊ (ผู้บริหารสูงสุด)', 'aliases' => ['เจ๊', 'jae']],
+        ['slug' => 'gm', 'email' => 'gm@popstar.local', 'name' => 'ผู้จัดการทั่วไป', 'aliases' => ['ผู้จัดการทั่วไป', 'gm']],
+        ['slug' => 'wh-mgr', 'email' => 'wh-mgr@popstar.local', 'name' => 'ผู้จัดการคลัง', 'aliases' => ['ผู้จัดการคลัง', 'wh-mgr', 'wh']],
+        ['slug' => 'branch-mgr', 'email' => 'branch-mgr@popstar.local', 'name' => 'ผู้จัดการสาขา', 'aliases' => ['ผู้จัดการสาขา', 'branch-mgr', 'branch']],
+    ];
+
     public static function isManager(?object $user = null): bool
     {
         $u = $user ?? Auth::guard('staff')->user();
 
-        return $u !== null && in_array($u->role, ['admin', 'manager'], true);
+        return $u !== null && in_array($u->role, ['admin', 'manager', 'executive'], true);
+    }
+
+    public static function isAdmin(?object $user = null): bool
+    {
+        $u = $user ?? Auth::guard('staff')->user();
+
+        return $u !== null && $u->role === 'admin';
+    }
+
+    public static function isReadOnlyExecutive(?object $user = null): bool
+    {
+        $u = $user ?? Auth::guard('staff')->user();
+
+        return $u !== null && $u->role === 'executive';
     }
 
     /**
@@ -163,6 +185,25 @@ final class CustomerAccess
         $updated = 0;
         $now = now();
 
+        // 0. Ensure the 5 executive read-only accounts exist (เสี่ย, เจ๊, ผู้จัดการทั่วไป, ผู้จัดการคลัง, ผู้จัดการสาขา)
+        foreach (self::DEFAULT_EXECUTIVES as $exec) {
+            $exists = DB::table('staff_users')->where('email', $exec['email'])->first();
+            if (! $exists) {
+                DB::table('staff_users')->insert([
+                    'name' => $exec['name'],
+                    'email' => $exec['email'],
+                    'password' => Hash::make($defaultPassword),
+                    'role' => 'executive',
+                    'salesperson_code' => null,
+                    'reservation_doc_types' => null,
+                    'is_active' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                $created++;
+            }
+        }
+
         // 1. Auto-update any existing sales staff missing reservation_doc_types or salesperson_code
         foreach ($staffRows as $s) {
             if ($s->role !== 'sales') {
@@ -255,11 +296,13 @@ final class CustomerAccess
         }
 
         $totalSalesStaff = DB::table('staff_users')->where('role', 'sales')->count();
+        $totalExecutiveStaff = DB::table('staff_users')->where('role', 'executive')->count();
 
         return [
             'created' => $created,
             'updated' => $updated,
             'total_sales_staff' => $totalSalesStaff,
+            'total_executive_staff' => $totalExecutiveStaff,
         ];
     }
 

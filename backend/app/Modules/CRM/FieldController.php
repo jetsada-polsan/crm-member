@@ -32,7 +32,7 @@ final class FieldController
 
     private function manager(): bool
     {
-        return in_array($this->user()->role, ['admin', 'manager'], true);
+        return CustomerAccess::isManager($this->user());
     }
 
     private function customerAllowed(int $id): bool

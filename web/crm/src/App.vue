@@ -12,6 +12,8 @@
       :submit-register="handleMemberRegister"
     />
 
+    <RouterView v-else-if="route.meta.presentation" />
+
     <!-- Authenticated SPA Workspace -->
     <div v-else class="app app-flat">
       <aside class="sidebar" aria-label="เมนูหลัก POPSTAR Connect">
@@ -320,7 +322,12 @@ const mobileQuickOpen = ref(false);
 
 const visibleNavGroups = computed(() => filterNavGroups(CRM_NAV_GROUPS, isManager.value));
 
-const roleLabel = computed(() => (isManager.value ? 'ผู้จัดการ' : 'พนักงานขาย'));
+const roleLabel = computed(() => {
+  if (me.value?.role === 'admin') return 'แอดมินระบบ';
+  if (me.value?.role === 'executive') return 'ผู้บริหาร (ดูทั้งหมด)';
+  if (me.value?.role === 'manager') return 'ผู้จัดการ';
+  return 'พนักงานขาย';
+});
 
 const activeNavMeta = computed(() =>
   findNavMetaByRouteName(visibleNavGroups.value, String(route.name || ''))

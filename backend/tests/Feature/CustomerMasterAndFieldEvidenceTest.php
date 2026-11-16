@@ -487,5 +487,33 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $b33Dash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
         $this->assertSame(1, (int) $b33Dash['customers']);
         $this->assertSame(8000.0, (float) $b33Dash['sales_kpis']['net_sales_before_vat']);
+
+        // Executive account (เสี่ย) logs in by alias "เสี่ย", sees ALL 2 customers & 13,000 sales, but CANNOT modify system or data
+        \Illuminate\Support\Facades\Auth::guard('staff')->logout();
+        $this->postJson('/api/crm/login', [
+            'email' => 'เสี่ย',
+            'password' => 'Popstar2026!',
+        ])->assertOk()
+          ->assertJsonPath('role', 'executive');
+
+        $execDash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
+        $this->assertSame(2, (int) $execDash['customers']);
+        $this->assertSame(13000.0, (float) $execDash['sales_kpis']['net_sales_before_vat']);
+        $this->assertCount(2, $this->getJson('/api/crm/customers')->assertOk()->json());
+
+        // Executive write attempts are strictly blocked with 403
+        $this->postJson('/api/crm/settings/staff', [
+            'name' => 'Hacker',
+            'email' => 'hack@popstar.local',
+            'password' => 'SecretPass123!',
+            'role' => 'admin',
+        ])->assertStatus(403);
+        $this->postJson('/api/crm/pins', [
+            'erp_customer_id' => $custB16Id,
+            'latitude' => 15.2,
+            'longitude' => 104.8,
+            'source' => 'manual',
+        ])->assertStatus(403);
+        $this->postJson('/api/crm/logout', [])->assertOk();
     }
 }

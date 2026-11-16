@@ -5,13 +5,19 @@
       subtitle="แอดมินเห็นข้อมูลทั้งระบบ · เซลล์เห็นเฉพาะลูกหนี้และยอดขายในสายใบจอง / รหัสเซลล์ของตัวเอง"
     >
       <template #secondary>
-        <button type="button" class="btn" :disabled="syncingAuto" @click="triggerAutoSync">
+        <button
+          v-if="!isExecutive"
+          type="button"
+          class="btn"
+          :disabled="syncingAuto"
+          @click="triggerAutoSync"
+        >
           {{ syncingAuto ? 'กำลังผูกอัตโนมัติ...' : '⚡ ผูกเซลล์ & ใบจองจากบิล Bplus อัตโนมัติ' }}
         </button>
       </template>
       <template #primary>
-        <button type="button" class="btn primary" @click="openCreateModal">
-          ＋ เพิ่มบัญชีพนักงาน
+        <button v-if="!isExecutive" type="button" class="btn primary" @click="openCreateModal">
+          ＋ เพิ่มบัญชีพนักงาน / ผู้บริหาร
         </button>
       </template>
     </PageHeader>
@@ -70,8 +76,19 @@
                 <td><b>{{ u.name }}</b></td>
                 <td>{{ u.email }}</td>
                 <td>
-                  <span class="tag" :class="u.role === 'admin' ? 'purple' : u.role === 'manager' ? 'blue' : 'green'">
-                    {{ u.role === 'admin' ? 'แอดมิน (เห็นทั้งหมด)' : u.role === 'manager' ? 'ผู้จัดการ (เห็นทั้งหมด)' : 'เซลล์ (เฉพาะตัวเอง)' }}
+                  <span
+                    class="tag"
+                    :class="u.role === 'admin' ? 'purple' : u.role === 'executive' ? 'orange' : u.role === 'manager' ? 'blue' : 'green'"
+                  >
+                    {{
+                      u.role === 'admin'
+                        ? 'แอดมิน (เห็นทั้งหมด + แก้ไขระบบ)'
+                        : u.role === 'executive'
+                          ? 'ผู้บริหาร (ดูทุกคน · ห้ามแก้ไข)'
+                          : u.role === 'manager'
+                            ? 'ผู้จัดการ (เห็นทั้งหมด)'
+                            : 'เซลล์ (เฉพาะตัวเอง)'
+                    }}
                   </span>
                 </td>
                 <td>
@@ -99,9 +116,10 @@
                   </span>
                 </td>
                 <td style="text-align:right">
-                  <button type="button" class="btn light" @click="openEditModal(u)">
+                  <button v-if="!isExecutive" type="button" class="btn light" @click="openEditModal(u)">
                     ✏️ ผูกใบจอง / แก้ไข
                   </button>
+                  <span v-else class="small muted">ดูอย่างเดียว</span>
                 </td>
               </tr>
             </tbody>
@@ -244,8 +262,9 @@
           <label>ระดับสิทธิ์ (Role) *</label>
           <select v-model="form.role">
             <option value="sales">พนักงานขาย / เซลล์ (เห็นเฉพาะใบจอง &amp; ยอดตัวเอง)</option>
+            <option value="executive">ผู้บริหาร / เสี่ย / เจ๊ / ผจก. (ดูข้อมูลทุกคน · แก้ไขระบบไม่ได้)</option>
             <option value="manager">ผู้จัดการฝ่ายขาย (เห็นทั้งหมด)</option>
-            <option value="admin">แอดมินระบบ (เห็นทั้งหมด + ตั้งค่า)</option>
+            <option value="admin">แอดมินระบบ (เห็นทั้งหมด + ตั้งค่าระบบ)</option>
           </select>
         </div>
 
@@ -309,7 +328,7 @@ import BaseModal from '../../../shared/components/BaseModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
-import { crmGet, crmMutate, fmt, invalidateCrmData, refreshSession } from '../composables/useCrmSession.js';
+import { crmGet, crmMutate, fmt, invalidateCrmData, isExecutive, refreshSession } from '../composables/useCrmSession.js';
 
 const { data, isLoading, isError, error, refetch } = useQuery({
   queryKey: ['crm', 'settings-overview'],

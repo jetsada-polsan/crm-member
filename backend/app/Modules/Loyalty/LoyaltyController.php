@@ -17,7 +17,7 @@ final class LoyaltyController
     private function authorizeManager(): object
     {
         $user = Auth::guard('staff')->user();
-        abort_unless($user && in_array($user->role, ['admin', 'manager'], true), 403, 'Manager or admin access required');
+        abort_unless($user && in_array($user->role, ['admin', 'manager', 'executive'], true), 403, 'Manager or admin access required');
 
         return $user;
     }

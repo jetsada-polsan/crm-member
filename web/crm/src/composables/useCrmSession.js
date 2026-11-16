@@ -42,7 +42,8 @@ export const APPROVAL_LABELS = {
 export const me = ref(null);
 export const logged = ref(false);
 export const authChecked = ref(false);
-export const isManager = computed(() => ['admin', 'manager'].includes(me.value?.role));
+export const isManager = computed(() => ['admin', 'manager', 'executive'].includes(me.value?.role));
+export const isExecutive = computed(() => me.value?.role === 'executive');
 export const userInitial = computed(() => (me.value?.name || 'P').trim().charAt(0).toUpperCase());
 
 export const quickAddOpen = ref(false);

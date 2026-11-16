@@ -78,6 +78,13 @@ final class StaffAuthController
             return strtolower($ident);
         }
 
+        $lower = mb_strtolower($ident, 'UTF-8');
+        foreach (CustomerAccess::DEFAULT_EXECUTIVES as $exec) {
+            if ($lower === $exec['slug'] || in_array($lower, array_map(static fn ($a) => mb_strtolower($a, 'UTF-8'), $exec['aliases']), true)) {
+                return $exec['email'];
+            }
+        }
+
         $upper = strtoupper($ident);
         $byCode = DB::table('staff_users')
             ->where('salesperson_code', $ident)
@@ -87,6 +94,7 @@ final class StaffAuthController
             ->orWhere('reservation_doc_types', 'LIKE', '%,'.$upper)
             ->orWhere('reservation_doc_types', 'LIKE', '%,'.$upper.',%')
             ->orWhere('name', $ident)
+            ->orWhere('name', 'LIKE', $ident.' (%')
             ->first();
 
         if ($byCode) {

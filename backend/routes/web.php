@@ -27,7 +27,7 @@ Route::post('/api/line/webhook', LineWebhookController::class)->middleware('thro
 Route::prefix('api/crm')->group(function () {
     Route::get('/csrf', [StaffAuthController::class, 'csrf']);
     Route::post('/login', [StaffAuthController::class, 'login'])->middleware('throttle:crm-login');
-    Route::middleware('auth:staff')->group(function () {
+    Route::middleware(['auth:staff', \App\Http\Middleware\RejectExecutiveMutations::class])->group(function () {
         Route::post('/logout', [StaffAuthController::class, 'logout']);
         Route::get('/me', [StaffAuthController::class, 'me']);
         Route::get('/dashboard', [CrmController::class, 'dashboard']);
@@ -47,6 +47,7 @@ Route::prefix('api/crm')->group(function () {
         Route::post('/reports/product-size-segments', [CrmController::class, 'saveProductSizeSegment']);
         Route::delete('/reports/product-size-segments/{segmentId}', [CrmController::class, 'deleteProductSizeSegment'])->whereNumber('segmentId');
         Route::get('/reports/field-visits', [FieldController::class, 'fieldVisitReport']);
+        Route::get('/reports/visit-presentation', [\App\Modules\CRM\VisitPresentationController::class, 'data']);
         Route::get('/members', [CrmController::class, 'members']);
         Route::get('/member-links', [CrmController::class, 'memberLinks']);
         Route::post('/member-links', [CrmController::class, 'createMemberLink']);

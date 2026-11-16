@@ -25,8 +25,14 @@
     <!-- Role & Reservation Binding Scope Banner -->
     <div class="card dash-scope-bar">
       <div class="dash-scope-main">
-        <span :class="['tag', isManager ? 'purple' : 'blue']">
-          {{ isManager ? '👑 แอดมิน / ผู้จัดการ (เห็นทั้งหมด)' : '🔒 ข้อมูลเฉพาะสายของคุณ' }}
+        <span :class="['tag', me?.role === 'executive' ? 'orange' : isManager ? 'purple' : 'blue']">
+          {{
+            me?.role === 'executive'
+              ? '👔 ผู้บริหาร (ดูข้อมูลทุกคน · แก้ไขระบบไม่ได้)'
+              : isManager
+                ? '👑 แอดมิน / ผู้จัดการ (เห็นทั้งหมด)'
+                : '🔒 ข้อมูลเฉพาะสายของคุณ'
+          }}
         </span>
         <template v-if="isManager">
           <span class="small">
