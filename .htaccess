@@ -1,3 +1,13 @@
-# POPSTAR runs via start-popstar.bat (artisan serve + node), not Apache.
-# Block Apache from serving project files such as backend/.env.
-Require all denied
+# http://localhost/popstar-business-platform-v4/ -> index.html -> opens the CRM (http://popstar.localhost)
+# The folder is visible in the localhost index; only secrets and customer-data backups stay blocked.
+Require all granted
+Options -Indexes
+DirectoryIndex index.html
+
+# Passwords / tokens (.env, postgres password file, sync-agent config, backups of them)
+<FilesMatch "^(\.env.*|\.pgpass.*|config\.env.*|.*\.dump|.*\.bak.*)$">
+    Require all denied
+</FilesMatch>
+
+# Git history, Docker data backups (customer data), sync-agent, Laravel internals
+RedirectMatch 404 ^/popstar-business-platform-v4/(\.git|_docker_backup|sync-agent|backend/(?!public(/|$)))

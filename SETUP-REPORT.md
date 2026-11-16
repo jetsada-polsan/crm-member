@@ -6,6 +6,11 @@
 
 ไม่ได้แตะ Bplus ERP / SQL Server · ไม่ได้ลบไฟล์ใด · ไม่ได้ push ขึ้น GitHub
 
+## โฟลเดอร์โปรเจกต์แสดงใน http://localhost แล้ว (2026-11-16)
+
+- ผู้ใช้ขอให้ไม่ซ่อน: `.htaccess` ที่ root เปลี่ยนจาก "บล็อกทั้งหมด" เป็น "เปิดให้เข้า" และเพิ่ม `index.html` ที่พาไปหน้า CRM (http://popstar.localhost) ทันที
+- ยังบล็อกเฉพาะ: `.env*`, `.pgpass*`, `config.env*`, `*.dump`, `*.bak*` (403) และ `.git`, `_docker_backup`, `sync-agent`, `backend/*` ยกเว้น `backend/public` (404) ซึ่งมีรหัสผ่านและข้อมูลลูกค้า และ Apache เปิดให้ทุกเครื่องในเครือข่ายเข้าได้
+
 ## ปิด Docker แล้ว (2026-11-16)
 
 - `docker compose -f _docker_backup\compose.yaml --env-file .env -p popstar-platform down` ลบ container ทั้ง 5 ตัวและ network แล้ว **ไม่ได้ลบ volume** (`popstar-platform_pgdata`, `popstar-platform_app_storage` ยังอยู่ ถ้าต้องการลบภายหลัง ใช้ `docker volume rm`)
