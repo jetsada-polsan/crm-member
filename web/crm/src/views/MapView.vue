@@ -11,9 +11,17 @@
 
     <div class="split">
       <div class="card panel-pad">
-        <CustomerMap :pins="pins || []" :select-mode="true" height="440px" @picked="manualLoc = $event" />
+        <CustomerMap
+          :pins="pins || []"
+          :select-mode="true"
+          :selected-pin-id="selectedPin?.id"
+          :picked-location="activeLoc"
+          height="460px"
+          @picked="manualLoc = $event"
+          @select="selectedPin = $event"
+        />
         <div class="map-foot">
-          <span>● ลูกค้า ERP &nbsp; ● Lead อนุมัติ &nbsp; ● Lead รออนุมัติ ({{ (pins || []).length }} จุด)</span>
+          <span>● ลูกค้า ERP &nbsp; ● Lead อนุมัติ &nbsp; ● Lead รออนุมัติ ({{ (pins || []).length }} จุด · กดที่หมุดเพื่อดูรูปและข้อมูลร้าน)</span>
           <span v-if="activeLoc" class="tag blue">จุดที่เลือก: {{ activeLoc.latitude }}, {{ activeLoc.longitude }}</span>
         </div>
       </div>
@@ -53,6 +61,8 @@
         </div>
       </div>
     </div>
+
+    <PinDetailModal :pin="selectedPin" @close="selectedPin = null" />
   </div>
 </template>
 
@@ -60,6 +70,7 @@
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import CustomerMap from '../CustomerMap.vue';
+import PinDetailModal from '../components/PinDetailModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, invalidateCrmData, openVisitWizard } from '../composables/useCrmSession.js';
@@ -68,6 +79,7 @@ const subjectKind = ref('lead');
 const subjectId = ref('');
 const gpsLoc = ref(null);
 const manualLoc = ref(null);
+const selectedPin = ref(null);
 const saving = ref(false);
 
 const { data: pins, refetch: refetchPins } = useQuery({

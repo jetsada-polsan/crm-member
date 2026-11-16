@@ -147,6 +147,8 @@
           </div>
         </div>
 
+        <CustomerMapBoard />
+
         <div class="dash-grid">
           <div class="card">
             <div class="section-head">
@@ -285,6 +287,7 @@ import { useMutation, useQuery } from '@tanstack/vue-query';
 import { RouterLink } from 'vue-router';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
+import CustomerMapBoard from '../components/CustomerMapBoard.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import {
   crmGet,
