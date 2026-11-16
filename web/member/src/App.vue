@@ -1,10 +1,11 @@
 <template>
   <div>
+    <AppBootSplash v-if="!authChecked" message="กำลังตรวจสอบการเข้าสู่ระบบ…" />
+
     <PortalAuthScreen
-      v-if="!authChecked || !logged"
+      v-else-if="!logged"
       default-role="member"
       id-prefix="member"
-      :loading="!authChecked"
       :submit-login="handleAuthLogin"
       :submit-register="handleMemberRegister"
     />
@@ -120,6 +121,7 @@ import ConfirmDialog from '../../shared/components/ConfirmDialog.vue';
 import ToastContainer from '../../shared/components/ToastContainer.vue';
 import ErrorDetailDrawer from '../../shared/components/ErrorDetailDrawer.vue';
 import PortalAuthScreen from '../../shared/components/PortalAuthScreen.vue';
+import AppBootSplash from '../../shared/components/AppBootSplash.vue';
 import {
   authenticateStaffPortal,
   getPortalUrl,

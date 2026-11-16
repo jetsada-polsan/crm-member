@@ -1,11 +1,13 @@
 <template>
   <div>
-    <!-- Futuristic Auth / Loading Shell -->
+    <!-- Session check on refresh: neutral loader, never the login form -->
+    <AppBootSplash v-if="!authChecked" message="กำลังตรวจสอบการเข้าสู่ระบบ…" />
+
+    <!-- Futuristic Auth Shell (only when really signed out) -->
     <PortalAuthScreen
-      v-if="!authChecked || !logged"
+      v-else-if="!logged"
       default-role="staff"
       id-prefix="crm"
-      :loading="!authChecked"
       :submit-login="handleAuthLogin"
       :submit-register="handleMemberRegister"
     />
@@ -248,6 +250,7 @@ import ImageLightbox from '../../shared/components/ImageLightbox.vue';
 import CommandPalette from '../../shared/components/CommandPalette.vue';
 import MobileBottomSheet from '../../shared/components/MobileBottomSheet.vue';
 import PortalAuthScreen from '../../shared/components/PortalAuthScreen.vue';
+import AppBootSplash from '../../shared/components/AppBootSplash.vue';
 import {
   authenticateMemberPortal,
   getPortalUrl,

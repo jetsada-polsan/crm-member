@@ -72,12 +72,20 @@ export async function refreshSession() {
     await ensureCsrfToken('/api/crm/csrf');
     me.value = await crmGet('/me');
     logged.value = true;
-    await reloadOfflineDrafts();
   } catch {
     me.value = null;
     logged.value = false;
   } finally {
     authChecked.value = true;
+  }
+
+  // Load offline drafts after the workspace is shown, so it does not delay the session check.
+  if (logged.value) {
+    try {
+      await reloadOfflineDrafts();
+    } catch {
+      // Draft storage problems must not sign the user out.
+    }
   }
 }
 
