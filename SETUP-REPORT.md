@@ -1,78 +1,75 @@
-# SETUP-REPORT — POPSTAR Platform: Docker → XAMPP + PostgreSQL
+# SETUP-REPORT — POPSTAR Platform: Docker → Windows (PHP 8.4 + PostgreSQL)
 
 วันที่: 2026-11-16
 โปรเจกต์: `D:\crm-member\popstar-business-platform-v4` (Laravel อยู่ใน `backend\`)
-สถานะ: **หยุดที่ขั้นที่ 1** ตามเงื่อนไขใน CLAUDE-TASK.md (ไม่พบ `.pgpass-setup.txt`)
-ไม่ได้แก้ไข / ย้าย / ลบไฟล์ใดในโปรเจกต์ (นอกจากสร้างไฟล์รายงานนี้) ไม่ได้แตะ Bplus ERP / SQL Server
+สถานะ: **เสร็จทุกขั้น ยกเว้นตั้งค่า Database (ขั้น 3 / migrate) ที่ยังรอไฟล์ `.pgpass-setup.txt`**
+
+ไม่ได้แตะ Bplus ERP / SQL Server · ไม่ได้ลบไฟล์ใด · ไม่ได้ push ขึ้น GitHub
 
 ---
 
-## 1. ผลตรวจโปรแกรม (ขั้นที่ 1)
+## สรุปผลแต่ละขั้น
 
-| รายการ | สถานะ |
+| ขั้น | ผล |
 |---|---|
-| XAMPP `C:\xampp\php\php.exe` | ❌ ไม่มี |
-| PHP อื่นในเครื่อง | Herd Lite PHP 8.5.12 (`C:\Users\User\.config\herd-lite\bin\php.exe`) — **ไม่มี `pdo_pgsql`/`pgsql`/`intl`** |
-| Composer | ✅ มี (Herd Lite) |
-| Node.js / npm | ❌ ไม่มี |
-| Git | ❌ ไม่มี |
-| PostgreSQL (`C:\Program Files\PostgreSQL`, service) | ❌ ไม่มี |
-| `.pgpass-setup.txt` | ❌ ไม่พบ (ค้นใน `C:\Users\User` และ `D:\` แล้ว) |
-| PowerShell สิทธิ์ Administrator | ❌ session นี้ไม่ได้รันแบบ Admin |
+| 1. โปรแกรม | ✅ PHP 8.4.27 (`C:\php84`), Composer, Node.js, Git, PostgreSQL 17 (service ทำงาน) — ❌ ยังไม่มี `.pgpass-setup.txt` |
+| 2. วิเคราะห์ Docker | ✅ ดูหัวข้อ "สิ่งที่ทดแทน Docker" |
+| 3. setup-windows.ps1 | ⚠️ ไม่ได้รันตัวสคริปต์เพราะไม่ตรงกับโปรเจกต์ (ดูหัวข้อ "ทำไมไม่ใช้ setup-windows.ps1") ทำทีละขั้นด้วยมือแทน ยกเว้นสร้าง DB และ migrate |
+| 4. แก้ปัญหา | ✅ ดูหัวข้อ "ปัญหาที่เจอ" |
+| 5. Redis | ✅ ไม่ต้องแก้ เพราะไม่มี Redis ใน compose และ `.env` ใช้ `file`/`database` อยู่แล้ว |
+| 6. `php artisan test` | ✅ **23 tests / 376 assertions ผ่านหมด** (เกินเกณฑ์ 13 / 152) |
+| 7. เปิดระบบ | ✅ backend `/api/crm/csrf` ได้ 200, หน้า CRM `/` และ `/login` ได้ 200 (title "Popstar CRM") และ proxy `/api` ทำงาน — ⚠️ ยังทดสอบ login จริงไม่ได้จนกว่า DB จะพร้อม |
+| 8. ตัวเปิดระบบ + Scheduler | ✅ `start-popstar.bat` และ Task Scheduler `POPSTAR schedule-run` (ทุก 1 นาที) |
+| 9. Git | ✅ `git init` + commit `12924d5 chore: migrate from Docker to XAMPP + PostgreSQL` และตรวจแล้วว่าไม่มี `.env` หรือรหัสผ่านติดไป |
+| 10. รายงาน | ✅ ไฟล์นี้ |
 
-**ทำไมไม่ติดตั้งด้วย winget ต่อ:** XAMPP, PostgreSQL, Node.js MSI และ Git ติดตั้งระดับเครื่อง ซึ่งต้องกดยืนยัน UAC ตอนที่ไม่มีใครอยู่หน้าเครื่องจะค้าง ส่วน PostgreSQL ต้องตั้งรหัส superuser ตอนติดตั้ง ซึ่งรหัสนี้ควรมาจากไฟล์ `.pgpass-setup.txt` ที่ยังไม่มี
+## สิ่งที่ทำ
 
-## 2. ⚠️ ปัญหาสำคัญที่ต้องตัดสินใจก่อน: เวอร์ชัน PHP
+- **PHP 8.4.27 NTS x64** จาก windows.php.net (ตรวจ SHA256 แล้ว) ติดตั้งที่ `C:\php84` ส่วน `php.ini` เปิด `pdo_pgsql pgsql bcmath intl zip gd fileinfo mbstring openssl curl sodium exif pdo_sqlite sqlite3` + opcache, `memory_limit=512M`, `date.timezone=Asia/Bangkok`
+- `composer install` (backend) และ `npm install && npm run build` ทั้งใน `backend\` และที่ root (build `web\crm` + `web\member`)
+- `backend\.env`: สำรองเป็น `backend\.env.bak-docker` แล้วเปลี่ยน `DB_HOST=db → 127.0.0.1` และ `APP_URL=http://127.0.0.1:8000` **ส่วน `DB_USERNAME`/`DB_PASSWORD` ยังเป็นค่าเดิมของ Docker**
+- **`tools\serve-spa.mjs`** (Node ล้วน ไม่ต้องติดตั้งอะไรเพิ่ม) ใช้แทน nginx ของ container `crm`/`member`: เสิร์ฟ `web\<module>\dist` + fallback แบบ SPA และ proxy `/api/*` ไป Laravel
+- **`start-popstar.bat`**: start service PostgreSQL → `artisan serve` (:8000) → `queue:work` → CRM (:18081) → Member (:18082) แล้วเปิดเบราว์เซอร์ที่หน้า CRM
+- **Task Scheduler `POPSTAR schedule-run`** (ระดับ user ทุก 1 นาที) เรียก `tools\run-scheduler.vbs` ซึ่งรัน `php artisan schedule:run` แบบไม่มีหน้าต่างเด้ง และเขียน log ไปที่ `backend\storage\logs\scheduler.log`
+- ย้าย `compose.yaml`, `.dockerignore`, `docker\` ไปไว้ที่ `_docker_backup\` (ไม่ได้ลบ)
+- `.gitignore` เพิ่ม `.pgpass-setup.txt`, `setup-log.txt`, `*.bak-docker`, `_docker_backup/`
 
-`backend\composer.json` ต้องการ **`php: ^8.3`** และ **`laravel/framework: ^13.17`**
-แต่ XAMPP สำหรับ Windows เวอร์ชันล่าสุดมีแค่ **PHP 8.2.x** ซึ่ง composer install จะไม่ผ่าน และ `setup-windows.ps1` เช็กแค่ 8.2+ เลยจะไม่จับปัญหานี้
+## สิ่งที่ทดแทน Docker
 
-> **อัปเดต 2026-11-16 — ผู้ใช้เลือกข้อ ก (PHP 8.4) และติดตั้งเสร็จแล้ว**
-> - ดาวน์โหลด `php-8.4.27-1-nts-Win32-vs17-x64.zip` จาก windows.php.net ตรวจ SHA256 ตรงกับค่าที่เว็บประกาศ แล้วแตกไว้ที่ `C:\php84`
-> - สร้าง `C:\php84\php.ini` จาก `php.ini-development` เปิด `pdo_pgsql pgsql bcmath intl zip gd fileinfo mbstring openssl curl sodium exif pdo_sqlite sqlite3` + opcache, `memory_limit=512M`, `date.timezone=Asia/Bangkok`
-> - `composer check-platform-reqs` ใน `backend\` ผ่านทุกรายการ
-> - **ต้องแก้ `setup-windows.ps1`:** สคริปต์หา PHP ที่ `<XamppPath>\php\php.exe` แต่ PHP อยู่ที่ `C:\php84\php.exe` (ไม่มีโฟลเดอร์ย่อย `php`) และ step 2 จะไปแก้ `C:\php84\php\php.ini` ซึ่งไม่มี ต้องเพิ่มพารามิเตอร์ `-PhpDir` นอกจากนี้ regex ของสคริปต์จะไม่เจอบรรทัด `;extension=exif` เพราะมีคอมเมนต์ต่อท้าย
-> - ยังไม่ได้เพิ่ม `C:\php84` ลงใน PATH ของระบบ
+| Docker service | บน Windows |
+|---|---|
+| `db` postgres:17 | PostgreSQL 17 service `postgresql-x64-17` |
+| `app` php:8.4-fpm | `C:\php84\php.exe` + `artisan serve` :8000 |
+| `backend_web` nginx :18080 | ไม่ต้องใช้แล้ว (`artisan serve`) |
+| `crm` :18081 / `member` :18082 | `node tools\serve-spa.mjs crm 18081` / `member 18082` |
+| queue / scheduler | `queue:work` ใน start-popstar.bat / Task Scheduler (ตอนนี้ `routes/console.php` ยังไม่มีงานตั้งเวลา) |
 
-ทางเลือก (แนะนำข้อ ก):
-- **ก.** ใช้ PHP 8.4 NTS x64 จาก windows.php.net (ตรงกับ Docker ที่ใช้ `php:8.4-fpm`) แตกไฟล์ไปไว้ที่ `C:\xampp\php` หรือ `C:\php84` แล้วรันสคริปต์ด้วย `-XamppPath` ที่ตรงกัน เพราะสคริปต์ใช้แค่ `<XamppPath>\php\php.exe`
-- **ข.** ใช้ Herd Lite PHP 8.5 ที่มีอยู่แล้ว แต่ต้องเพิ่ม `php_pdo_pgsql.dll`, `php_pgsql.dll`, `php_intl.dll` เอง และ Laravel 13 กับ PHP 8.5 ยังไม่ได้ทดสอบกับโปรเจกต์นี้
+## ทำไมไม่ใช้ setup-windows.ps1 ตรงๆ
 
-## 3. วิเคราะห์ Docker (ขั้นที่ 2) — สิ่งที่ต้องทดแทนบน Windows
+- สคริปต์หา PHP ที่ `<XamppPath>\php\php.exe` แต่โปรเจกต์ต้องการ PHP **^8.3** ซึ่ง XAMPP มีแค่ 8.2 จึงใช้ PHP 8.4 ที่ `C:\php84` แทน
+- default `DbName=popstar` แต่โปรเจกต์ใช้ `popstar_business`
+- ต้องรันใน `backend\` และไฟล์ Docker จริงคือ `compose.yaml` ที่ root ซึ่งสคริปต์ไม่รู้จัก
+- ไม่เปิด `bcmath`, regex ไม่จับ `;extension=exif ; comment` และไม่ build `web\crm`/`web\member`
 
-`compose.yaml` (ที่ root ของ v4 **ไม่ใช่** `docker-compose.yml`) มี service:
+## ปัญหาที่เจอและวิธีแก้
 
-| Service | หน้าที่ | ทดแทนบน Windows |
-|---|---|---|
-| `db` | postgres:17-alpine | PostgreSQL 17 (`winget install PostgreSQL.PostgreSQL.17`) |
-| `app` | php:8.4-fpm + ext `pdo_pgsql bcmath intl zip opcache` | PHP 8.4 + เปิด ext เดียวกัน (**สคริปต์ไม่ได้เปิด `bcmath` ต้องเพิ่ม**) |
-| `backend_web` | nginx → Laravel `public` ที่พอร์ต 18080 | `php artisan serve` (8000) หรือ Apache ของ XAMPP |
-| `crm` | build `web/crm` ด้วย Node 22 (`npm run build:crm`) แล้วเสิร์ฟด้วย nginx ที่ 18081 | `npm install` + `npm run build:crm` **ที่ root v4** แล้วเสิร์ฟ `web\crm\dist` |
-| `member` | เหมือน crm ที่ 18082 | `npm run build:member` |
+1. **XAMPP มีแค่ PHP 8.2** → ใช้ PHP 8.4 แยกที่ `C:\php84` (ผู้ใช้เลือกเอง)
+2. **`exif` ไม่โหลด** เพราะบรรทัดใน ini มีคอมเมนต์ต่อท้าย → แก้ regex
+3. **Docker ยังรันอยู่** และใช้พอร์ต 18080/18081/18082 ทำให้ทดสอบ CRM ที่ 18081 ได้คำตอบจาก Docker แทน → ทดสอบที่พอร์ต 28081 แทน **ต้องปิด Docker ก่อนใช้ `start-popstar.bat`**
+4. backend `/` ได้ **404** ซึ่งเป็นเรื่องปกติ เพราะ Laravel เป็น API ล้วน (ไม่มี route `/`) จึงตรวจด้วย `/api/crm/csrf` แทนแล้วได้ 200
+5. **ทดสอบรหัสผ่าน DB จาก `.env` กับ PostgreSQL ในเครื่องไม่ได้** เพราะถูกระบบสิทธิ์ของ Claude Code ปฏิเสธ จึงยังไม่ได้สร้าง DB และ migrate
 
-- **ไม่มี** Redis, queue worker, scheduler หรือ mailpit ใน compose
-- `.env` ใช้ `CACHE_STORE=file`, `SESSION_DRIVER=file`, `QUEUE_CONNECTION=database` อยู่แล้ว และไม่มี config ใดบังคับใช้ Redis **ข้อ 5 จึงไม่ต้องแก้อะไร**
-- `routes/console.php` ไม่มี `Schedule::` จึงยังไม่มีงาน scheduler (ตั้ง Task Scheduler ไว้ได้ แต่ตอนนี้ยังไม่มีงานให้รัน)
+## สิ่งที่ผู้ใช้ต้องทำต่อ
 
-## 4. จุดที่ `setup-windows.ps1` ไม่ตรงกับโปรเจกต์ (ต้องแก้ก่อนรัน)
-
-1. **ต้องรันในโฟลเดอร์ `backend\`** ไม่ใช่ root v4 เพราะ `artisan`, `.env`, `composer.json` อยู่ใน `backend\`
-2. **ชื่อ DB:** `.env` ใช้ `DB_DATABASE=popstar_business` แต่สคริปต์ default เป็น `popstar` ให้ส่ง `-DbName popstar_business`
-3. **ไฟล์ Docker:** สคริปต์ย้ายเฉพาะ `docker-compose.yml`/`Dockerfile`/`docker` ในโฟลเดอร์ปัจจุบัน แต่ของจริงคือ `compose.yaml`, `docker\`, `.dockerignore` ที่ **root v4** จึงจะไม่ถูกย้าย
-4. **เช็ก PHP:** สคริปต์รับ 8.2 แต่โปรเจกต์ต้องการ 8.3+ (ดูข้อ 2)
-5. **Extension:** ไม่มี `bcmath` ในรายการ ต้องเพิ่ม
-6. **Frontend CRM:** สคริปต์ build แค่ `backend` แต่หน้า login CRM อยู่ใน `web\crm` (build จาก `package.json` ที่ root v4)
-7. **Git:** ทั้ง v4 ยังไม่มี `.git` และเครื่องยังไม่มี Git
-
-## 5. สิ่งที่ผู้ใช้ต้องทำต่อ
-
-1. สร้าง `D:\crm-member\popstar-business-platform-v4\backend\.pgpass-setup.txt` ใส่รหัส postgres (บรรทัดเดียว) ไฟล์นี้ต้องอยู่ใน `.gitignore`
-2. เลือก PHP 8.3/8.4 ตามข้อ 2
-3. เปิด PowerShell **Run as Administrator** แล้วติดตั้ง:
+1. **ปิด Docker stack เดิม** (ไฟล์ compose ย้ายไปแล้ว):
    ```
-   winget install PostgreSQL.PostgreSQL.17
-   winget install OpenJS.NodeJS.LTS
-   winget install Git.Git
+   docker compose -f _docker_backup\compose.yaml -p popstar-platform down
    ```
-4. สั่ง Claude Code ให้ทำต่อจากขั้นที่ 3 (จะปรับสคริปต์ตามข้อ 4 แล้วรัน, test, `start-popstar.bat`, Task Scheduler, git commit)
-5. หลังตรวจผลแล้ว: push ขึ้น GitHub และเลือก VPS
+   ถ้าต้องการย้ายข้อมูลจาก Docker ให้ `pg_dump` ออกจาก container `db` ก่อน `down`
+2. **ตั้ง Database**: วาง `backend\.pgpass-setup.txt` (รหัส postgres) แล้วสั่ง Claude Code ให้ทำต่อ หรือทำเองดังนี้
+   - สร้าง DB `popstar_business` (และ user ถ้าจะใช้ `popstar_app`)
+   - แก้ `DB_USERNAME`/`DB_PASSWORD` ใน `backend\.env`
+   - `C:\php84\php.exe artisan migrate --seed --force` แล้ว `artisan storage:link`
+3. ดับเบิลคลิก `start-popstar.bat` แล้วลอง login ที่ http://127.0.0.1:18081
+4. (ไม่บังคับ) เพิ่ม `C:\php84` ลงใน PATH
+5. ตรวจ commit แล้ว **push GitHub เอง** และเลือก VPS
