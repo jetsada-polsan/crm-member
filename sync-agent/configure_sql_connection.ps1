@@ -5,6 +5,12 @@
 #>
 
 $ErrorActionPreference = "Stop"
+
+# Load the Windows PowerShell 5.1 copy of the Security module by full path. Some IDE terminals
+# (Antigravity / VS Code) put PowerShell 7 module folders first on PSModulePath, which makes
+# ConvertTo-SecureString fail with "found in the module ... but the module could not be loaded".
+Import-Module (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
+
 $AgentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigFile = Join-Path $AgentDir "config.env"
 $Server = "192.168.88.200"
