@@ -6,6 +6,12 @@
 
 ไม่ได้แตะ Bplus ERP / SQL Server · ไม่ได้ลบไฟล์ใด · ไม่ได้ push ขึ้น GitHub
 
+## ปิด Docker แล้ว (2026-11-16)
+
+- `docker compose -f _docker_backup\compose.yaml --env-file .env -p popstar-platform down` ลบ container ทั้ง 5 ตัวและ network แล้ว **ไม่ได้ลบ volume** (`popstar-platform_pgdata`, `popstar-platform_app_storage` ยังอยู่ ถ้าต้องการลบภายหลัง ใช้ `docker volume rm`)
+- พอร์ต 18080–18082 ว่างแล้ว ส่วน localhost, popstar.localhost, member.popstar.localhost และ `/api` ยังได้ 200 และ PostgreSQL ในเครื่องรับการเชื่อมต่อปกติ
+- `start-popstar.bat` ใช้พอร์ต 18081/18082 ได้แล้ว (เป็นทางเลือก ถ้าไม่ใช้ Apache)
+
 ## ย้ายข้อมูลจาก Docker — เสร็จแล้ว (2026-11-16)
 
 - `pg_dump` จาก container `popstar-platform-db-1` (schema เดียวกัน 18 migrations) แล้ว `pg_restore --no-owner --no-privileges` ลง `popstar_business` ในเครื่อง
