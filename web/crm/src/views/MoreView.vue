@@ -8,6 +8,12 @@
           <div class="more-role-pill">
             <span>{{ isManager ? '👑 ผู้จัดการ / ผู้ดูแลระบบ' : '🚀 พนักงานขายออกตลาด' }}</span>
             <span v-if="me?.salesperson_code" class="more-code-pill">รหัส {{ me.salesperson_code }}</span>
+            <span
+              v-if="Array.isArray(me?.reservation_doc_types) && me.reservation_doc_types.length"
+              class="more-code-pill"
+            >
+              ใบจอง {{ me.reservation_doc_types.join(', ') }}
+            </span>
           </div>
           <h2>{{ me?.name || 'ผู้ใช้งาน' }}</h2>
           <p>{{ me?.email || 'พร้อมใช้งานระบบภาคสนาม' }}</p>

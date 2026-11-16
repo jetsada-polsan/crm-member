@@ -177,12 +177,7 @@ final class CustomerMasterController
             });
 
         if (! $isManager) {
-            $salesCode = $user->salesperson_code ?? '__unassigned__';
-            $q->where(function ($w) use ($user, $salesCode): void {
-                $w->where('ec.salesperson_code', $salesCode)
-                    ->orWhere('l.owner_staff_id', $user->id)
-                    ->orWhere('l.assigned_salesperson_code', $salesCode);
-            });
+            CustomerAccess::applyCustomerAndLeadScope($q, 'ec', 'l', $user);
         }
 
         if ($search !== '') {
@@ -295,10 +290,7 @@ final class CustomerMasterController
             : null;
 
         if (! $isManager) {
-            $salesCode = $user->salesperson_code ?? '__unassigned__';
-            $allowed = ($erp && $erp->salesperson_code === $salesCode)
-                || ($lead && ((int) $lead->owner_staff_id === (int) $user->id || $lead->assigned_salesperson_code === $salesCode));
-            abort_unless($allowed, 403);
+            abort_unless(CustomerAccess::canAccessCustomerAndLead($erp, $lead, $user), 403);
         }
 
         $memberLink = null;

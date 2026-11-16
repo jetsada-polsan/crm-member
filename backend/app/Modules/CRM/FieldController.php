@@ -37,11 +37,7 @@ final class FieldController
 
     private function customerAllowed(int $id): bool
     {
-        $q = DB::table('erp_customers')->where('id', $id);
-        if (!$this->manager()) {
-            $q->where('salesperson_code', $this->user()->salesperson_code ?? '__unassigned__');
-        }
-        return $q->exists();
+        return CustomerAccess::query('c', $this->user())->where('c.id', $id)->exists();
     }
 
     private function leadAllowed(int $id): bool
@@ -1074,14 +1070,9 @@ final class FieldController
     public function pins(): JsonResponse
     {
         $isManager = $this->manager();
-        $applyScope = function ($q) use ($isManager): void {
-            if ($isManager) {
-                return;
-            }
-            $q->where(function ($w): void {
-                $w->where('c.salesperson_code', $this->user()->salesperson_code ?? '__unassigned__')
-                    ->orWhere('d.owner_staff_id', $this->user()->id);
-            });
+        $user = $this->user();
+        $applyScope = function ($q) use ($user): void {
+            CustomerAccess::applyCustomerAndLeadScope($q, 'c', 'd', $user);
         };
 
         $pinnedQuery = DB::table('crm_customer_locations as l')

@@ -52,6 +52,8 @@ Route::prefix('api/crm')->group(function () {
         Route::post('/member-links', [CrmController::class, 'createMemberLink']);
         Route::post('/member-links/{id}/verify', [CrmController::class, 'verifyMemberLink']);
         Route::get('/settings/overview', [CrmController::class, 'settingsOverview']);
+        Route::post('/settings/staff', [CrmController::class, 'storeStaffUser']);
+        Route::patch('/settings/staff/{id}', [CrmController::class, 'updateStaffUser'])->whereNumber('id');
 
         Route::get('/leads', [FieldController::class, 'leads']);
         Route::post('/leads', [FieldController::class, 'storeLead'])->middleware('throttle:30,1');

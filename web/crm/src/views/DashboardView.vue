@@ -22,6 +22,37 @@
       </button>
     </div>
 
+    <!-- Role & Reservation Binding Scope Banner -->
+    <div class="card dash-scope-bar">
+      <div class="dash-scope-main">
+        <span :class="['tag', isManager ? 'purple' : 'blue']">
+          {{ isManager ? '👑 แอดมิน / ผู้จัดการ (เห็นทั้งหมด)' : '🔒 ข้อมูลเฉพาะสายของคุณ' }}
+        </span>
+        <template v-if="isManager">
+          <span class="small">
+            แสดงยอดขาย ลูกหนี้ และใบจองครบทุกสายในระบบ ({{ fmt((dashboard?.reservation_by_doc_type || []).length) }} สายใบจอง · {{ fmt(dashboard?.customers) }} ลูกหนี้)
+          </span>
+        </template>
+        <template v-else>
+          <span v-if="boundDocTypes.length" class="tag orange">
+            สายใบจอง: {{ boundDocTypes.join(', ') }}
+          </span>
+          <span v-if="me?.salesperson_code" class="tag green">
+            รหัสเซลล์: {{ me.salesperson_code }}
+          </span>
+          <span v-if="boundDocTypes.length || me?.salesperson_code" class="small">
+            เห็นเฉพาะลูกหนี้ในสายของคุณ <b>{{ fmt(dashboard?.customers) }}</b> ราย และยอดขายของคุณเท่านั้น
+          </span>
+          <span v-else class="small" style="color:var(--orange)">
+            บัญชีนี้ยังไม่ได้ผูกสายใบจองหรือรหัสเซลล์ กรุณาแจ้งแอดมินให้ผูกในหน้าตั้งค่า
+          </span>
+        </template>
+      </div>
+      <RouterLink v-if="isManager" to="/settings" class="btn light dash-scope-btn">
+        ⚙️ ผูกใบจองให้เซลล์ →
+      </RouterLink>
+    </div>
+
     <div class="dash-stack">
       <!-- Today Field Focus (topmost for salespeople, below analytics for managers) -->
       <section :class="['today-work-section', { 'order-first': !isManager }]" aria-label="งานวันนี้">
@@ -148,6 +179,92 @@
         </div>
 
         <CustomerMapBoard />
+
+        <!-- Reservation (ใบจอง 207) & Salesperson Breakdown (Admin sees all; Sales sees only own) -->
+        <div class="middle">
+          <div class="card">
+            <div class="section-head" style="padding-bottom:12px">
+              <div>
+                <h3>{{ isManager ? 'สรุปยอดตามสายใบจอง (Bplus 207)' : 'สรุปใบจองและลูกหนี้ในสายของคุณ' }}</h3>
+                <small>{{ isManager ? 'แยกตามรหัสใบจอง จำนวนลูกหนี้ในสาย และยอดใบจองสะสม' : 'แสดงเฉพาะสายใบจองและลูกหนี้ที่ผูกกับบัญชีของคุณ' }}</small>
+              </div>
+              <span class="tag orange">{{ fmt((dashboard?.reservation_by_doc_type || []).length) }} สายใบจอง</span>
+            </div>
+
+            <div v-if="(dashboard?.reservation_by_doc_type || []).length" class="res-breakdown-list">
+              <div
+                v-for="row in dashboard.reservation_by_doc_type"
+                :key="row.doc_type"
+                class="res-breakdown-row"
+              >
+                <div class="res-breakdown-top">
+                  <div class="res-breakdown-title">
+                    <span class="tag blue">{{ row.doc_type }}</span>
+                    <strong>ใบจองสินค้า {{ row.doc_type }}</strong>
+                    <span v-if="row.salesperson_name" class="small muted">({{ row.salesperson_name }})</span>
+                  </div>
+                  <div class="res-breakdown-amount">
+                    <b>{{ fmt(row.total_before_vat) }} ฿</b>
+                    <small class="muted">{{ reservationSharePct(row.total_before_vat) }}%</small>
+                  </div>
+                </div>
+                <div class="reportbar">
+                  <span :style="{ width: `${Math.max(4, reservationBarPct(row.total_before_vat))}%` }"></span>
+                </div>
+                <div class="res-breakdown-meta small muted">
+                  <span>ลูกหนี้ในใบจอง <b>{{ fmt(row.customer_count) }}</b> ราย</span>
+                  <span>·</span>
+                  <span>จำนวนใบจอง <b>{{ fmt(row.doc_count) }}</b> ใบ</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="placeholder">
+              {{ isManager ? 'ยังไม่มีข้อมูลใบจอง 207' : 'ยังไม่มีใบจองที่ผูกกับบัญชีของคุณ' }}
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-head" style="padding-bottom:12px">
+              <div>
+                <h3>{{ isManager ? 'สรุปยอดขายสุทธิจริงตามพนักงานขาย' : 'ยอดขายสุทธิจริงของคุณ' }}</h3>
+                <small>ยอดขายจริงก่อน VAT (หักใบลดหนี้ 308 แล้ว · ไม่รวมใบจอง)</small>
+              </div>
+              <span class="tag green">{{ fmt((dashboard?.sales_by_salesperson || []).length) }} คน</span>
+            </div>
+
+            <div v-if="(dashboard?.sales_by_salesperson || []).length" class="res-breakdown-list">
+              <div
+                v-for="sp in dashboard.sales_by_salesperson"
+                :key="`${sp.salesperson_code}-${sp.salesperson_name}`"
+                class="res-breakdown-row"
+              >
+                <div class="res-breakdown-top">
+                  <div class="res-breakdown-title">
+                    <span class="tag gray">{{ sp.salesperson_code }}</span>
+                    <strong>{{ sp.salesperson_name || 'ไม่ระบุชื่อ' }}</strong>
+                  </div>
+                  <div class="res-breakdown-amount">
+                    <b style="color:var(--green)">{{ fmt(sp.net_sales_before_vat) }} ฿</b>
+                  </div>
+                </div>
+                <div class="reportbar">
+                  <span
+                    :style="{
+                      width: `${Math.max(4, salespersonBarPct(sp.net_sales_before_vat))}%`,
+                      background: 'linear-gradient(90deg, #0f9d7a, #34d399)',
+                    }"
+                  ></span>
+                </div>
+                <div class="res-breakdown-meta small muted">
+                  <span>ลูกหนี้ซื้อจริง <b>{{ fmt(sp.customer_count) }}</b> ราย</span>
+                  <span>·</span>
+                  <span>บิลขาย/คืน <b>{{ fmt(sp.invoice_count) }}</b> ใบ</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="placeholder">ยังไม่มีข้อมูลยอดขายในขอบเขตของคุณ</div>
+          </div>
+        </div>
 
         <div class="dash-grid">
           <div class="card">
@@ -296,6 +413,7 @@ import {
   fmt,
   invalidateCrmData,
   isManager,
+  me,
   offlineDrafts,
   offlineSyncing,
   openDetailDrawer,
@@ -425,6 +543,41 @@ const conversionRate = computed(() => {
   return total ? ((conv / total) * 100).toFixed(1) : '0.0';
 });
 
+const boundDocTypes = computed(() => {
+  const fromDash = dashboard.value?.scope_info?.reservation_doc_types;
+  if (Array.isArray(fromDash) && fromDash.length) return fromDash;
+  if (Array.isArray(me.value?.reservation_doc_types)) return me.value.reservation_doc_types;
+  return [];
+});
+
+const totalReservationAmount = computed(() =>
+  (dashboard.value?.reservation_by_doc_type || []).reduce(
+    (sum, r) => sum + Number(r.total_before_vat || 0),
+    0
+  )
+);
+
+const maxReservationAmount = computed(() =>
+  Math.max(1, ...(dashboard.value?.reservation_by_doc_type || []).map((r) => Number(r.total_before_vat || 0)))
+);
+
+const maxSalespersonAmount = computed(() =>
+  Math.max(1, ...(dashboard.value?.sales_by_salesperson || []).map((s) => Number(s.net_sales_before_vat || 0)))
+);
+
+function reservationSharePct(amount) {
+  if (!totalReservationAmount.value) return '0.0';
+  return ((Number(amount || 0) / totalReservationAmount.value) * 100).toFixed(1);
+}
+
+function reservationBarPct(amount) {
+  return Math.min(100, (Number(amount || 0) / maxReservationAmount.value) * 100);
+}
+
+function salespersonBarPct(amount) {
+  return Math.min(100, (Math.max(0, Number(amount || 0)) / maxSalespersonAmount.value) * 100);
+}
+
 function refetchAll() {
   invalidateCrmData();
   refetch();
@@ -433,3 +586,75 @@ function refetchAll() {
   refetchMaster();
 }
 </script>
+
+<style scoped>
+.dash-scope-bar {
+  padding: 13px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, #f5f8ff 0%, #ffffff 100%);
+  border-left: 4px solid var(--blue);
+}
+
+.dash-scope-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dash-scope-btn {
+  padding: 7px 12px;
+  min-height: 36px;
+  font-size: 13px;
+}
+
+.res-breakdown-list {
+  max-height: 380px;
+  overflow: auto;
+  padding: 4px 20px 18px;
+}
+
+.res-breakdown-row {
+  padding: 11px 0;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.res-breakdown-row:last-child {
+  border-bottom: 0;
+}
+
+.res-breakdown-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.res-breakdown-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.res-breakdown-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.res-breakdown-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+</style>

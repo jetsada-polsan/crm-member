@@ -36,7 +36,13 @@
           <div class="avatar">{{ userInitial }}</div>
           <div class="sidebar-user-meta">
             <strong class="text-ellipsis">{{ me?.name }}</strong>
-            <small>{{ roleLabel }}{{ me?.salesperson_code ? ` · ${me.salesperson_code}` : '' }}</small>
+            <small>
+              {{ roleLabel }}
+              <template v-if="me?.salesperson_code"> · รหัส {{ me.salesperson_code }}</template>
+              <template v-if="Array.isArray(me?.reservation_doc_types) && me.reservation_doc_types.length">
+                · ใบจอง {{ me.reservation_doc_types.join(',') }}
+              </template>
+            </small>
           </div>
           <button
             type="button"

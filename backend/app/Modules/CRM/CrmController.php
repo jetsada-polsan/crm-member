@@ -23,10 +23,7 @@ final class CrmController
         }
 
         return function ($query, string $invAlias) use ($user): void {
-            $query->join('erp_customers as sc', function ($join) use ($invAlias): void {
-                $join->on('sc.source_system', '=', "{$invAlias}.source_system")
-                    ->on('sc.erp_customer_code', '=', "{$invAlias}.erp_customer_code");
-            })->where('sc.salesperson_code', $user->salesperson_code ?? '__unassigned__');
+            CustomerAccess::applyInvoiceScope($query, $invAlias, $user);
         };
     }
 
@@ -350,12 +347,69 @@ final class CrmController
             ->limit(10)
             ->get();
 
+        // Reservation (ใบจอง 207) summary by doc_type, scoped to the logged-in user
+        $resQuery = DB::table('erp_sales_invoices as r')
+            ->where('r.dt_properties', 207)
+            ->where('r.status', '!=', 'cancelled');
+        if (! $isManager) {
+            $boundDocs = CustomerAccess::reservationDocTypes($user);
+            $spCode = CustomerAccess::salespersonCode($user);
+            if ($boundDocs === [] && $spCode === null) {
+                $resQuery->whereRaw('1 = 0');
+            } else {
+                $resQuery->where(function ($w) use ($boundDocs, $spCode): void {
+                    if ($boundDocs !== []) {
+                        $w->orWhereIn('r.doc_type', $boundDocs);
+                    }
+                    if ($spCode !== null) {
+                        $w->orWhere('r.salesperson_code', $spCode);
+                    }
+                });
+            }
+        }
+        $reservationByDocType = $resQuery
+            ->groupBy('r.doc_type')
+            ->select(
+                'r.doc_type',
+                DB::raw('COUNT(*) as doc_count'),
+                DB::raw('COUNT(DISTINCT r.erp_customer_code) as customer_count'),
+                DB::raw('COALESCE(SUM(COALESCE(r.before_vat_amount, r.net_amount)), 0) as total_before_vat'),
+                DB::raw("MAX(CASE WHEN r.salesperson_code IS NOT NULL AND r.salesperson_code != '' AND r.salesperson_code != '0' THEN r.salesperson_code ELSE NULL END) as salesperson_code"),
+                DB::raw("MAX(CASE WHEN r.salesperson_name IS NOT NULL AND r.salesperson_name != '' AND r.salesperson_name != 'ขายเอง' THEN r.salesperson_name ELSE r.salesperson_name END) as salesperson_name")
+            )
+            ->orderByDesc('total_before_vat')
+            ->get();
+
+        // Actual sales breakdown by salesperson, scoped to the logged-in user
+        $spSalesQuery = DB::table('erp_sales_invoices as inv');
+        SalesRules::applyActualSalesScope($spSalesQuery, 'inv');
+        if ($salesFilter !== null) {
+            $salesFilter($spSalesQuery, 'inv');
+        }
+        $salesBySalesperson = $spSalesQuery
+            ->groupByRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0'), COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง')")
+            ->selectRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0') as salesperson_code")
+            ->selectRaw("COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง') as salesperson_name")
+            ->selectRaw('COUNT(*) as invoice_count')
+            ->selectRaw('COUNT(DISTINCT inv.erp_customer_code) as customer_count')
+            ->selectRaw('COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as net_sales_before_vat')
+            ->orderByDesc('net_sales_before_vat')
+            ->get();
+
         return response()->json([
+            'scope_info' => [
+                'is_manager' => $isManager,
+                'role' => $user->role,
+                'salesperson_code' => $user->salesperson_code,
+                'reservation_doc_types' => CustomerAccess::reservationDocTypes($user),
+            ],
             'customers' => $totalCustomers,
             'posted_invoices' => $salesSummary['sale_invoice_count'],
             'posted_sales_net' => (string) $salesSummary['net_purchase_before_vat'],
             'sales_kpis' => $salesSummary,
             'monthly_sales_chart' => $monthlyChart,
+            'reservation_by_doc_type' => $reservationByDocType,
+            'sales_by_salesperson' => $salesBySalesperson,
             'customer_segmentation' => [
                 'total_customers' => $totalCustomers,
                 'active_customers' => $activeCustomers,
@@ -516,7 +570,8 @@ final class CrmController
             ->where('inv.source_system', $source)
             ->whereBetween('inv.sold_at', [$from, $to]);
         if (! $isManager) {
-            $base->where('c.salesperson_code', $user->salesperson_code ?? '__unassigned__');
+            CustomerAccess::applyCustomerScope($base, 'c', $user);
+            CustomerAccess::applyInvoiceScope($base, 'inv', $user);
         }
         if (! empty($filters['route_code'])) {
             $base->where('c.route_code', trim($filters['route_code']));
@@ -1039,8 +1094,34 @@ final class CrmController
         abort_unless(in_array($user->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
 
         $staff = DB::table('staff_users')
-            ->select('id', 'name', 'email', 'role', 'salesperson_code', 'is_active', 'created_at')
+            ->select('id', 'name', 'email', 'role', 'salesperson_code', 'reservation_doc_types', 'is_active', 'created_at')
             ->orderBy('id')
+            ->get()
+            ->map(function ($u) {
+                $u->reservation_doc_types_list = CustomerAccess::parseDocTypes($u->reservation_doc_types ?? null);
+
+                return $u;
+            });
+
+        $availableSalespersons = DB::table('erp_salespersons')
+            ->where('is_active', true)
+            ->select('salesperson_code', 'salesperson_name')
+            ->orderBy('salesperson_code')
+            ->get();
+
+        $availableReservations = DB::table('erp_sales_invoices as r')
+            ->where('r.dt_properties', 207)
+            ->where('r.status', '!=', 'cancelled')
+            ->groupBy('r.doc_type')
+            ->select(
+                'r.doc_type',
+                DB::raw('COUNT(*) as doc_count'),
+                DB::raw('COUNT(DISTINCT r.erp_customer_code) as customer_count'),
+                DB::raw('COALESCE(SUM(COALESCE(r.before_vat_amount, r.net_amount)), 0) as total_before_vat'),
+                DB::raw("MAX(CASE WHEN r.salesperson_code IS NOT NULL AND r.salesperson_code != '' AND r.salesperson_code != '0' THEN r.salesperson_code ELSE NULL END) as main_sp_code"),
+                DB::raw("MAX(CASE WHEN r.salesperson_name IS NOT NULL AND r.salesperson_name != '' AND r.salesperson_name != 'ขายเอง' THEN r.salesperson_name ELSE r.salesperson_name END) as main_sp_name")
+            )
+            ->orderBy('r.doc_type')
             ->get();
 
         $auditLogs = DB::table('crm_audit_logs as a')
@@ -1055,6 +1136,8 @@ final class CrmController
 
         return response()->json([
             'staff_users' => $staff,
+            'available_salespersons' => $availableSalespersons,
+            'available_reservations' => $availableReservations,
             'audit_logs' => $auditLogs,
             'security_posture' => [
                 'erp_mirror_readonly' => true,
@@ -1068,5 +1151,116 @@ final class CrmController
                 'total_loyalty_rules' => $totalRules,
             ],
         ]);
+    }
+
+    public function storeStaffUser(Request $request): JsonResponse
+    {
+        $actor = Auth::guard('staff')->user();
+        abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+
+        $d = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:180', 'unique:staff_users,email'],
+            'password' => ['required', 'string', 'min:8', 'max:120'],
+            'role' => ['required', 'in:admin,manager,sales'],
+            'salesperson_code' => ['nullable', 'string', 'max:64'],
+            'reservation_doc_types' => ['nullable'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $spCode = isset($d['salesperson_code']) && trim((string) $d['salesperson_code']) !== ''
+            ? trim((string) $d['salesperson_code'])
+            : null;
+        $resDocTypes = CustomerAccess::normalizeReservationDocTypes($d['reservation_doc_types'] ?? null);
+        $now = now();
+
+        $id = DB::table('staff_users')->insertGetId([
+            'name' => trim($d['name']),
+            'email' => strtolower(trim($d['email'])),
+            'password' => bcrypt($d['password']),
+            'role' => $d['role'],
+            'salesperson_code' => $spCode,
+            'reservation_doc_types' => $resDocTypes,
+            'is_active' => array_key_exists('is_active', $d) ? (bool) $d['is_active'] : true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('crm_audit_logs')->insert([
+            'entity_type' => 'staff_user',
+            'entity_id' => $id,
+            'action' => 'created',
+            'actor_staff_id' => $actor->id,
+            'changes' => json_encode([
+                'email' => strtolower(trim($d['email'])),
+                'role' => $d['role'],
+                'salesperson_code' => $spCode,
+                'reservation_doc_types' => $resDocTypes,
+            ], JSON_UNESCAPED_UNICODE),
+            'created_at' => $now,
+        ]);
+
+        return response()->json(['ok' => true, 'id' => $id], 201);
+    }
+
+    public function updateStaffUser(Request $request, int $id): JsonResponse
+    {
+        $actor = Auth::guard('staff')->user();
+        abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+
+        $target = DB::table('staff_users')->where('id', $id)->first();
+        abort_unless($target, 404, 'Staff user not found');
+
+        $d = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:120'],
+            'email' => ['sometimes', 'required', 'email', 'max:180', 'unique:staff_users,email,'.$id],
+            'password' => ['nullable', 'string', 'min:8', 'max:120'],
+            'role' => ['sometimes', 'required', 'in:admin,manager,sales'],
+            'salesperson_code' => ['nullable', 'string', 'max:64'],
+            'reservation_doc_types' => ['nullable'],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+
+        $updates = ['updated_at' => now()];
+        if (array_key_exists('name', $d)) {
+            $updates['name'] = trim($d['name']);
+        }
+        if (array_key_exists('email', $d)) {
+            $updates['email'] = strtolower(trim($d['email']));
+        }
+        if (! empty($d['password'])) {
+            $updates['password'] = bcrypt($d['password']);
+        }
+        if (array_key_exists('role', $d)) {
+            $updates['role'] = $d['role'];
+        }
+        if (array_key_exists('salesperson_code', $d)) {
+            $sp = trim((string) ($d['salesperson_code'] ?? ''));
+            $updates['salesperson_code'] = $sp !== '' ? $sp : null;
+        }
+        if (array_key_exists('reservation_doc_types', $d)) {
+            $updates['reservation_doc_types'] = CustomerAccess::normalizeReservationDocTypes($d['reservation_doc_types']);
+        }
+        if (array_key_exists('is_active', $d)) {
+            $updates['is_active'] = (bool) $d['is_active'];
+        }
+
+        DB::table('staff_users')->where('id', $id)->update($updates);
+
+        DB::table('crm_audit_logs')->insert([
+            'entity_type' => 'staff_user',
+            'entity_id' => $id,
+            'action' => 'updated',
+            'actor_staff_id' => $actor->id,
+            'changes' => json_encode([
+                'role' => $updates['role'] ?? $target->role,
+                'salesperson_code' => array_key_exists('salesperson_code', $updates) ? $updates['salesperson_code'] : $target->salesperson_code,
+                'reservation_doc_types' => array_key_exists('reservation_doc_types', $updates) ? $updates['reservation_doc_types'] : ($target->reservation_doc_types ?? null),
+                'is_active' => $updates['is_active'] ?? $target->is_active,
+            ], JSON_UNESCAPED_UNICODE),
+            'created_at' => now(),
+        ]);
+
+        return response()->json(['ok' => true, 'id' => $id]);
     }
 }

@@ -312,4 +312,153 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->assertSame(1, (int) $erpPin['photo_count']);
         $this->get($erpPin['photos'][0]['url'])->assertOk();
     }
+
+    public function test_reservation_doc_type_binding_scopes_salesperson_customers_and_sales_while_admin_sees_all(): void
+    {
+        $admin = $this->createStaff('admin');
+        $this->actingAs($admin, 'staff');
+
+        // Two ERP debtors whose erp_customers.salesperson_code is '0' (ขายเอง), separated by reservation doc_type B16 vs B33
+        $custB16Id = DB::table('erp_customers')->insertGetId([
+            'source_system' => 'BPLUS',
+            'erp_customer_code' => '34000-B16',
+            'customer_name' => 'ร้านในสายใบจอง B16',
+            'salesperson_code' => '0',
+            'salesperson_name' => 'ขายเอง',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $custB33Id = DB::table('erp_customers')->insertGetId([
+            'source_system' => 'BPLUS',
+            'erp_customer_code' => '32000-B33',
+            'customer_name' => 'ร้านในสายใบจอง B33',
+            'salesperson_code' => '0',
+            'salesperson_name' => 'ขายเอง',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Reservation 207 docs and actual 307 sales
+        DB::table('erp_sales_invoices')->insert([
+            [
+                'source_system' => 'BPLUS',
+                'branch_code' => '0001',
+                'doc_type' => 'B16',
+                'dt_properties' => 207,
+                'doc_category' => 'reservation',
+                'invoice_no' => 'B16-6901/0001',
+                'erp_customer_code' => '34000-B16',
+                'sold_at' => '2026-06-10 09:00:00',
+                'before_vat_amount' => 3200.00,
+                'vat_amount' => 0.00,
+                'gross_amount' => 3200.00,
+                'net_amount' => 3200.00,
+                'status' => 'reserved',
+                'salesperson_code' => '01',
+                'salesperson_name' => 'เก่ง',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'source_system' => 'BPLUS',
+                'branch_code' => '0001',
+                'doc_type' => 'DS',
+                'dt_properties' => 307,
+                'doc_category' => 'sale',
+                'invoice_no' => 'DS-6901/0001',
+                'erp_customer_code' => '34000-B16',
+                'sold_at' => '2026-06-11 10:00:00',
+                'before_vat_amount' => 5000.00,
+                'vat_amount' => 350.00,
+                'gross_amount' => 5350.00,
+                'net_amount' => 5000.00,
+                'status' => 'posted',
+                'salesperson_code' => '0',
+                'salesperson_name' => 'ขายเอง',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'source_system' => 'BPLUS',
+                'branch_code' => '0001',
+                'doc_type' => 'B33',
+                'dt_properties' => 207,
+                'doc_category' => 'reservation',
+                'invoice_no' => 'B33-6901/0001',
+                'erp_customer_code' => '32000-B33',
+                'sold_at' => '2026-06-10 09:30:00',
+                'before_vat_amount' => 4100.00,
+                'vat_amount' => 0.00,
+                'gross_amount' => 4100.00,
+                'net_amount' => 4100.00,
+                'status' => 'reserved',
+                'salesperson_code' => '16',
+                'salesperson_name' => 'สาขาสุรินทร์',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'source_system' => 'BPLUS',
+                'branch_code' => '0001',
+                'doc_type' => 'DSN',
+                'dt_properties' => 307,
+                'doc_category' => 'sale',
+                'invoice_no' => 'DSN-6901/0002',
+                'erp_customer_code' => '32000-B33',
+                'sold_at' => '2026-06-11 11:00:00',
+                'before_vat_amount' => 8000.00,
+                'vat_amount' => 560.00,
+                'gross_amount' => 8560.00,
+                'net_amount' => 8000.00,
+                'status' => 'posted',
+                'salesperson_code' => '16',
+                'salesperson_name' => 'สาขาสุรินทร์',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        // Admin creates a salesperson bound ONLY to reservation B16 via /api/crm/settings/staff
+        $createRes = $this->postJson('/api/crm/settings/staff', [
+            'name' => 'เซลล์สาย B16',
+            'email' => 'rep-b16@popstar.local',
+            'password' => 'SecretPass123!',
+            'role' => 'sales',
+            'salesperson_code' => null,
+            'reservation_doc_types' => ['B16'],
+        ])->assertStatus(201)->json();
+
+        // Admin sees both customers and combined 13,000 sales + 2 reservation routes
+        $adminDash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
+        $this->assertSame(2, (int) $adminDash['customers']);
+        $this->assertSame(13000.0, (float) $adminDash['sales_kpis']['net_sales_before_vat']);
+        $this->assertCount(2, $adminDash['reservation_by_doc_type']);
+
+        // Salesperson bound to B16 logs in and sees ONLY B16's debtor & 5,000 sales
+        $repB16 = StaffUser::findOrFail($createRes['id']);
+        $this->actingAs($repB16, 'staff');
+
+        $meRes = $this->getJson('/api/crm/me')->assertOk()->json();
+        $this->assertSame(['B16'], $meRes['reservation_doc_types']);
+
+        $repCustomers = $this->getJson('/api/crm/customers')->assertOk()->json();
+        $this->assertCount(1, $repCustomers);
+        $this->assertSame('34000-B16', $repCustomers[0]['erp_customer_code']);
+
+        $this->getJson("/api/crm/customers/{$custB16Id}")->assertOk();
+        $this->getJson("/api/crm/customers/{$custB33Id}")->assertStatus(404);
+
+        $repMaster = $this->getJson('/api/crm/customer-master')->assertOk()->json();
+        $this->assertSame(1, (int) $repMaster['meta']['total']);
+        $this->assertSame('34000-B16', $repMaster['data'][0]['erp_customer_code']);
+
+        $repDash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
+        $this->assertSame(1, (int) $repDash['customers']);
+        $this->assertSame(5000.0, (float) $repDash['sales_kpis']['net_sales_before_vat']);
+        $this->assertCount(1, $repDash['reservation_by_doc_type']);
+        $this->assertSame('B16', $repDash['reservation_by_doc_type'][0]['doc_type']);
+
+        // Salesperson cannot access settings staff endpoint
+        $this->patchJson("/api/crm/settings/staff/{$repB16->id}", ['role' => 'admin'])->assertStatus(403);
+    }
 }
