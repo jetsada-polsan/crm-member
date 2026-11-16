@@ -4,6 +4,7 @@ namespace App\Modules\CRM;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 final class StaffAuthController
 {
@@ -15,12 +16,17 @@ final class StaffAuthController
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|string|max:180',
             'password' => 'required|string',
         ]);
-        if (! Auth::guard('staff')->attempt($credentials)) {
+
+        $ident = trim($credentials['email']);
+        $resolvedEmail = $this->resolveStaffLoginEmail($ident);
+
+        if (! Auth::guard('staff')->attempt(['email' => $resolvedEmail, 'password' => $credentials['password']])) {
             return response()->json(['error' => 'Invalid credentials'], 422);
         }
+
         $user = Auth::guard('staff')->user();
         if (! $user->is_active) {
             Auth::guard('staff')->logout();
@@ -35,7 +41,7 @@ final class StaffAuthController
             'redirect_path' => '/dashboard',
             'name' => $user->name,
             'role' => $user->role,
-            'salesperson_code' => $user->salesperson_code,
+            'salesperson_code' => CustomerAccess::salespersonCode($user),
             'reservation_doc_types' => CustomerAccess::reservationDocTypes($user),
         ]);
     }
@@ -58,8 +64,35 @@ final class StaffAuthController
             'name' => $u->name,
             'email' => $u->email,
             'role' => $u->role,
-            'salesperson_code' => $u->salesperson_code,
+            'salesperson_code' => CustomerAccess::salespersonCode($u),
             'reservation_doc_types' => CustomerAccess::reservationDocTypes($u),
         ]);
+    }
+
+    /**
+     * Allow staff to sign in using email, reservation doc_type (e.g. B16), salesperson_code (e.g. 01), or name.
+     */
+    private function resolveStaffLoginEmail(string $ident): string
+    {
+        if (str_contains($ident, '@')) {
+            return strtolower($ident);
+        }
+
+        $upper = strtoupper($ident);
+        $byCode = DB::table('staff_users')
+            ->where('salesperson_code', $ident)
+            ->orWhere('salesperson_code', str_pad($ident, 2, '0', STR_PAD_LEFT))
+            ->orWhere('reservation_doc_types', $upper)
+            ->orWhere('reservation_doc_types', 'LIKE', $upper.',%')
+            ->orWhere('reservation_doc_types', 'LIKE', '%,'.$upper)
+            ->orWhere('reservation_doc_types', 'LIKE', '%,'.$upper.',%')
+            ->orWhere('name', $ident)
+            ->first();
+
+        if ($byCode) {
+            return (string) $byCode->email;
+        }
+
+        return strtolower($ident);
     }
 }

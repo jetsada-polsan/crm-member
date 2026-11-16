@@ -5,11 +5,13 @@ namespace App\Modules\CRM;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * Single rule for which ERP customers, reservations (ใบจอง), and invoices a staff user may see:
  * - Admins/managers see everything in the system.
- * - Sales reps see ONLY data tied to their bound salesperson_code and/or bound reservation_doc_types (ใบจอง).
+ * - Sales reps see ONLY data tied to their salesperson_code and auto-linked reservation_doc_types (ใบจอง)
+ *   discovered directly from erp_sales_invoices (DT_PROPERTIES = 207).
  */
 final class CustomerAccess
 {
@@ -20,6 +22,57 @@ final class CustomerAccess
         return $u !== null && in_array($u->role, ['admin', 'manager'], true);
     }
 
+    /**
+     * Discover dominant salesperson_code per 207 reservation doc_type and vice versa from erp_sales_invoices.
+     *
+     * @return array{doc_to_sp: array<string, string>, sp_to_docs: array<string, list<string>>, doc_to_name: array<string, string>}
+     */
+    public static function discoverReservationSalespersonMap(): array
+    {
+        $rows = DB::table('erp_sales_invoices')
+            ->where('dt_properties', 207)
+            ->where('status', '!=', 'cancelled')
+            ->whereNotNull('doc_type')
+            ->where('doc_type', '!=', '')
+            ->whereNotNull('salesperson_code')
+            ->where('salesperson_code', '!=', '')
+            ->where('salesperson_code', '!=', '0')
+            ->groupBy('doc_type', 'salesperson_code')
+            ->select(
+                'doc_type',
+                'salesperson_code',
+                DB::raw('MAX(salesperson_name) as salesperson_name'),
+                DB::raw('COUNT(*) as doc_count')
+            )
+            ->orderBy('doc_type')
+            ->orderByDesc('doc_count')
+            ->get();
+
+        $docToSp = [];
+        $docToName = [];
+        $spToDocs = [];
+
+        foreach ($rows as $row) {
+            $doc = strtoupper(trim((string) $row->doc_type));
+            $sp = trim((string) $row->salesperson_code);
+            if ($doc === '' || $sp === '') {
+                continue;
+            }
+            // First row per doc_type has highest doc_count (dominant owner of that ใบจอง)
+            if (! isset($docToSp[$doc])) {
+                $docToSp[$doc] = $sp;
+                $docToName[$doc] = trim((string) ($row->salesperson_name ?? ''));
+                $spToDocs[$sp][] = $doc;
+            }
+        }
+
+        return [
+            'doc_to_sp' => $docToSp,
+            'sp_to_docs' => $spToDocs,
+            'doc_to_name' => $docToName,
+        ];
+    }
+
     public static function salespersonCode(?object $user = null): ?string
     {
         $u = $user ?? Auth::guard('staff')->user();
@@ -27,11 +80,28 @@ final class CustomerAccess
             return null;
         }
         $code = trim((string) ($u->salesperson_code ?? ''));
+        if ($code !== '') {
+            return $code;
+        }
 
-        return $code !== '' ? $code : null;
+        // Auto-resolve salesperson_code from bound reservation_doc_types if salesperson_code was not explicitly set
+        $explicitDocs = self::parseDocTypes($u->reservation_doc_types ?? null);
+        if ($explicitDocs !== []) {
+            $map = self::discoverReservationSalespersonMap();
+            foreach ($explicitDocs as $doc) {
+                if (isset($map['doc_to_sp'][$doc])) {
+                    return $map['doc_to_sp'][$doc];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
+     * Automatically combines explicit reservation_doc_types with reservation doc_types
+     * discovered from erp_sales_invoices for the user's salesperson_code.
+     *
      * @return list<string>
      */
     public static function reservationDocTypes(?object $user = null): array
@@ -41,7 +111,156 @@ final class CustomerAccess
             return [];
         }
 
-        return self::parseDocTypes($u->reservation_doc_types ?? null);
+        $docs = [];
+        foreach (self::parseDocTypes($u->reservation_doc_types ?? null) as $d) {
+            $docs[$d] = $d;
+        }
+
+        $spCode = trim((string) ($u->salesperson_code ?? ''));
+        if ($spCode !== '' && $spCode !== '0') {
+            $map = self::discoverReservationSalespersonMap();
+            foreach ($map['sp_to_docs'][$spCode] ?? [] as $autoDoc) {
+                $docs[$autoDoc] = $autoDoc;
+            }
+        }
+
+        return array_values($docs);
+    }
+
+    /**
+     * Automatically synchronize and bind staff_users with erp_salespersons and 207 reservation doc_types.
+     *
+     * @return array{created: int, updated: int, total_sales_staff: int}
+     */
+    public static function syncStaffFromErp(string $defaultPassword = 'Popstar2026!'): array
+    {
+        $map = self::discoverReservationSalespersonMap();
+        $spToDocs = $map['sp_to_docs'];
+        $docToSp = $map['doc_to_sp'];
+
+        $erpSalespersons = DB::table('erp_salespersons')
+            ->where('is_active', true)
+            ->where('salesperson_code', '!=', '0')
+            ->where('salesperson_code', '!=', '')
+            ->orderBy('salesperson_code')
+            ->get();
+
+        $staffRows = DB::table('staff_users')->orderBy('id')->get();
+        $staffBySp = [];
+        $staffByName = [];
+        foreach ($staffRows as $s) {
+            $sp = trim((string) ($s->salesperson_code ?? ''));
+            if ($sp !== '') {
+                $staffBySp[$sp] = $s;
+            }
+            $nm = mb_strtolower(trim((string) $s->name), 'UTF-8');
+            if ($nm !== '') {
+                $staffByName[$nm] = $s;
+            }
+        }
+
+        $created = 0;
+        $updated = 0;
+        $now = now();
+
+        // 1. Auto-update any existing sales staff missing reservation_doc_types or salesperson_code
+        foreach ($staffRows as $s) {
+            if ($s->role !== 'sales') {
+                continue;
+            }
+            $sp = trim((string) ($s->salesperson_code ?? ''));
+            $docs = self::parseDocTypes($s->reservation_doc_types ?? null);
+
+            if ($sp === '' && $docs !== []) {
+                foreach ($docs as $d) {
+                    if (isset($docToSp[$d])) {
+                        $sp = $docToSp[$d];
+                        break;
+                    }
+                }
+            }
+
+            if ($sp !== '' && isset($spToDocs[$sp])) {
+                foreach ($spToDocs[$sp] as $autoDoc) {
+                    if (! in_array($autoDoc, $docs, true)) {
+                        $docs[] = $autoDoc;
+                    }
+                }
+            }
+
+            $normalizedDocs = self::normalizeReservationDocTypes($docs);
+            $newSp = $sp !== '' ? $sp : null;
+
+            if ($newSp !== $s->salesperson_code || $normalizedDocs !== $s->reservation_doc_types) {
+                DB::table('staff_users')->where('id', $s->id)->update([
+                    'salesperson_code' => $newSp,
+                    'reservation_doc_types' => $normalizedDocs,
+                    'updated_at' => $now,
+                ]);
+                if ($newSp !== null) {
+                    $staffBySp[$newSp] = $s;
+                }
+                $updated++;
+            }
+        }
+
+        // 2. Auto-provision staff_users accounts for every active ERP salesperson not yet in staff_users
+        foreach ($erpSalespersons as $spRow) {
+            $code = trim((string) $spRow->salesperson_code);
+            $name = trim((string) $spRow->salesperson_name);
+            $autoDocs = $spToDocs[$code] ?? [];
+            $normalizedDocs = self::normalizeReservationDocTypes($autoDocs);
+
+            if (isset($staffBySp[$code])) {
+                continue;
+            }
+
+            // Check if an existing sales staff has the exact same Thai name
+            $nameKey = mb_strtolower($name, 'UTF-8');
+            if (isset($staffByName[$nameKey]) && $staffByName[$nameKey]->role === 'sales') {
+                $existing = $staffByName[$nameKey];
+                DB::table('staff_users')->where('id', $existing->id)->update([
+                    'salesperson_code' => $code,
+                    'reservation_doc_types' => $normalizedDocs ?? $existing->reservation_doc_types,
+                    'updated_at' => $now,
+                ]);
+                $staffBySp[$code] = $existing;
+                $updated++;
+                continue;
+            }
+
+            $primaryDoc = $autoDocs[0] ?? null;
+            $emailSlug = strtolower($primaryDoc ?: ('sp'.$code));
+            $candidateEmail = "{$emailSlug}@popstar.local";
+            if (DB::table('staff_users')->where('email', $candidateEmail)->exists()) {
+                $candidateEmail = 'sp'.strtolower($code).'@popstar.local';
+            }
+            if (DB::table('staff_users')->where('email', $candidateEmail)->exists()) {
+                continue;
+            }
+
+            $displayName = $primaryDoc ? "{$name} ({$primaryDoc})" : $name;
+            DB::table('staff_users')->insert([
+                'name' => $displayName,
+                'email' => $candidateEmail,
+                'password' => Hash::make($defaultPassword),
+                'role' => 'sales',
+                'salesperson_code' => $code,
+                'reservation_doc_types' => $normalizedDocs,
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $created++;
+        }
+
+        $totalSalesStaff = DB::table('staff_users')->where('role', 'sales')->count();
+
+        return [
+            'created' => $created,
+            'updated' => $updated,
+            'total_sales_staff' => $totalSalesStaff,
+        ];
     }
 
     /**
@@ -84,7 +303,7 @@ final class CustomerAccess
 
     /**
      * Restrict an erp_customers query to customers belonging to the salesperson's
-     * salesperson_code OR appearing in their bound reservation_doc_types (ใบจอง).
+     * salesperson_code OR appearing in their bound/auto-linked reservation_doc_types (ใบจอง).
      */
     public static function applyCustomerScope(Builder $query, string $alias = 'erp_customers', ?object $user = null): Builder
     {

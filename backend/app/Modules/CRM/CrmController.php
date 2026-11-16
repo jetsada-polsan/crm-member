@@ -1093,12 +1093,15 @@ final class CrmController
         $user = Auth::guard('staff')->user();
         abort_unless(in_array($user->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
 
+        $autoSyncStats = CustomerAccess::syncStaffFromErp();
+
         $staff = DB::table('staff_users')
             ->select('id', 'name', 'email', 'role', 'salesperson_code', 'reservation_doc_types', 'is_active', 'created_at')
             ->orderBy('id')
             ->get()
             ->map(function ($u) {
-                $u->reservation_doc_types_list = CustomerAccess::parseDocTypes($u->reservation_doc_types ?? null);
+                $u->salesperson_code = CustomerAccess::salespersonCode($u);
+                $u->reservation_doc_types_list = CustomerAccess::reservationDocTypes($u);
 
                 return $u;
             });
@@ -1136,6 +1139,7 @@ final class CrmController
 
         return response()->json([
             'staff_users' => $staff,
+            'auto_sync' => $autoSyncStats,
             'available_salespersons' => $availableSalespersons,
             'available_reservations' => $availableReservations,
             'audit_logs' => $auditLogs,
@@ -1150,6 +1154,19 @@ final class CrmController
                 'active_loyalty_rules' => $activeRules,
                 'total_loyalty_rules' => $totalRules,
             ],
+        ]);
+    }
+
+    public function autoSyncStaffFromErp(): JsonResponse
+    {
+        $actor = Auth::guard('staff')->user();
+        abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+
+        $stats = CustomerAccess::syncStaffFromErp();
+
+        return response()->json([
+            'ok' => true,
+            ...$stats,
         ]);
     }
 

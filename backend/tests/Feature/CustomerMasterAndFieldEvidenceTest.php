@@ -460,5 +460,32 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
 
         // Salesperson cannot access settings staff endpoint
         $this->patchJson("/api/crm/settings/staff/{$repB16->id}", ['role' => 'admin'])->assertStatus(403);
+
+        // Auto-sync from erp_salespersons + 207 bills automatically provisions and binds B33 to salesperson 16
+        DB::table('erp_salespersons')->insert([
+            'source_system' => 'BPLUS',
+            'salesperson_code' => '16',
+            'salesperson_name' => 'สาขาสุรินทร์',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin, 'staff');
+        $syncRes = $this->postJson('/api/crm/settings/staff/auto-sync', [])->assertOk()->json();
+        $this->assertGreaterThanOrEqual(1, (int) $syncRes['created']);
+
+        // Auto-provisioned salesperson 16 can log in directly using reservation code "B33" and sees ONLY B33 (8,000)
+        \Illuminate\Support\Facades\Auth::guard('staff')->logout();
+        $this->postJson('/api/crm/login', [
+            'email' => 'B33',
+            'password' => 'Popstar2026!',
+        ])->assertOk()
+          ->assertJsonPath('salesperson_code', '16')
+          ->assertJsonPath('reservation_doc_types', ['B33']);
+
+        $b33Dash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
+        $this->assertSame(1, (int) $b33Dash['customers']);
+        $this->assertSame(8000.0, (float) $b33Dash['sales_kpis']['net_sales_before_vat']);
     }
 }

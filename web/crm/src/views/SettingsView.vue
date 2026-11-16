@@ -5,11 +5,13 @@
       subtitle="แอดมินเห็นข้อมูลทั้งระบบ · เซลล์เห็นเฉพาะลูกหนี้และยอดขายในสายใบจอง / รหัสเซลล์ของตัวเอง"
     >
       <template #secondary>
-        <button type="button" class="btn" @click="refetch">⟳ รีเฟรช</button>
+        <button type="button" class="btn" :disabled="syncingAuto" @click="triggerAutoSync">
+          {{ syncingAuto ? 'กำลังผูกอัตโนมัติ...' : '⚡ ผูกเซลล์ & ใบจองจากบิล Bplus อัตโนมัติ' }}
+        </button>
       </template>
       <template #primary>
         <button type="button" class="btn primary" @click="openCreateModal">
-          ＋ เพิ่มบัญชีพนักงาน / ผูกใบจอง
+          ＋ เพิ่มบัญชีพนักงาน
         </button>
       </template>
     </PageHeader>
@@ -317,6 +319,7 @@ const { data, isLoading, isError, error, refetch } = useQuery({
 const modalOpen = ref(false);
 const editingId = ref(null);
 const saving = ref(false);
+const syncingAuto = ref(false);
 const form = ref({
   name: '',
   email: '',
@@ -331,6 +334,23 @@ function salespersonNameByCode(code) {
   if (!code) return '';
   const found = (data.value?.available_salespersons || []).find((x) => String(x.salesperson_code) === String(code));
   return found?.salesperson_name || '';
+}
+
+async function triggerAutoSync() {
+  syncingAuto.value = true;
+  try {
+    const res = await crmMutate('/settings/staff/auto-sync', 'POST', {});
+    toast.success(
+      'ผูกเซลล์และใบจองจาก Bplus อัตโนมัติแล้ว',
+      `บัญชีเซลล์พร้อมใช้งานทั้งหมด ${res.total_sales_staff} บัญชี (สร้างใหม่ ${res.created} · อัปเดต ${res.updated})`
+    );
+    await refetch();
+    invalidateCrmData();
+  } catch (err) {
+    toast.error('ผูกอัตโนมัติไม่สำเร็จ', err);
+  } finally {
+    syncingAuto.value = false;
+  }
 }
 
 function openCreateModal() {

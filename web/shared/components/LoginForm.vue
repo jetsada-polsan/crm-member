@@ -30,7 +30,7 @@
     <form novalidate @submit.prevent="onSubmit">
       <div class="auth-field">
         <label :for="identId">
-          {{ roleMode === 'staff' ? 'อีเมลพนักงาน / CRM' : 'เบอร์โทรศัพท์หรืออีเมลสมาชิก' }}
+          {{ roleMode === 'staff' ? 'อีเมล / รหัสใบจอง (เช่น B16) / รหัสเซลล์' : 'เบอร์โทรศัพท์หรืออีเมลสมาชิก' }}
         </label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -41,11 +41,11 @@
             :id="identId"
             ref="identRef"
             v-model.trim="identifier"
-            :type="roleMode === 'staff' ? 'email' : 'text'"
-            :inputmode="roleMode === 'staff' ? 'email' : 'text'"
+            type="text"
+            inputmode="text"
             class="no-trailing-btn"
             autocomplete="username"
-            :placeholder="roleMode === 'staff' ? 'กรอกอีเมลพนักงาน (เช่น name@popstar.local)' : '08x-xxx-xxxx หรือ email@domain.com'"
+            :placeholder="roleMode === 'staff' ? 'เช่น B16, 01 หรือ b16@popstar.local' : '08x-xxx-xxxx หรือ email@domain.com'"
             aria-required="true"
             required
           />
