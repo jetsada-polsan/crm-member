@@ -29,6 +29,7 @@
           :offline-draft-count="offlineDrafts.length"
           @prefetch="(name) => prefetchRouteView(name, { withData: true })"
           @open-visit="openVisitWizard()"
+          @open-quick-add="openQuickAdd()"
         />
 
         <div class="sidebar-bottom">
@@ -51,6 +52,15 @@
 
       <div class="main">
         <header class="topbar">
+          <button
+            v-if="showMobileBack"
+            type="button"
+            class="topbtn mobile-back-btn"
+            aria-label="กลับหน้าเมนู"
+            @click="handleMobileBack"
+          >
+            ←
+          </button>
           <h1 class="topbar-title">{{ pageTitle }}</h1>
           <div class="breadcrumb">
             POPSTAR Connect
@@ -85,16 +95,34 @@
             <button type="button" class="btn primary" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
           </div>
 
-          <button
-            v-if="offlineDrafts.length"
-            type="button"
-            class="topbtn mobile-only-sync"
-            :disabled="offlineSyncing"
-            :aria-label="`ส่งข้อมูลค้างส่ง ${offlineDrafts.length} รายการ`"
-            @click="syncPendingOfflineDrafts"
-          >
-            ☁️
-          </button>
+          <div class="mobile-top-quick">
+            <button
+              v-if="offlineDrafts.length"
+              type="button"
+              class="topbtn"
+              :disabled="offlineSyncing"
+              :aria-label="`ส่งข้อมูลค้างส่ง ${offlineDrafts.length} รายการ`"
+              @click="syncPendingOfflineDrafts"
+            >
+              ☁️
+            </button>
+            <button
+              type="button"
+              class="topbtn"
+              aria-label="ค้นหาเมนูทั้งหมด"
+              @click="uiState.commandPaletteOpen = true"
+            >
+              🔍
+            </button>
+            <button
+              type="button"
+              class="topbtn mobile-top-visit"
+              aria-label="บันทึกเข้าพบร้านค้า"
+              @click="openVisitWizard()"
+            >
+              📸
+            </button>
+          </div>
 
           <div class="profile">
             <div class="avatar">{{ userInitial }}</div>
@@ -142,16 +170,17 @@
           <span class="mni" aria-hidden="true">📍</span>
           <span>ออกตลาด</span>
         </RouterLink>
-        <RouterLink to="/more" class="mobile-nav-item" active-class="active">
+        <RouterLink to="/more" :class="['mobile-nav-item', { active: isMoreSectionActive }]">
           <span class="mni" aria-hidden="true">⋯</span>
           <span>เพิ่มเติม</span>
+          <span v-if="offlineDrafts.length" class="mobile-nav-dot" aria-hidden="true"></span>
         </RouterLink>
       </nav>
 
-      <!-- Center (+) Bottom Sheet: Only 2 big primary actions -->
+      <!-- Center (+) Bottom Sheet: Primary actions + quick jumps -->
       <MobileBottomSheet
         :open="mobileQuickOpen"
-        title="ทำรายการด่วน"
+        title="ทำรายการด่วน (มือเดียว)"
         @close="mobileQuickOpen = false"
       >
         <div class="sheet-two-actions">
@@ -176,6 +205,29 @@
               <strong>เพิ่มร้านใหม่</strong>
               <small>บันทึกร้านค้าใหม่พร้อมตรวจเบอร์ซ้ำ</small>
             </div>
+          </button>
+        </div>
+
+        <div class="sheet-quick-links">
+          <button type="button" class="sheet-mini-link" @click="runMobileNav('/map')">
+            <span>🗺️</span>
+            <span>แผนที่ร้าน</span>
+          </button>
+          <button type="button" class="sheet-mini-link" @click="runMobileNav('/plans')">
+            <span>📅</span>
+            <span>แผนออกตลาด</span>
+          </button>
+          <button type="button" class="sheet-mini-link" @click="runMobileNav('/followups')">
+            <span>✅</span>
+            <span>งานติดตาม</span>
+          </button>
+          <button
+            type="button"
+            class="sheet-mini-link"
+            @click="runMobileAction(() => { uiState.commandPaletteOpen = true; })"
+          >
+            <span>🔍</span>
+            <span>ค้นหาเมนู</span>
           </button>
         </div>
       </MobileBottomSheet>
@@ -271,6 +323,28 @@ const activeNavMeta = computed(() =>
 const pageTitle = computed(
   () => activeNavMeta.value?.item?.label || route.meta?.label || 'POPSTAR Connect'
 );
+
+const isMoreSectionActive = computed(() => {
+  if (route.path === '/more') return true;
+  return Boolean(activeNavMeta.value?.group?.showInMore);
+});
+
+const showMobileBack = computed(() => {
+  return route.path !== '/dashboard' && route.path !== '/customers' && route.path !== '/visits' && route.path !== '/more';
+});
+
+function handleMobileBack() {
+  if (activeNavMeta.value?.group?.showInMore) {
+    router.push('/more');
+    return;
+  }
+  router.push('/dashboard');
+}
+
+function runMobileNav(path) {
+  mobileQuickOpen.value = false;
+  router.push(path);
+}
 
 const commandItems = computed(() => {
   const routes = CRM_ROUTES.filter((r) => r.name && !r.meta?.hiddenInNav && (!r.meta?.adminOnly || isManager.value)).map((r) => {
@@ -382,3 +456,86 @@ onUnmounted(() => {
   window.removeEventListener('online', onWindowOnline);
 });
 </script>
+
+<style scoped>
+.mobile-back-btn,
+.mobile-top-quick {
+  display: none;
+}
+
+.mobile-nav-dot {
+  position: absolute;
+  top: 7px;
+  right: 22%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--orange);
+  border: 2px solid #ffffff;
+}
+
+.sheet-quick-links {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sheet-mini-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  min-height: 64px;
+}
+
+.sheet-mini-link span:first-child {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.sheet-mini-link:active {
+  transform: scale(0.97);
+  background: var(--blue-soft);
+}
+
+@media (max-width: 1024px) {
+  .mobile-back-btn {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    font-size: 18px;
+    font-weight: 700;
+    background: #f4f7fc;
+  }
+
+  .mobile-top-quick {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mobile-top-visit {
+    background: var(--blue-soft);
+    border-color: #c7d9ff;
+    color: var(--blue);
+  }
+}
+
+@media (max-width: 420px) {
+  .sheet-quick-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>
