@@ -258,5 +258,48 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->get("/api/crm/photos/{$photoRes['id']}?inline=1")->assertStatus(403);
         $this->postJson('/api/crm/field-visits', $payload)->assertStatus(403);
         $this->postJson('/api/crm/field-visits', [...$payload, 'erp_customer_id' => $otherErpId])->assertStatus(409);
+
+        // Visit check-in GPS auto-saved to crm_customer_locations and exposed to owning rep on /api/crm/pins
+        $this->actingAs($rep, 'staff');
+        $repPins = $this->getJson('/api/crm/pins')->assertOk()->json();
+        $this->assertCount(1, $repPins);
+        $this->assertSame($erpId, (int) $repPins[0]['erp_customer_id']);
+        $this->assertSame(13.7563, round((float) $repPins[0]['latitude'], 4));
+
+        // Legacy/historical visit rows with GPS (without crm_customer_locations row) also appear for authorized staff
+        DB::table('crm_customer_visits')->insert([
+            'erp_customer_id' => $otherErpId,
+            'staff_user_id' => $otherRep->id,
+            'visited_at' => now(),
+            'result' => 'visited',
+            'shop_type' => 'existing',
+            'checkin_latitude' => 15.365976,
+            'checkin_longitude' => 104.8080375,
+            'gps_permission_status' => 'granted',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Own rep still sees only their own scoped pin, while manual pin is preserved against subsequent GPS check-in
+        $this->assertCount(1, $this->getJson('/api/crm/pins')->assertOk()->json());
+        $this->postJson('/api/crm/pins', [
+            'erp_customer_id' => $erpId,
+            'latitude' => 15.2287,
+            'longitude' => 104.8564,
+            'source' => 'manual',
+        ])->assertOk();
+        $this->postJson('/api/crm/field-visits', [
+            ...$payload,
+            'client_draft_id' => 'draft-mobile-uuid-002',
+            'checkin_latitude' => 13.75,
+            'checkin_longitude' => 100.51,
+        ])->assertStatus(201);
+        $updatedPins = $this->getJson('/api/crm/pins')->assertOk()->json();
+        $this->assertSame(15.2287, round((float) $updatedPins[0]['latitude'], 4));
+
+        // Manager sees both pinned locations and unpinned historical visit check-in GPS
+        $mgr = $this->createStaff('manager');
+        $this->actingAs($mgr, 'staff');
+        $this->assertCount(2, $this->getJson('/api/crm/pins')->assertOk()->json());
     }
 }

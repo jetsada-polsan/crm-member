@@ -579,18 +579,17 @@ final class FieldController
             ]);
 
             if ($hasLat) {
-                DB::table('crm_customer_locations')->insert([
-                    'crm_lead_id' => $leadId,
-                    'latitude' => (float) $d['latitude'],
-                    'longitude' => (float) $d['longitude'],
-                    'accuracy_m' => isset($d['accuracy_m']) ? (int) $d['accuracy_m'] : null,
-                    'address' => $d['address'] ?? null,
-                    'source' => $d['pin_source'] ?? 'gps',
-                    'pinned_by' => $userId,
-                    'pinned_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                $this->upsertCustomerLocation(
+                    null,
+                    (int) $leadId,
+                    (float) $d['latitude'],
+                    (float) $d['longitude'],
+                    isset($d['accuracy_m']) ? (int) $d['accuracy_m'] : null,
+                    $d['pin_source'] ?? 'gps',
+                    $userId,
+                    $d['address'] ?? null,
+                    $now
+                );
             }
 
             if ($storedPath !== null && $photoMeta !== null) {
@@ -1025,18 +1024,72 @@ final class FieldController
         ]);
     }
 
+    private function upsertCustomerLocation(
+        ?int $erpCustomerId,
+        ?int $crmLeadId,
+        float $latitude,
+        float $longitude,
+        ?int $accuracyM,
+        string $source,
+        int $staffUserId,
+        ?string $address = null,
+        ?\DateTimeInterface $timestamp = null,
+        bool $preserveManualPin = false
+    ): void {
+        $now = $timestamp ?? now();
+        $where = $erpCustomerId !== null
+            ? ['erp_customer_id' => $erpCustomerId]
+            : ['crm_lead_id' => $crmLeadId];
+
+        $existing = DB::table('crm_customer_locations')->where($where)->first();
+        if ($existing && $preserveManualPin && in_array($existing->source, ['manual', 'map_link'], true)) {
+            return;
+        }
+
+        $payload = [
+            'erp_customer_id' => $erpCustomerId,
+            'crm_lead_id' => $crmLeadId,
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+            'accuracy_m' => $accuracyM,
+            'source' => $source,
+            'pinned_by' => $staffUserId,
+            'pinned_at' => $now,
+            'updated_at' => $now,
+        ];
+        if ($address !== null) {
+            $payload['address'] = $address;
+        }
+
+        if ($existing) {
+            DB::table('crm_customer_locations')->where('id', $existing->id)->update($payload);
+        } else {
+            DB::table('crm_customer_locations')->insert([
+                ...$payload,
+                'created_at' => $now,
+            ]);
+        }
+    }
+
     public function pins(): JsonResponse
     {
-        $q = DB::table('crm_customer_locations as l')
-            ->leftJoin('erp_customers as c', 'c.id', '=', 'l.erp_customer_id')
-            ->leftJoin('crm_leads as d', 'd.id', '=', 'l.crm_lead_id');
-        if (!$this->manager()) {
-            $q->where(function ($w) {
+        $isManager = $this->manager();
+        $applyScope = function ($q) use ($isManager): void {
+            if ($isManager) {
+                return;
+            }
+            $q->where(function ($w): void {
                 $w->where('c.salesperson_code', $this->user()->salesperson_code ?? '__unassigned__')
                     ->orWhere('d.owner_staff_id', $this->user()->id);
             });
-        }
-        return response()->json($q->select(
+        };
+
+        $pinnedQuery = DB::table('crm_customer_locations as l')
+            ->leftJoin('erp_customers as c', 'c.id', '=', 'l.erp_customer_id')
+            ->leftJoin('crm_leads as d', 'd.id', '=', 'l.crm_lead_id');
+        $applyScope($pinnedQuery);
+
+        $pins = $pinnedQuery->select(
             'l.id',
             'l.erp_customer_id',
             'l.crm_lead_id',
@@ -1053,7 +1106,64 @@ final class FieldController
             'd.pipeline_stage',
             'd.approval_status',
             'd.converted_erp_customer_id'
-        )->limit(1000)->get());
+        )->limit(1000)->get()->all();
+
+        $seen = [];
+        foreach ($pins as $pin) {
+            if ($pin->erp_customer_id !== null) {
+                $seen['erp:'.$pin->erp_customer_id] = true;
+            }
+            if ($pin->crm_lead_id !== null) {
+                $seen['lead:'.$pin->crm_lead_id] = true;
+            }
+        }
+
+        if (count($pins) < 1000) {
+            $visitQuery = DB::table('crm_customer_visits as v')
+                ->leftJoin('erp_customers as c', 'c.id', '=', 'v.erp_customer_id')
+                ->leftJoin('crm_leads as d', 'd.id', '=', 'v.crm_lead_id')
+                ->whereNotNull('v.checkin_latitude')
+                ->whereNotNull('v.checkin_longitude')
+                ->orderByDesc('v.visited_at')
+                ->orderByDesc('v.id');
+            $applyScope($visitQuery);
+
+            $visitPins = $visitQuery->select(
+                'v.id',
+                'v.erp_customer_id',
+                'v.crm_lead_id',
+                'v.checkin_latitude as latitude',
+                'v.checkin_longitude as longitude',
+                'v.checkin_accuracy_m as accuracy_m',
+                DB::raw('NULL as address'),
+                DB::raw("'visit_gps' as source"),
+                DB::raw('COALESCE(v.checkin_at, v.visited_at) as pinned_at'),
+                'c.customer_name',
+                'c.erp_customer_code',
+                'd.shop_name',
+                'd.shop_type',
+                'd.pipeline_stage',
+                'd.approval_status',
+                'd.converted_erp_customer_id'
+            )->limit(1000)->get();
+
+            foreach ($visitPins as $vp) {
+                $key = $vp->erp_customer_id !== null
+                    ? 'erp:'.$vp->erp_customer_id
+                    : ($vp->crm_lead_id !== null ? 'lead:'.$vp->crm_lead_id : null);
+                if ($key === null || isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $vp->id = 'visit-'.$vp->id;
+                $pins[] = $vp;
+                if (count($pins) >= 1000) {
+                    break;
+                }
+            }
+        }
+
+        return response()->json($pins);
     }
 
     public function storePin(Request $r): JsonResponse
@@ -1068,15 +1178,16 @@ final class FieldController
             'source' => ['required', Rule::in(['gps', 'manual', 'map_link'])],
         ]);
         $this->checkSubject($d);
-        $where = !empty($d['erp_customer_id'])
-            ? ['erp_customer_id' => $d['erp_customer_id']]
-            : ['crm_lead_id' => $d['crm_lead_id']];
-        DB::table('crm_customer_locations')->updateOrInsert($where, [
-            ...$d,
-            'pinned_by' => $this->user()->id,
-            'pinned_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->upsertCustomerLocation(
+            ! empty($d['erp_customer_id']) ? (int) $d['erp_customer_id'] : null,
+            ! empty($d['crm_lead_id']) ? (int) $d['crm_lead_id'] : null,
+            (float) $d['latitude'],
+            (float) $d['longitude'],
+            isset($d['accuracy_m']) ? (int) $d['accuracy_m'] : null,
+            $d['source'],
+            $this->user()->id,
+            $d['address'] ?? null
+        );
         if (!empty($d['crm_lead_id'])) {
             $this->recordAudit('crm_lead', (int) $d['crm_lead_id'], 'pin_updated', [
                 'latitude' => $d['latitude'],
@@ -1227,6 +1338,20 @@ final class FieldController
                 DB::table('crm_leads')->where('id', $d['crm_lead_id'])->where('pipeline_stage', 'new_lead')->update([
                     'pipeline_stage' => 'visited', 'updated_by' => $this->user()->id, 'updated_at' => $serverRecordedAt,
                 ]);
+            }
+            if (isset($d['checkin_latitude'], $d['checkin_longitude'])) {
+                $this->upsertCustomerLocation(
+                    ! empty($d['erp_customer_id']) ? (int) $d['erp_customer_id'] : null,
+                    ! empty($d['crm_lead_id']) ? (int) $d['crm_lead_id'] : null,
+                    (float) $d['checkin_latitude'],
+                    (float) $d['checkin_longitude'],
+                    isset($d['checkin_accuracy_m']) ? (int) $d['checkin_accuracy_m'] : null,
+                    'gps',
+                    $this->user()->id,
+                    null,
+                    $serverRecordedAt,
+                    preserveManualPin: true
+                );
             }
             if (!empty($d['follow_up_action'])) {
                 DB::table('crm_follow_up_tasks')->insert([
