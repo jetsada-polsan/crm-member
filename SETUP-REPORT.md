@@ -6,6 +6,19 @@
 
 ไม่ได้แตะ Bplus ERP / SQL Server · ไม่ได้ลบไฟล์ใด · ไม่ได้ push ขึ้น GitHub
 
+## ย้ายข้อมูลจาก Docker — เสร็จแล้ว (2026-11-16)
+
+- `pg_dump` จาก container `popstar-platform-db-1` (schema เดียวกัน 18 migrations) แล้ว `pg_restore --no-owner --no-privileges` ลง `popstar_business` ในเครื่อง
+- ข้อมูลที่ย้ายมา: `erp_sales_items` 25,615 · `erp_sales_invoices` 9,247 · `erp_customers` / `crm_customer_masters` 7,804 · `erp_products` 4,208 · `sync_runs` 186 · `erp_members` 112 · `sync_errors` 34 · `erp_salespersons` 21 · visit + photos ฯลฯ (ตรงกับใน Docker ทุกตาราง)
+- รูป visit 2 ไฟล์ คัดลอกจาก storage ของ container `app` ไปไว้ที่ `backend\storage\app\private\visits\1\`
+- บัญชีแอดมิน: `admin@popstar.local` (id 1, ของเดิมจาก Docker) + `you@example.com` (id 7, เพิ่งสร้าง คงไว้ให้ login ได้ ควรเปลี่ยนเป็นอีเมลจริง)
+- ไฟล์สำรอง (git-ignored และ Apache บล็อกไว้): `_docker_backup\db\local-before-import.dump`, `_docker_backup\db\docker-popstar_business.dump`, `_docker_backup\storage-app\` ⚠️ มีข้อมูลลูกค้า ห้ามแชร์
+- แก้ที่อยู่ที่ยังชี้ไป Docker:
+  - `backend\.env`: `LOCAL_ERP_BRIDGE_URL=http://127.0.0.1:18900` (เดิม `host.docker.internal`)
+  - `sync-agent\config.env`: `SYNC_BASE_URL=http://127.0.0.1:18090` (เดิม `:18080` ของ Docker) สำรองเป็น `config.env.bak-docker`
+- **⚠️ เหตุการณ์ระหว่างทดสอบ:** หลังเปลี่ยน `LOCAL_ERP_BRIDGE_URL` มี 3 tests ไม่ผ่าน เพราะ test ปลอม (`Http::fake`) เฉพาะ URL `host.docker.internal:18900` และ Laravel ส่งคำขอที่ไม่ตรงตัวปลอมออกไปจริง ตอนนั้น `local_bridge.ps1` กำลังรันอยู่ (เปิดตอน 19:38 โดยผู้ใช้หรือเครื่องมืออื่น) **จึงเป็นไปได้ว่ามีคำขออ่านข้อมูลบางส่วนผ่าน bridge ไปยัง Bplus** ประมาณ 19:44 ซึ่ง bridge ทำได้แค่อ่าน (บล็อก INSERT/UPDATE/DELETE/EXEC ฯลฯ และบล็อกบัญชี `sa`) ไม่มีการเขียนลง Bplus และผลลัพธ์ไปอยู่ใน SQLite ชั่วคราวของ test ที่ทิ้งไปทันที ส่วน bridge ไม่มี log ให้ยืนยัน
+  - **แก้แล้ว:** `phpunit.xml` บังคับ `LOCAL_ERP_BRIDGE_URL=http://host.docker.internal:18900` และ token ปลอม ทำให้ test ไม่พึ่ง `.env` และไม่ส่ง token จริงอีก ผล tests 23 / 376 ผ่าน
+
 ## เปิดผ่าน Apache ของ XAMPP — เสร็จแล้ว (2026-11-16)
 
 | ที่อยู่ | เปิดอะไร |

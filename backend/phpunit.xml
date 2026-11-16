@@ -32,5 +32,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="LOCAL_ERP_BRIDGE_URL" value="http://host.docker.internal:18900" force="true"/>
+        <env name="LOCAL_ERP_BRIDGE_TOKEN" value="testing-bridge-token" force="true"/>
     </php>
 </phpunit>
