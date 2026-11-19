@@ -1403,32 +1403,200 @@ final class FieldController
 
     public function plans(Request $r): JsonResponse
     {
-        $q = DB::table('crm_visit_plans');
+        $q = DB::table('crm_visit_plans as p')
+            ->leftJoin('staff_users as s', 's.id', '=', 'p.assigned_to');
         if (!$this->manager()) {
-            $q->where('assigned_to', $this->user()->id);
+            $q->where('p.assigned_to', $this->user()->id);
         }
-        return response()->json($q->orderByDesc('visit_date')->limit(100)->get());
+
+        $plans = $q->select(
+            'p.*',
+            's.name as assigned_name',
+            's.salesperson_code as assigned_salesperson_code',
+            's.reservation_doc_types as assigned_reservation_doc_types'
+        )
+            ->orderByDesc('p.visit_date')
+            ->orderByDesc('p.id')
+            ->limit(100)
+            ->get();
+
+        if ($plans->isEmpty()) {
+            return response()->json([]);
+        }
+
+        $planIds = $plans->pluck('id')->map(fn ($v) => (int) $v)->all();
+        $stopsRows = DB::table('crm_visit_plan_stops as st')
+            ->leftJoin('erp_customers as c', 'c.id', '=', 'st.erp_customer_id')
+            ->leftJoin('crm_leads as l', 'l.id', '=', 'st.crm_lead_id')
+            ->leftJoin('crm_customer_locations as loc_c', 'loc_c.erp_customer_id', '=', 'st.erp_customer_id')
+            ->leftJoin('crm_customer_locations as loc_l', 'loc_l.crm_lead_id', '=', 'st.crm_lead_id')
+            ->whereIn('st.plan_id', $planIds)
+            ->select(
+                'st.id',
+                'st.plan_id',
+                'st.stop_order',
+                'st.erp_customer_id',
+                'st.crm_lead_id',
+                'st.status',
+                DB::raw('COALESCE(c.customer_name, l.shop_name) as shop_name'),
+                DB::raw("COALESCE(c.erp_customer_code, CONCAT('LEAD-', l.id)) as code"),
+                DB::raw('COALESCE(c.phone, l.phone) as phone'),
+                DB::raw('COALESCE(c.province, l.province) as province'),
+                DB::raw('COALESCE(c.address, l.address) as address'),
+                DB::raw('COALESCE(loc_c.latitude, loc_l.latitude) as latitude'),
+                DB::raw('COALESCE(loc_c.longitude, loc_l.longitude) as longitude')
+            )
+            ->orderBy('st.stop_order')
+            ->orderBy('st.id')
+            ->get()
+            ->groupBy('plan_id');
+
+        foreach ($plans as $plan) {
+            $planStops = $stopsRows->get($plan->id, collect())->values()->all();
+            $plan->stops = $planStops;
+            $plan->stop_count = count($planStops);
+            $plan->completed_stop_count = collect($planStops)->where('status', 'completed')->count();
+            $plan->assigned_reservation_doc_types = CustomerAccess::reservationDocTypes((object) [
+                'reservation_doc_types' => $plan->assigned_reservation_doc_types,
+            ]);
+        }
+
+        return response()->json($plans);
     }
 
     public function storePlan(Request $r): JsonResponse
     {
-        if (!$this->manager()) {
-            abort(403);
-        }
         $d = $r->validate([
             'route_name' => 'required|string|max:160',
             'visit_date' => 'required|date_format:Y-m-d',
             'district' => 'nullable|string|max:120',
-            'assigned_to' => 'required|integer|exists:staff_users,id',
+            'assigned_to' => 'nullable|integer|exists:staff_users,id',
             'note' => 'nullable|string|max:2000',
+            'auto_fill_mode' => 'nullable|string|in:none,unvisited,inactive,top_sales',
+            'max_stops' => 'nullable|integer|min:1|max:50',
         ]);
+
+        $assignedTo = (int) ($d['assigned_to'] ?? $this->user()->id);
+        if (!$this->manager() && $assignedTo !== (int) $this->user()->id) {
+            abort(403);
+        }
+
         $id = DB::table('crm_visit_plans')->insertGetId([
-            ...$d,
+            'route_name' => $d['route_name'],
+            'visit_date' => $d['visit_date'],
+            'district' => $d['district'] ?? null,
+            'assigned_to' => $assignedTo,
+            'note' => $d['note'] ?? null,
             'created_by' => $this->user()->id,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        return response()->json(['id' => $id], 201);
+
+        $autoMode = $d['auto_fill_mode'] ?? 'none';
+        $addedStops = 0;
+        if ($autoMode !== 'none') {
+            $addedStops = $this->populatePlanStopsFromRoute($id, $assignedTo, $autoMode, (int) ($d['max_stops'] ?? 12));
+        }
+
+        return response()->json(['id' => $id, 'added_stops' => $addedStops], 201);
+    }
+
+    public function autoPopulateStops(Request $r, int $planId): JsonResponse
+    {
+        $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
+        abort_unless($p, 404);
+        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+            abort(403);
+        }
+
+        $d = $r->validate([
+            'mode' => 'nullable|string|in:unvisited,inactive,top_sales',
+            'max_stops' => 'nullable|integer|min:1|max:50',
+        ]);
+
+        $added = $this->populatePlanStopsFromRoute(
+            $planId,
+            (int) $p->assigned_to,
+            $d['mode'] ?? 'unvisited',
+            (int) ($d['max_stops'] ?? 12)
+        );
+
+        return response()->json(['ok' => true, 'added_stops' => $added]);
+    }
+
+    private function populatePlanStopsFromRoute(int $planId, int $assignedStaffId, string $mode, int $maxStops): int
+    {
+        $staff = DB::table('staff_users')->where('id', $assignedStaffId)->first();
+        if (! $staff) {
+            return 0;
+        }
+
+        $existingErpIds = DB::table('crm_visit_plan_stops')
+            ->where('plan_id', $planId)
+            ->whereNotNull('erp_customer_id')
+            ->pluck('erp_customer_id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        $maxOrder = (int) (DB::table('crm_visit_plan_stops')->where('plan_id', $planId)->max('stop_order') ?? 0);
+
+        $invAgg = SalesRules::customerActualInvoiceSubquery();
+        $visitAgg = DB::table('crm_customer_visits')
+            ->whereNotNull('erp_customer_id')
+            ->groupBy('erp_customer_id')
+            ->select('erp_customer_id', DB::raw('COUNT(*) as visit_count'));
+
+        $q = DB::table('erp_customers as c')
+            ->leftJoinSub($invAgg, 'inv_agg', function ($join): void {
+                $join->on('inv_agg.source_system', '=', 'c.source_system')
+                    ->on('inv_agg.erp_customer_code', '=', 'c.erp_customer_code');
+            })
+            ->leftJoinSub($visitAgg, 'v_agg', 'v_agg.erp_customer_id', '=', 'c.id');
+
+        if (! CustomerAccess::isManager($staff)) {
+            CustomerAccess::applyCustomerScope($q, 'c', $staff);
+        }
+
+        if ($existingErpIds !== []) {
+            $q->whereNotIn('c.id', $existingErpIds);
+        }
+
+        if ($mode === 'unvisited') {
+            $q->whereRaw('COALESCE(v_agg.visit_count, 0) = 0');
+        } elseif ($mode === 'inactive') {
+            $latestErpDateRaw = DB::table('erp_sales_invoices')->max('sold_at');
+            $refDate = $latestErpDateRaw ? \Illuminate\Support\Carbon::parse($latestErpDateRaw) : now();
+            $cutoff = $refDate->copy()->subDays(30)->toDateTimeString();
+            $q->where(function ($w) use ($cutoff): void {
+                $w->whereNull('inv_agg.last_purchase_at')
+                    ->orWhere('inv_agg.last_purchase_at', '<', $cutoff);
+            });
+        }
+
+        $customerIds = $q->orderByDesc(DB::raw('COALESCE(inv_agg.actual_before_vat, 0)'))
+            ->orderBy('c.id')
+            ->limit($maxStops)
+            ->pluck('c.id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        $now = now();
+        $added = 0;
+        foreach ($customerIds as $cid) {
+            $maxOrder++;
+            DB::table('crm_visit_plan_stops')->insert([
+                'plan_id' => $planId,
+                'stop_order' => $maxOrder,
+                'erp_customer_id' => $cid,
+                'crm_lead_id' => null,
+                'status' => 'pending',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $added++;
+        }
+
+        return $added;
     }
 
     public function addStop(Request $r, int $planId): JsonResponse
@@ -1439,18 +1607,59 @@ final class FieldController
             abort(403);
         }
         $d = $r->validate([
-            'stop_order' => 'required|integer|min:1|max:500',
+            'stop_order' => 'nullable|integer|min:1|max:500',
             'erp_customer_id' => 'nullable|integer|exists:erp_customers,id',
             'crm_lead_id' => 'nullable|integer|exists:crm_leads,id',
         ]);
         $this->checkSubject($d);
+        $nextOrder = isset($d['stop_order'])
+            ? (int) $d['stop_order']
+            : ((int) (DB::table('crm_visit_plan_stops')->where('plan_id', $planId)->max('stop_order') ?? 0) + 1);
+
         $id = DB::table('crm_visit_plan_stops')->insertGetId([
-            ...$d,
+            'erp_customer_id' => $d['erp_customer_id'] ?? null,
+            'crm_lead_id' => $d['crm_lead_id'] ?? null,
+            'stop_order' => $nextOrder,
             'plan_id' => $planId,
+            'status' => 'pending',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        return response()->json(['id' => $id], 201);
+        return response()->json(['id' => $id, 'stop_order' => $nextOrder], 201);
+    }
+
+    public function updateStopStatus(Request $r, int $planId, int $stopId): JsonResponse
+    {
+        $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
+        abort_unless($p, 404);
+        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+            abort(403);
+        }
+        $d = $r->validate([
+            'status' => 'required|string|in:pending,completed,skipped',
+        ]);
+        DB::table('crm_visit_plan_stops')
+            ->where('id', $stopId)
+            ->where('plan_id', $planId)
+            ->update([
+                'status' => $d['status'],
+                'updated_at' => now(),
+            ]);
+        return response()->json(['ok' => true]);
+    }
+
+    public function deleteStop(int $planId, int $stopId): JsonResponse
+    {
+        $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
+        abort_unless($p, 404);
+        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+            abort(403);
+        }
+        DB::table('crm_visit_plan_stops')
+            ->where('id', $stopId)
+            ->where('plan_id', $planId)
+            ->delete();
+        return response()->json(['ok' => true]);
     }
 
     public function storeFieldVisit(Request $r): JsonResponse

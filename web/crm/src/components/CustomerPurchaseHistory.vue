@@ -2,73 +2,20 @@
   <section class="ph" aria-label="ประวัติการซื้อ">
     <!-- Data freshness warning (ERP sync behind) -->
     <div v-if="isStale" class="ph-stale">
-      ⚠️ บิลในระบบมีถึงวันที่ <b>{{ thaiDate(insights.data_until) }}</b> เท่านั้น
-      ยังไม่ได้ดึงบิลใหม่จาก Bplus — ตัวเลขด้านล่างอาจไม่ครบ
+      ⚠️ วันที่เอกสารล่าสุดในระบบคือ <b>{{ thaiDate(insights.data_until) }}</b>
+      ข้อมูล ERP อาจยังซิงก์ไม่ครบ กรุณาตรวจเทียบกับ Bplus
     </div>
 
-    <!-- A. At-a-glance summary -->
-    <div class="ph-summary">
-      <div class="ph-stat" :class="{ warn: isLongSinceLastPurchase }">
-        <span class="ph-stat-label">ซื้อครั้งล่าสุด</span>
-        <b>{{ lastPurchaseText }}</b>
-        <small>{{ insights?.last_purchase_at ? thaiDate(insights.last_purchase_at) : 'ยังไม่มีบิล' }}</small>
-      </div>
-      <div class="ph-stat">
-        <span class="ph-stat-label">ยอดซื้อ 3 เดือนล่าสุด</span>
-        <b>{{ fmt(insights?.recent_90_days?.net_before_vat) }} ฿</b>
-        <small :class="trendClass">{{ trendText }}</small>
-      </div>
-      <div class="ph-stat">
-        <span class="ph-stat-label">ความถี่</span>
-        <b>{{ billsPerMonthText }}</b>
-        <small>จาก {{ fmt(insights?.bills_last_12_months) }} บิลใน 12 เดือน</small>
-      </div>
-    </div>
-
-    <!-- B. Talking points: regular products & ones that stopped -->
-    <div v-if="insights?.lapsed_products?.length" class="ph-block ph-lapsed">
-      <h5>🔔 เคยซื้อประจำ แต่หายไป — ลองถามลูกค้า</h5>
-      <div v-for="p in insights.lapsed_products" :key="`lapsed-${p.erp_product_code}`" class="ph-product">
-        <div class="ph-product-main">
-          <b>{{ p.product_name || p.erp_product_code }}</b>
-          <small>เคยซื้อ {{ fmt(p.bill_count) }} ครั้ง · ครั้งล่าสุด {{ thaiDate(p.last_bought_at) }}</small>
-        </div>
-        <span class="tag orange">{{ daysAgo(p.last_bought_at) }} วัน</span>
-      </div>
-    </div>
-
-    <div class="ph-block">
-      <h5>⭐ สินค้าที่ซื้อประจำ (12 เดือน)</h5>
-      <div v-if="insightsLoading" class="skel skel-md" />
-      <p v-else-if="!insights?.top_products?.length" class="small muted">ยังไม่มีข้อมูลสินค้า</p>
-      <div v-for="p in insights?.top_products || []" :key="`top-${p.erp_product_code}`" class="ph-product">
-        <div class="ph-product-main">
-          <b>{{ p.product_name || p.erp_product_code }}</b>
-          <small>ซื้อ {{ fmt(p.bill_count) }} บิล · รวม {{ fmt(p.total_qty) }} {{ p.unit_name || '' }}</small>
-        </div>
-        <small class="muted">ล่าสุด {{ thaiDate(p.last_bought_at) }}</small>
-      </div>
-    </div>
-
+    <DateRangePicker v-model:from="from" v-model:to="to" />
     <!-- C. Bill list -->
     <div class="ph-block">
       <div class="ph-list-head">
-        <h5>🧾 บิลทั้งหมด <span class="muted">({{ fmt(totalBills) }})</span></h5>
-        <div class="ph-range" role="group" aria-label="ช่วงเวลา">
-          <button
-            v-for="r in RANGES"
-            :key="r.months"
-            type="button"
-            :class="{ active: months === r.months }"
-            :aria-pressed="months === r.months"
-            @click="months = r.months"
-          >
-            {{ r.label }}
-          </button>
-        </div>
+        <h5>🧾 บิลในช่วงที่เลือก <span class="muted">({{ fmt(totalBills) }})</span></h5>
+        <strong v-if="validRange && billPages?.pages?.[0]?.summary">สุทธิก่อน VAT {{ fmt(billPages.pages[0].summary.net_before_vat) }} ฿</strong>
       </div>
 
-      <div v-if="billsLoading" class="skel skel-lg" />
+      <p v-if="!validRange" class="small muted">กรุณาเลือกช่วงวันที่ให้ถูกต้อง</p>
+      <div v-else-if="billsLoading" class="skel skel-lg" />
       <div v-else-if="billsError" class="error">โหลดรายการบิลไม่สำเร็จ</div>
       <p v-else-if="!bills.length" class="small muted">ไม่มีบิลในช่วงเวลานี้</p>
 
@@ -105,6 +52,50 @@
       >
         {{ isFetchingNextPage ? 'กำลังโหลด…' : 'โหลดบิลเพิ่ม' }}
       </button>
+    </div>
+
+    <!-- A. At-a-glance summary -->
+    <div class="ph-summary">
+      <div class="ph-stat" :class="{ warn: isLongSinceLastPurchase }">
+        <span class="ph-stat-label">ซื้อครั้งล่าสุด</span>
+        <b>{{ lastPurchaseText }}</b>
+        <small>{{ insights?.last_purchase_at ? thaiDate(insights.last_purchase_at) : 'ยังไม่มีบิล' }}</small>
+      </div>
+      <div class="ph-stat">
+        <span class="ph-stat-label">ยอดซื้อ 90 วันก่อนเอกสารล่าสุด</span>
+        <b>{{ fmt(insights?.recent_90_days?.net_before_vat) }} ฿</b>
+        <small :class="trendClass">{{ trendText }}</small>
+      </div>
+      <div class="ph-stat">
+        <span class="ph-stat-label">ความถี่</span>
+        <b>{{ billsPerMonthText }}</b>
+        <small>จาก {{ fmt(insights?.bills_last_12_months) }} บิลใน 12 เดือนก่อนเอกสารล่าสุด</small>
+      </div>
+    </div>
+
+    <!-- B. Talking points: regular products & ones that stopped -->
+    <div v-if="insights?.lapsed_products?.length" class="ph-block ph-lapsed">
+      <h5>🔔 เคยซื้อประจำ แต่หายไป — ลองถามลูกค้า</h5>
+      <div v-for="p in insights.lapsed_products" :key="`lapsed-${p.erp_product_code}`" class="ph-product">
+        <div class="ph-product-main">
+          <b>{{ p.product_name || p.erp_product_code }}</b>
+          <small>เคยซื้อ {{ fmt(p.bill_count) }} ครั้ง · ครั้งล่าสุด {{ thaiDate(p.last_bought_at) }}</small>
+        </div>
+        <span class="tag orange">{{ daysAgo(p.last_bought_at) }} วัน</span>
+      </div>
+    </div>
+
+    <div class="ph-block">
+      <h5>⭐ สินค้าที่ซื้อประจำ (12 เดือนก่อนเอกสารล่าสุด)</h5>
+      <div v-if="insightsLoading" class="skel skel-md" />
+      <p v-else-if="!insights?.top_products?.length" class="small muted">ยังไม่มีข้อมูลสินค้า</p>
+      <div v-for="p in insights?.top_products || []" :key="`top-${p.erp_product_code}`" class="ph-product">
+        <div class="ph-product-main">
+          <b>{{ p.product_name || p.erp_product_code }}</b>
+          <small>ซื้อ {{ fmt(p.bill_count) }} บิล · รวม {{ fmt(p.total_qty) }} {{ p.unit_name || '' }}</small>
+        </div>
+        <small class="muted">ล่าสุด {{ thaiDate(p.last_bought_at) }}</small>
+      </div>
     </div>
 
     <!-- Bill detail: bottom sheet on phones, centred dialog on desktop -->
@@ -170,23 +161,22 @@ import { computed, ref, watch } from 'vue';
 import { useInfiniteQuery, useQuery } from '@tanstack/vue-query';
 import { useOverlayBehavior } from '../../../shared/composables/useOverlayBehavior.js';
 import { crmGet, fmt } from '../composables/useCrmSession.js';
+import DateRangePicker from './DateRangePicker.vue';
 
 const props = defineProps({
   /** erp_customers.id */
   customerId: { type: [Number, String], required: true },
 });
 
-const RANGES = [
-  { months: 3, label: '3 เดือน' },
-  { months: 6, label: '6 เดือน' },
-  { months: 12, label: '1 ปี' },
-  { months: 0, label: 'ทั้งหมด' },
-];
 const PER_PAGE = 15;
 const STALE_AFTER_DAYS = 7;
 const LONG_GAP_DAYS = 60;
 
-const months = ref(6);
+const today = new Date();
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const from = ref(iso(new Date(today.getFullYear(), today.getMonth(), 1)));
+const to = ref(iso(today));
+const validRange = computed(() => Boolean(from.value && to.value && from.value <= to.value));
 const selectedBill = ref(null);
 const sheetRef = ref(null);
 
@@ -203,16 +193,17 @@ const {
   hasNextPage,
   isFetchingNextPage,
 } = useInfiniteQuery({
-  queryKey: computed(() => ['crm', 'customer-invoices', props.customerId, months.value]),
+  queryKey: computed(() => ['crm', 'customer-invoices', props.customerId, from.value, to.value]),
   queryFn: ({ pageParam, signal }) =>
-    crmGet(`/customers/${props.customerId}/invoices?months=${months.value}&page=${pageParam}&per_page=${PER_PAGE}`, { signal }),
+    crmGet(`/customers/${props.customerId}/invoices?from=${from.value}&to=${to.value}&page=${pageParam}&per_page=${PER_PAGE}`, { signal }),
+  enabled: validRange,
   initialPageParam: 1,
   getNextPageParam: (last) =>
     last?.meta && last.meta.current_page < last.meta.last_page ? last.meta.current_page + 1 : undefined,
 });
 
-const bills = computed(() => (billPages.value?.pages || []).flatMap((p) => p.data || []));
-const totalBills = computed(() => billPages.value?.pages?.[0]?.meta?.total ?? 0);
+const bills = computed(() => validRange.value ? (billPages.value?.pages || []).flatMap((p) => p.data || []) : []);
+const totalBills = computed(() => validRange.value ? (billPages.value?.pages?.[0]?.meta?.total ?? 0) : 0);
 
 const {
   data: billDetail,

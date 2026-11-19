@@ -16,16 +16,8 @@
     <VisitPresentationPanel />
 
     <div class="card panel-pad" style="margin-bottom:16px">
-      <div class="head-filter" style="margin-bottom:0">
-        <div>
-          <label class="small muted" style="display:block">ตั้งแต่วันที่</label>
-          <input v-model="from" type="date" min="2026-01-01" />
-        </div>
-        <div>
-          <label class="small muted" style="display:block">ถึงวันที่</label>
-          <input v-model="to" type="date" min="2026-01-01" />
-        </div>
-      </div>
+      <DateRangePicker v-model:from="from" v-model:to="to" />
+      <p v-if="period === 'day' && rangeDays > 31" class="small error">รายวันแสดงได้ไม่เกิน 31 วัน กรุณาลดช่วงวันที่หรือเลือกแสดงยอดรายเดือน</p>
     </div>
 
     <section class="card panel-pad" style="margin-bottom:16px">
@@ -53,7 +45,8 @@
         </div>
       </div>
 
-      <div v-if="matrixLoading" class="placeholder">กำลังอ่านยอดจาก ERP mirror…</div>
+      <div v-if="!matrixRangeValid" class="placeholder">กรุณาเลือกช่วงวันที่ให้เหมาะกับรายงาน</div>
+      <div v-else-if="matrixLoading" class="placeholder">กำลังอ่านยอดจาก ERP mirror…</div>
       <div v-else-if="matrixError" class="error" role="alert">โหลดตารางยอดขายรายวันไม่สำเร็จ: {{ matrixErrorMessage?.message || 'ตรวจการเชื่อมต่อและลองรีเฟรช' }}</div>
       <template v-else>
         <div class="small muted" style="margin:0 0 8px">พบ {{ fmt(matrix?.meta?.total_customers || 0) }} ร้าน · หน้า {{ matrix?.meta?.current_page || 1 }} / {{ matrix?.meta?.last_page || 1 }} · ช่วง {{ matrix?.filters?.from }} ถึง {{ matrix?.filters?.to }}</div>
@@ -210,6 +203,7 @@ import { useQuery } from '@tanstack/vue-query';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import VisitPresentationPanel from '../components/VisitPresentationPanel.vue';
+import DateRangePicker from '../components/DateRangePicker.vue';
 import { crmGet, crmMutate, fmt, isManager } from '../composables/useCrmSession.js';
 
 const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -231,6 +225,8 @@ const { data: dimensions, refetch: refetchDimensions } = useQuery({
   queryFn: ({ signal }) => crmGet('/reports/sales-dimensions?source_system=BPLUS', { signal }),
 });
 
+const rangeDays = computed(() => from.value && to.value ? (Date.parse(`${to.value}T00:00:00Z`) - Date.parse(`${from.value}T00:00:00Z`)) / 86400000 + 1 : 0);
+const matrixRangeValid = computed(() => rangeDays.value > 0 && (period.value !== 'day' || rangeDays.value <= 31));
 const matrixUrl = computed(() => `/reports/customer-sales-matrix${qs({
   source_system: 'BPLUS', route_code: routeCode.value, period: period.value,
   q: customerSearch.value, page: page.value, per_page: 200,
@@ -238,6 +234,7 @@ const matrixUrl = computed(() => `/reports/customer-sales-matrix${qs({
 const { data: matrix, isLoading: matrixLoading, isError: matrixError, error: matrixErrorMessage } = useQuery({
   queryKey: computed(() => ['crm', 'customer-sales-matrix', from.value, to.value, routeCode.value, period.value, customerSearch.value, page.value]),
   queryFn: ({ signal }) => crmGet(matrixUrl.value, { signal }),
+  enabled: matrixRangeValid,
 });
 
 const { data: sizeProducts, refetch: refetchSizeProducts } = useQuery({
@@ -271,10 +268,6 @@ const matrixRows = computed(() => {
 });
 
 watch([from, to, routeCode, period, customerSearch], () => { page.value = 1; });
-watch(period, (value) => {
-  from.value = value === 'month' ? '2026-01-01' : isoDate(new Date(now.getFullYear(), now.getMonth(), 1));
-  to.value = isoDate(now);
-});
 
 function dayLabel(value) {
   return value.length === 7 ? new Date(`${value}-01T00:00:00`).toLocaleDateString('th-TH', { month: 'short', year: '2-digit' }) : new Date(`${value}T00:00:00`).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' });

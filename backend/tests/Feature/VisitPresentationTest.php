@@ -52,6 +52,35 @@ class VisitPresentationTest extends TestCase
             'created_at' => $now, 'updated_at' => $now,
         ]);
         DB::table('crm_visit_photos')->insert(['visit_id' => $visitId, 'storage_path' => 'visits/photo.jpg', 'category' => 'storefront', 'uploaded_by' => $staff[0]->id, 'created_at' => $now, 'updated_at' => $now]);
+        DB::table('crm_follow_up_tasks')->insert([
+            'visit_id' => $visitId, 'assigned_to' => $staff[0]->id, 'title' => 'Call back', 'due_date' => '2026-11-18',
+            'status' => 'open', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('crm_leads')->insert([
+            'shop_name' => 'Lead A', 'owner_staff_id' => $staff[0]->id, 'pipeline_stage' => 'interested',
+            'created_at' => '2026-11-10 10:00:00', 'updated_at' => $now,
+        ]);
+        DB::table('crm_sales_targets')->insert([
+            'staff_user_id' => $staff[0]->id, 'period_start' => '2026-11-14', 'period_end' => '2026-11-14',
+            'target_amount' => 1200, 'target_visits' => 3, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $planId = DB::table('crm_visit_plans')->insertGetId([
+            'route_name' => 'Route 1', 'visit_date' => '2026-11-14', 'assigned_to' => $staff[0]->id,
+            'created_by' => $manager->id, 'status' => 'planned', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $stopId = DB::table('crm_visit_plan_stops')->insertGetId([
+            'plan_id' => $planId, 'stop_order' => 1, 'erp_customer_id' => $customers[0],
+            'status' => 'pending', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('crm_customer_visits')->where('id', $visitId)->update(['plan_stop_id' => $stopId]);
+        $nextPlan = DB::table('crm_visit_plans')->insertGetId([
+            'route_name' => 'Next route', 'visit_date' => '2026-11-20', 'assigned_to' => $staff[0]->id,
+            'created_by' => $manager->id, 'status' => 'planned', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('crm_visit_plan_stops')->insert([
+            'plan_id' => $nextPlan, 'stop_order' => 1, 'erp_customer_id' => $customers[0],
+            'status' => 'pending', 'created_at' => $now, 'updated_at' => $now,
+        ]);
         ErpMirrorUpserter::upsertInvoiceWithItems('BPLUS', [
             'branch_code' => '001', 'doc_type' => 'CN', 'invoice_no' => 'RET1', 'erp_customer_code' => 'AR0',
             'salesperson_code' => 'SL01', 'sold_at' => '2026-11-14 12:00:00', 'dt_properties' => 308,
@@ -72,8 +101,27 @@ class VisitPresentationTest extends TestCase
         $this->assertEquals(800, (float) $response['sales']['net_before_vat']);
         $this->assertCount(1, $response['daily_sales']);
         $this->assertEquals(800, (float) $response['daily_sales'][0]['net_before_vat']);
+        $this->assertSame('Call back', $response['follow_ups'][0]['title']);
+        $this->assertSame('interested', $response['pipeline'][0]['pipeline_stage']);
+        $this->assertEquals(1200, (float) $response['target']['target_amount']);
+        $this->assertSame(1, $response['plan_summary']['planned_stops']);
+        $this->assertSame(1, $response['plan_summary']['visited_planned_stops']);
+        $this->assertSame('Next route', $response['upcoming_stops'][0]['route_name']);
         $this->getJson($url.'&staff_id='.$staff[1]->id)->assertForbidden();
-        $this->getJson($url.'&route_code=R02')->assertOk()->assertJsonCount(0, 'visits');
+        $this->getJson($url.'&route_code=R02')->assertOk()->assertJsonCount(0, 'visits')->assertJsonCount(0, 'follow_ups')->assertJsonCount(0, 'upcoming_stops');
+        $this->getJson('/api/crm/visits?paginate=1&from=2026-11-14&to=2026-11-14&route_code=R01')
+            ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $visitId);
+        $this->getJson('/api/crm/visits?paginate=1&from=2026-11-14&to=2026-11-14&route_code=R02')
+            ->assertOk()->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/crm/visits?from=2026-11-15&to=2026-11-14')->assertUnprocessable();
+        DB::table('crm_customer_visits')->insert([
+            'erp_customer_id' => $customers[0], 'staff_user_id' => $staff[1]->id,
+            'visited_at' => '2026-11-15 10:00:00', 'result' => 'visited',
+            'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $this->getJson('/api/crm/customer-master')->assertOk();
+        $masterId = DB::table('crm_customer_masters')->where('erp_customer_id', $customers[0])->value('id');
+        $this->getJson('/api/crm/customer-master/'.$masterId)->assertOk()->assertJsonCount(2, 'visits');
 
         $this->actingAs($manager, 'staff');
         $this->getJson($url.'&staff_id='.$staff[1]->id)->assertOk()->assertJsonCount(1, 'visits')

@@ -129,5 +129,4 @@ FROM (
     AND DOCINFO.DI_DATE >= '20260101'
     AND DOCINFO.DI_KEY > ?
 ) AS merged
-WHERE doc_category <> 'reservation'
 ORDER BY di_key ASC;

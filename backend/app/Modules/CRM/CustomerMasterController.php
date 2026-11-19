@@ -3,6 +3,7 @@
 namespace App\Modules\CRM;
 
 use App\Modules\ERPIntegration\SalesRules;
+use App\Modules\Loyalty\InvoicePointsSynchronizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,7 @@ final class CustomerMasterController
             return null;
         }
         $trimmed = trim($value);
+
         return $trimmed === '' ? null : mb_substr($trimmed, 0, $max, 'UTF-8');
     }
 
@@ -332,6 +334,7 @@ final class CustomerMasterController
 
         $visits = DB::table('crm_customer_visits as v')
             ->leftJoin('staff_users as s', 's.id', '=', 'v.staff_user_id')
+            ->when(! $isManager, fn ($q) => $q->where('v.staff_user_id', $user->id))
             ->where(function ($w) use ($erp, $lead, $master): void {
                 $w->where('v.customer_master_id', $master->id);
                 if ($erp) {
@@ -390,6 +393,7 @@ final class CustomerMasterController
 
         $followUpTasks = DB::table('crm_follow_up_tasks as t')
             ->leftJoin('crm_customer_visits as v', 'v.id', '=', 't.visit_id')
+            ->when(! $isManager, fn ($q) => $q->where('t.assigned_to', $user->id))
             ->where(function ($q) use ($master, $lead): void {
                 $q->where('v.customer_master_id', $master->id);
                 if ($lead) {
@@ -524,7 +528,7 @@ final class CustomerMasterController
             $verifiedMemberLink = DB::table('member_erp_links')->where('crm_customer_master_id', $master->id)
                 ->where('verification_status', 'verified')->whereNotNull('verified_at')->first();
             if ($verifiedMemberLink) {
-                \App\Modules\Loyalty\InvoicePointsSynchronizer::syncCustomer($erp->source_system, $erp->erp_customer_code, $now);
+                InvoicePointsSynchronizer::syncCustomer($erp->source_system, $erp->erp_customer_code, $now);
             }
 
             DB::table('crm_audit_logs')->insert([
@@ -588,6 +592,7 @@ final class CustomerMasterController
                 'changes' => json_encode(['note' => $d['note'] ?? null], JSON_UNESCAPED_UNICODE), 'created_at' => $now,
             ]);
         });
+
         return response()->json(['ok' => true, 'status' => 'erp_creation_requested']);
     }
 
@@ -600,6 +605,7 @@ final class CustomerMasterController
             ->where('m.link_status', 'erp_creation_requested')->whereNull('m.erp_customer_id')
             ->select('l.id as crm_lead_id', 'm.id as customer_master_id', 'm.internal_customer_code', 'l.shop_name', 'l.phone', 'l.address', 'l.shop_type', 'l.province', 'l.district', 'l.created_at', 's.name as requested_by')
             ->orderBy('l.created_at')->limit(500)->get();
+
         return response()->json($rows);
     }
 
@@ -615,7 +621,9 @@ final class CustomerMasterController
             ->orderBy('l.id')->limit(1000)->get();
         $erps = DB::table('erp_customers as e')
             ->leftJoin('crm_customer_masters as m', 'm.erp_customer_id', '=', 'e.id')
-            ->where(function ($q): void { $q->whereNull('m.crm_lead_id')->orWhereNull('m.id'); })
+            ->where(function ($q): void {
+                $q->whereNull('m.crm_lead_id')->orWhereNull('m.id');
+            })
             ->select('e.id', 'e.source_system', 'e.erp_customer_code', 'e.customer_name', 'e.phone', 'e.address', 'e.province')
             ->orderBy('e.id')->limit(10000)->get();
         $erpById = [];
@@ -676,6 +684,7 @@ final class CustomerMasterController
                 $count++;
             }
         }
+
         return response()->json(['ok' => true, 'candidates_refreshed' => $count, 'requires_admin_confirmation' => true]);
     }
 
@@ -699,6 +708,7 @@ final class CustomerMasterController
                 $row->match_reasons = json_decode($row->match_reasons, true) ?: [];
             }
         }
+
         return response()->json($rows);
     }
 
@@ -709,6 +719,7 @@ final class CustomerMasterController
         abort_unless($candidate, 404);
         abort_unless($candidate->status === 'pending', 409, 'Candidate is no longer pending review.');
         $request->merge(['erp_customer_id' => $candidate->erp_customer_id]);
+
         return $this->linkLeadToErp($request, (int) $candidate->crm_lead_id);
     }
 
@@ -735,6 +746,7 @@ final class CustomerMasterController
                 'created_at' => $now,
             ]);
         });
+
         return response()->json(['ok' => true, 'status' => 'dismissed']);
     }
 
@@ -775,6 +787,7 @@ final class CustomerMasterController
                 'created_at' => $now,
             ]);
         });
+
         return response()->json(['ok' => true, 'status' => 'erp_match_pending']);
     }
 
@@ -787,13 +800,18 @@ final class CustomerMasterController
         $identityIds[] = $master->id;
         $rows = DB::table('crm_audit_logs as a')->leftJoin('staff_users as s', 's.id', '=', 'a.actor_staff_id')
             ->where(function ($q) use ($master, $identityIds): void {
-                $q->where(function ($inner) use ($master, $identityIds): void { $inner->where('a.entity_type', 'crm_customer_master')->whereIn('a.entity_id', $identityIds); });
+                $q->where(function ($inner) use ($identityIds): void {
+                    $inner->where('a.entity_type', 'crm_customer_master')->whereIn('a.entity_id', $identityIds);
+                });
                 if ($master->crm_lead_id) {
-                    $q->orWhere(function ($inner) use ($master): void { $inner->where('a.entity_type', 'crm_lead')->where('a.entity_id', $master->crm_lead_id); });
+                    $q->orWhere(function ($inner) use ($master): void {
+                        $inner->where('a.entity_type', 'crm_lead')->where('a.entity_id', $master->crm_lead_id);
+                    });
                 }
             })
             ->select('a.id', 'a.entity_type', 'a.entity_id', 'a.action', 'a.changes', 'a.created_at', 's.name as actor_name')
             ->orderByDesc('a.id')->limit(250)->get();
+
         return response()->json($rows);
     }
 
@@ -805,6 +823,7 @@ final class CustomerMasterController
     private static function normalizedText(?string $value): string
     {
         $value = mb_strtolower(trim((string) $value), 'UTF-8');
+
         return preg_replace('/[\\p{Z}\\p{P}\\p{S}\\s]+/u', '', $value) ?? '';
     }
 
@@ -825,6 +844,7 @@ final class CustomerMasterController
         if ($leftPairs === [] || $rightPairs === []) {
             return 0.0;
         }
+
         return count(array_intersect($leftPairs, $rightPairs)) / count(array_unique(array_merge($leftPairs, $rightPairs)));
     }
 
@@ -842,6 +862,7 @@ final class CustomerMasterController
         for ($i = 0, $length = count($chars) - 1; $i < $length; $i++) {
             $grams[] = $chars[$i].$chars[$i + 1];
         }
+
         return array_values(array_unique($grams));
     }
 }

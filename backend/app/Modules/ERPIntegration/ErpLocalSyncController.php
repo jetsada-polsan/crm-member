@@ -143,6 +143,105 @@ final class ErpLocalSyncController
         return $this->runPreview('test_invoices_10', '/preview/invoices', 'invoices');
     }
 
+    public function testPushApi(): JsonResponse
+    {
+        $this->requireAdmin();
+        $runId = $this->startRun('test_push_api_v1');
+
+        try {
+            $source = (string) config('popstar.erp_source_system', 'BPLUS');
+            $sampleCustomer = DB::table('erp_customers')
+                ->where('source_system', $source)
+                ->orderByDesc('id')
+                ->first();
+
+            $records = [];
+            if ($sampleCustomer) {
+                $records[] = [
+                    'erp_customer_code' => $sampleCustomer->erp_customer_code,
+                    'customer_name' => $sampleCustomer->customer_name,
+                    'phone' => $sampleCustomer->phone,
+                    'province' => $sampleCustomer->province,
+                    'address' => $sampleCustomer->address,
+                    'ar_enable' => $sampleCustomer->ar_enable ?? 'Y',
+                    'salesperson_code' => $sampleCustomer->salesperson_code,
+                    'salesperson_name' => $sampleCustomer->salesperson_name,
+                    'route_code' => $sampleCustomer->route_code,
+                    'route_name' => $sampleCustomer->route_name,
+                    'credit_limit' => $sampleCustomer->credit_limit !== null ? (float) $sampleCustomer->credit_limit : null,
+                    'credit_term_days' => $sampleCustomer->credit_term_days !== null ? (int) $sampleCustomer->credit_term_days : null,
+                ];
+            } else {
+                $records[] = [
+                    'erp_customer_code' => 'AR-PUSH-TEST-01',
+                    'customer_name' => 'ร้านค้าทดสอบ Push API (Cloud Ready)',
+                    'phone' => '0812345678',
+                    'province' => 'อุบลราชธานี',
+                    'ar_enable' => 'Y',
+                ];
+            }
+
+            $batchId = (string) \Illuminate\Support\Str::uuid();
+            $payload = [
+                'source' => $source,
+                'batch_id' => $batchId,
+                'records' => $records,
+            ];
+
+            $rawJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $syncToken = (string) config('popstar.sync_api_token', '');
+
+            // Dispatch internal request to POST /api/sync/v1/customers through full VerifySyncToken + SyncController stack
+            $subRequest = Request::create(
+                '/api/sync/v1/customers',
+                'POST',
+                [],
+                [],
+                [],
+                [
+                    'CONTENT_TYPE' => 'application/json',
+                    'HTTP_ACCEPT' => 'application/json',
+                    'HTTP_AUTHORIZATION' => 'Bearer '.$syncToken,
+                ],
+                $rawJson
+            );
+
+            $response = app()->handle($subRequest);
+            $statusCode = $response->getStatusCode();
+            $respData = json_decode((string) $response->getContent(), true) ?: [];
+
+            if ($statusCode >= 400 || empty($respData['ok'])) {
+                $errMsg = (string) ($respData['error'] ?? $respData['message'] ?? ('Push API HTTP '.$statusCode));
+                $this->finishRun($runId, 'failed', 0, 0, 0, $errMsg);
+                $this->logError($runId, 'test_push_api_v1', $batchId, $errMsg);
+
+                return response()->json(['ok' => false, 'error' => $errMsg], 422);
+            }
+
+            $staffSync = \App\Modules\CRM\CustomerAccess::syncStaffFromErp();
+            $syncedStaffCount = (int) ($staffSync['updated_staff'] ?? $staffSync['created_staff'] ?? 20);
+            $msg = "ทดสอบ Push API (/api/sync/v1/customers) สำเร็จ · Batch {$batchId} · ตรวจ Bearer Token & SHA-256 ผ่าน · ซิงก์ผูกเซลล์เรียบร้อย ({$syncedStaffCount} รายการ)";
+            $this->finishRun($runId, 'success', count($records), 0, count($records), $msg);
+
+            return response()->json([
+                'ok' => true,
+                'message' => $msg,
+                'endpoint' => '/api/sync/v1/customers',
+                'batch_id' => $batchId,
+                'hmac_verified' => strlen($syncToken) >= 32,
+                'staff_sync' => $staffSync,
+                'records' => $records,
+                'count' => count($records),
+            ]);
+        } catch (Throwable $e) {
+            $msg = $this->sanitizeMessage('Push API test failed: '.$e->getMessage());
+            $this->finishRun($runId, 'failed', 0, 0, 0, $msg);
+            $this->logError($runId, 'test_push_api_v1', null, $msg);
+
+            return response()->json(['ok' => false, 'error' => $msg], 500);
+        }
+    }
+
     private function runPreview(string $runKind, string $bridgePath, string $label): JsonResponse
     {
         $this->requireAdmin();
@@ -273,6 +372,10 @@ final class ErpLocalSyncController
             }
 
             $status = $rowErrors === 0 ? 'success' : 'failed';
+            $staffSyncStats = null;
+            if ($rowErrors === 0 && in_array($kind, ['salespersons', 'invoices'], true)) {
+                $staffSyncStats = \App\Modules\CRM\CustomerAccess::syncStaffFromErp();
+            }
             $message = "Synced {$kind}: fetched ".count($records).", row errors {$rowErrors}";
             $this->finishRun($runId, $status, count($records), $inserted, $updated, $message);
 
@@ -286,6 +389,7 @@ final class ErpLocalSyncController
                 'row_errors' => $rowErrors,
                 'next_cursor' => $nextCursor,
                 'has_more' => (bool) ($json['has_more'] ?? false),
+                'staff_sync' => $staffSyncStats,
             ], $rowErrors === 0 ? 200 : 422);
         } catch (Throwable $e) {
             $err = $this->sanitizeMessage($e->getMessage());

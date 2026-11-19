@@ -1,9 +1,8 @@
 <template>
   <section class="card panel-pad presentation-panel">
     <div class="heading"><div><span class="eyebrow">WEEKLY FIELD REPORT</span><h3>สรุปออกตลาดแบบพรีเซนเทชัน</h3><p class="small muted">เลือกช่วงเวลา พนักงาน และสาย แล้วเปิดหน้าสำหรับนำเสนอได้ทันที</p></div><div class="icon" aria-hidden="true">▣</div></div>
+    <DateRangePicker v-model:from="from" v-model:to="to" :allow-year="false" />
     <div class="filters">
-      <label>ตั้งแต่วันที่ <input v-model="from" type="date" /></label>
-      <label>ถึงวันที่ <input v-model="to" type="date" /></label>
       <label v-if="isManager">พนักงาน <select v-model="staffId"><option value="">ทุกคน</option><option v-for="person in staff" :key="person.id" :value="String(person.id)">{{ person.name }}</option></select></label>
       <label>สาย / พื้นที่ <select v-model="route"><option value="">ทุกสาย</option><option v-for="r in routes" :key="r.route_code" :value="r.route_code">[{{ r.route_code }}] {{ r.route_name }}</option></select></label>
     </div>
@@ -13,11 +12,12 @@
 </template>
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import DateRangePicker from './DateRangePicker.vue';
 import { crmGet, isManager } from '../composables/useCrmSession.js';
 const today = new Date();
 const format = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - 6);
-const from = ref(format(weekStart)), to = ref(format(today)), staffId = ref(''), route = ref('');
+const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+const from = ref(format(monthStart)), to = ref(format(today)), staffId = ref(''), route = ref('');
 const staff = ref([]), routes = ref([]), message = ref('');
 const valid = computed(() => {
   if (!from.value || !to.value) return false;

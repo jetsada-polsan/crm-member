@@ -45,6 +45,22 @@ class CustomerPurchaseHistoryTest extends TestCase
         $this->getJson("/api/crm/customers/{$ownCustomerId}/invoices/{$foreignInvoiceId}")->assertNotFound();
     }
 
+    public function test_shared_reservation_type_does_not_grant_access_to_another_salespersons_customer(): void
+    {
+        $own = $this->createCustomer('AR-OWN', 'SL01');
+        $other = $this->createCustomer('AR-OTHER', 'SL02');
+        $ownReservation = $this->createInvoice('AR-OWN', '2026-11-01 10:00:00', [], category: 'reservation', status: 'reserved', dtProperties: 207);
+        $otherReservation = $this->createInvoice('AR-OTHER', '2026-11-01 10:00:00', [], category: 'reservation', status: 'reserved', dtProperties: 207);
+        DB::table('erp_sales_invoices')->where('id', $ownReservation)->update(['salesperson_code' => 'SL01']);
+        DB::table('erp_sales_invoices')->where('id', $otherReservation)->update(['salesperson_code' => 'SL02']);
+        $staff = $this->createStaff('sales', 'SL01');
+        $staff->update(['reservation_doc_types' => '["IV"]']);
+        $this->actingAs($staff, 'staff');
+
+        $this->getJson("/api/crm/customers/{$own}/invoices")->assertOk();
+        $this->getJson("/api/crm/customers/{$other}/invoices")->assertNotFound();
+    }
+
     public function test_bill_list_shows_actual_sales_newest_first_with_line_counts_and_paging(): void
     {
         $customerId = $this->createCustomer('AR-OWN', 'SL01');
@@ -89,6 +105,26 @@ class CustomerPurchaseHistoryTest extends TestCase
         $this->getJson("/api/crm/customers/{$customerId}/invoices?months=5")
             ->assertUnprocessable()
             ->assertJsonValidationErrors('months');
+    }
+
+    public function test_bill_list_filters_inclusive_dates_and_totals_only_that_period(): void
+    {
+        $customerId = $this->createCustomer('AR-OWN', 'SL01');
+        $this->createInvoice('AR-OWN', '2026-10-31 23:59:59', [['FG-1', 'สินค้า A', 1]]);
+        $this->createInvoice('AR-OWN', '2026-11-01 00:00:00', [['FG-1', 'สินค้า A', 1]]);
+        $this->createInvoice('AR-OWN', '2026-11-16 23:59:59', [['FG-1', 'สินค้า A', 1], ['FG-2', 'สินค้า B', 2]]);
+        $this->createInvoice('AR-OWN', '2026-11-17 00:00:00', [['FG-1', 'สินค้า A', 1]]);
+        $this->actingAs($this->createStaff('sales', 'SL01'), 'staff');
+
+        $this->getJson("/api/crm/customers/{$customerId}/invoices?from=2026-11-01&to=2026-11-16")
+            ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('summary.sale_count', 2)
+            ->assertJsonPath('summary.net_before_vat', 300);
+        $this->getJson("/api/crm/customers/{$customerId}/invoices?from=2026-11-17&to=2026-11-01")
+            ->assertUnprocessable()->assertJsonValidationErrors('to');
+        $this->getJson("/api/crm/customers/{$customerId}/invoices?from=2026-11-01")
+            ->assertUnprocessable()->assertJsonValidationErrors('to');
+        $this->getJson('/api/crm/members')->assertForbidden();
+        $this->getJson('/api/crm/member-links')->assertForbidden();
     }
 
     public function test_invoice_detail_returns_every_line_in_order(): void

@@ -45,9 +45,9 @@ final class CustomerAccess
     }
 
     /**
-     * Discover dominant salesperson_code per 207 reservation doc_type and vice versa from erp_sales_invoices.
+     * Discover reservation document types only when their salesperson mapping is unambiguous.
      *
-     * @return array{doc_to_sp: array<string, string>, sp_to_docs: array<string, list<string>>, doc_to_name: array<string, string>}
+     * @return array{doc_to_sp: array<string, string>, sp_to_docs: array<string, list<string>>, doc_to_name: array<string, string>, ambiguous_docs: list<string>}
      */
     public static function discoverReservationSalespersonMap(): array
     {
@@ -73,6 +73,7 @@ final class CustomerAccess
         $docToSp = [];
         $docToName = [];
         $spToDocs = [];
+        $candidates = [];
 
         foreach ($rows as $row) {
             $doc = strtoupper(trim((string) $row->doc_type));
@@ -80,18 +81,26 @@ final class CustomerAccess
             if ($doc === '' || $sp === '') {
                 continue;
             }
-            // First row per doc_type has highest doc_count (dominant owner of that ใบจอง)
-            if (! isset($docToSp[$doc])) {
-                $docToSp[$doc] = $sp;
-                $docToName[$doc] = trim((string) ($row->salesperson_name ?? ''));
-                $spToDocs[$sp][] = $doc;
+            $candidates[$doc][$sp] = trim((string) ($row->salesperson_name ?? ''));
+        }
+        $ambiguousDocs = [];
+        foreach ($candidates as $doc => $salespeople) {
+            if (count($salespeople) !== 1) {
+                $ambiguousDocs[] = $doc;
+
+                continue;
             }
+            $sp = (string) array_key_first($salespeople);
+            $docToSp[$doc] = $sp;
+            $docToName[$doc] = $salespeople[$sp];
+            $spToDocs[$sp][] = $doc;
         }
 
         return [
             'doc_to_sp' => $docToSp,
             'sp_to_docs' => $spToDocs,
             'doc_to_name' => $docToName,
+            'ambiguous_docs' => $ambiguousDocs,
         ];
     }
 
@@ -102,7 +111,7 @@ final class CustomerAccess
             return null;
         }
         $code = trim((string) ($u->salesperson_code ?? ''));
-        if ($code !== '') {
+        if ($code !== '' && $code !== '0') {
             return $code;
         }
 
@@ -134,13 +143,15 @@ final class CustomerAccess
         }
 
         $docs = [];
+        $map = self::discoverReservationSalespersonMap();
         foreach (self::parseDocTypes($u->reservation_doc_types ?? null) as $d) {
-            $docs[$d] = $d;
+            if (! in_array($d, $map['ambiguous_docs'], true)) {
+                $docs[$d] = $d;
+            }
         }
 
         $spCode = trim((string) ($u->salesperson_code ?? ''));
         if ($spCode !== '' && $spCode !== '0') {
-            $map = self::discoverReservationSalespersonMap();
             foreach ($map['sp_to_docs'][$spCode] ?? [] as $autoDoc) {
                 $docs[$autoDoc] = $autoDoc;
             }
@@ -267,6 +278,7 @@ final class CustomerAccess
                 ]);
                 $staffBySp[$code] = $existing;
                 $updated++;
+
                 continue;
             }
 
@@ -460,14 +472,15 @@ final class CustomerAccess
             }
 
             if ($docTypes !== []) {
-                $w->orWhereIn("{$invAlias}.doc_type", $docTypes)
-                    ->orWhereExists(function ($sub) use ($invAlias, $docTypes): void {
-                        $sub->select(DB::raw(1))
-                            ->from('erp_sales_invoices as r_inv')
-                            ->whereColumn('r_inv.source_system', "{$invAlias}.source_system")
-                            ->whereColumn('r_inv.erp_customer_code', "{$invAlias}.erp_customer_code")
-                            ->whereIn('r_inv.doc_type', $docTypes);
-                    });
+                $w->orWhereExists(function ($sub) use ($invAlias, $docTypes): void {
+                    $sub->select(DB::raw(1))
+                        ->from('erp_sales_invoices as r_inv')
+                        ->whereColumn('r_inv.source_system', "{$invAlias}.source_system")
+                        ->whereColumn('r_inv.erp_customer_code', "{$invAlias}.erp_customer_code")
+                        ->where('r_inv.dt_properties', 207)
+                        ->where('r_inv.status', '!=', 'cancelled')
+                        ->whereIn('r_inv.doc_type', $docTypes);
+                });
             }
         });
     }
@@ -498,6 +511,8 @@ final class CustomerAccess
                     ->from('erp_sales_invoices as r_inv')
                     ->whereColumn('r_inv.source_system', "{$alias}.source_system")
                     ->whereColumn('r_inv.erp_customer_code', "{$alias}.erp_customer_code")
+                    ->where('r_inv.dt_properties', 207)
+                    ->where('r_inv.status', '!=', 'cancelled')
                     ->whereIn('r_inv.doc_type', $docTypes);
             });
         }

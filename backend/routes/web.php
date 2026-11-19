@@ -87,7 +87,14 @@ Route::prefix('api/crm')->group(function () {
         Route::post('/pins', [FieldController::class, 'storePin'])->middleware('throttle:30,1');
         Route::get('/plans', [FieldController::class, 'plans']);
         Route::post('/plans', [FieldController::class, 'storePlan']);
-        Route::post('/plans/{planId}/stops', [FieldController::class, 'addStop']);
+        Route::post('/plans/{planId}/stops', [FieldController::class, 'addStop'])->whereNumber('planId');
+        Route::post('/plans/{planId}/auto-stops', [FieldController::class, 'autoPopulateStops'])->whereNumber('planId');
+        Route::patch('/plans/{planId}/stops/{stopId}', [FieldController::class, 'updateStopStatus'])->whereNumber(['planId', 'stopId']);
+        Route::delete('/plans/{planId}/stops/{stopId}', [FieldController::class, 'deleteStop'])->whereNumber(['planId', 'stopId']);
+        Route::get('/targets', [CrmController::class, 'salesTargets']);
+        Route::post('/targets', [CrmController::class, 'saveSalesTarget']);
+        Route::get('/inactive-customers', [CrmController::class, 'inactiveCustomers']);
+        Route::get('/products', [CrmController::class, 'products']);
         Route::post('/field-visits', [FieldController::class, 'storeFieldVisit']);
         Route::get('/field-visits/{visitId}/photos', [FieldController::class, 'visitPhotos']);
         Route::post('/field-visits/{visitId}/photos', [FieldController::class, 'uploadPhoto']);
@@ -102,6 +109,7 @@ Route::prefix('api/crm')->group(function () {
             Route::post('/test-customers-10', [ErpLocalSyncController::class, 'testCustomers10']);
             Route::post('/test-products-10', [ErpLocalSyncController::class, 'testProducts10']);
             Route::post('/test-invoices-10', [ErpLocalSyncController::class, 'testInvoices10']);
+            Route::post('/test-push-api', [ErpLocalSyncController::class, 'testPushApi']);
             Route::post('/sync/{kind}', [ErpLocalSyncController::class, 'syncKind']);
         });
 

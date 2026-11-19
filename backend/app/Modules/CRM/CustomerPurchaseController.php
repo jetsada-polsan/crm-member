@@ -24,6 +24,8 @@ final class CustomerPurchaseController
     {
         $validated = $request->validate([
             'months' => ['nullable', 'integer', 'in:0,3,6,12,24'],
+            'from' => ['nullable', 'date_format:Y-m-d', 'required_with:to'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'required_with:from', 'after_or_equal:from'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:5', 'max:50'],
         ]);
@@ -34,11 +36,18 @@ final class CustomerPurchaseController
         $page = (int) ($validated['page'] ?? 1);
 
         $query = $this->customerInvoices($customer, 'inv');
-        if ($months > 0) {
+        if (! empty($validated['from']) && ! empty($validated['to'])) {
+            $start = CarbonImmutable::parse($validated['from'], 'Asia/Bangkok')->startOfDay();
+            $end = CarbonImmutable::parse($validated['to'], 'Asia/Bangkok')->addDay()->startOfDay();
+            $pgsql = DB::connection()->getDriverName() === 'pgsql';
+            $query->where('inv.sold_at', '>=', $pgsql ? $start->toIso8601String() : $start->format('Y-m-d H:i:s'))
+                ->where('inv.sold_at', '<', $pgsql ? $end->toIso8601String() : $end->format('Y-m-d H:i:s'));
+        } elseif ($months > 0) {
             $query->where('inv.sold_at', '>=', $this->dataUntil()->subMonths($months)->startOfDay());
         }
 
         $total = (clone $query)->count();
+        $summary = (clone $query)->selectRaw("COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as net_before_vat, SUM(CASE WHEN inv.doc_category = 'sale' THEN 1 ELSE 0 END) as sale_count, SUM(CASE WHEN inv.doc_category = 'return' THEN 1 ELSE 0 END) as return_count")->first();
         $rows = $query
             ->select(
                 'inv.id',
@@ -62,6 +71,7 @@ final class CustomerPurchaseController
 
         return response()->json([
             'data' => $rows,
+            'summary' => $summary,
             'meta' => [
                 'current_page' => $page,
                 'per_page' => $perPage,

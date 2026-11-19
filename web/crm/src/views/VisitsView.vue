@@ -29,8 +29,11 @@
     </div>
 
     <div class="card panel-pad" style="margin-bottom:16px">
+      <DateRangePicker v-model:from="from" v-model:to="to" />
+      <p class="small muted">แสดงบันทึกตามวันที่เข้าพบ · เมื่อเลือกสายจะแสดงเฉพาะร้านที่เชื่อมสาย ERP แล้ว</p>
       <div class="head-filter" style="margin-bottom:0">
         <input v-model="searchRaw" style="flex:1;min-width:200px" placeholder="ค้นหาชื่อร้าน, แหล่งซื้อ, หมายเหตุ..." />
+        <select v-model="routeCode" aria-label="สายการขาย"><option value="">ทุกสายที่มีสิทธิ์</option><option v-for="r in dimensions?.routes || []" :key="r.route_code" :value="r.route_code">[{{ r.route_code }}] {{ r.route_name || 'ไม่ระบุชื่อ' }}</option></select>
         <select v-model="resultFilter" @change="page = 1">
           <option value="">ทุกผลการเข้าพบ</option>
           <option value="visited">เข้าพบเรียบร้อย</option>
@@ -42,7 +45,8 @@
       </div>
     </div>
 
-    <SkeletonBlock v-if="isLoading && !rows.length" variant="table" :rows="6" />
+    <div v-if="!validRange" class="card panel-pad">กรุณาเลือกช่วงวันที่ให้ถูกต้อง</div>
+    <SkeletonBlock v-else-if="isLoading && !rows.length" variant="table" :rows="6" />
     <div v-else-if="isError" class="error">{{ error?.message || 'โหลดประวัติเข้าพบไม่สำเร็จ' }}</div>
 
     <div v-else class="card">
@@ -134,6 +138,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
+import DateRangePicker from '../components/DateRangePicker.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { removeOfflineDraft } from '../../../shared/utils/offlineDrafts.js';
 import {
@@ -151,6 +156,17 @@ const searchRaw = ref('');
 const search = ref('');
 const resultFilter = ref('');
 const page = ref(1);
+const today = new Date();
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const from = ref(iso(new Date(today.getFullYear(), today.getMonth(), 1)));
+const to = ref(iso(today));
+const routeCode = ref('');
+const validRange = computed(() => Boolean(from.value && to.value && from.value <= to.value));
+watch([from, to, routeCode], () => { page.value = 1; });
+const { data: dimensions } = useQuery({
+  queryKey: ['crm', 'sales-dimensions', 'BPLUS'],
+  queryFn: ({ signal }) => crmGet('/reports/sales-dimensions?source_system=BPLUS', { signal }),
+});
 
 let t = null;
 watch(searchRaw, (v) => {
@@ -165,14 +181,17 @@ onUnmounted(() => {
 });
 
 const { data, isLoading, isError, error } = useQuery({
-  queryKey: computed(() => ['crm', 'visits', { page: page.value, q: search.value, result: resultFilter.value }]),
+  queryKey: computed(() => ['crm', 'visits', { page: page.value, q: search.value, result: resultFilter.value, from: from.value, to: to.value, route: routeCode.value }]),
   queryFn: ({ signal }) => {
     const p = new URLSearchParams({ paginate: '1', per_page: '20', page: String(page.value) });
     if (search.value) p.set('q', search.value);
     if (resultFilter.value) p.set('result', resultFilter.value);
+    p.set('from', from.value); p.set('to', to.value);
+    if (routeCode.value) p.set('route_code', routeCode.value);
     return crmGet(`/visits?${p.toString()}`, { signal });
   },
   placeholderData: keepPreviousData,
+  enabled: validRange,
 });
 
 const rows = computed(() => data.value?.data || []);

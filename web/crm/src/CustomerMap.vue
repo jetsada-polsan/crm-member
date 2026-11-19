@@ -11,11 +11,39 @@ const props = defineProps({
   selectedPinId: { type: [String, Number], default: null },
   autoFit: { type: Boolean, default: true },
   pickedLocation: { type: Object, default: null },
+  pickingHint: { type: String, default: '' },
 });
 
 const emit = defineEmits(['picked', 'select']);
 const element = ref(null);
+const activeTileKey = ref('clean');
+const currentZoom = ref(10);
+
+const TILE_LAYERS = {
+  clean: {
+    label: '✨ สว่างคมชัด',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    options: { maxZoom: 19, attribution: '© OpenStreetMap · © CARTO' },
+  },
+  groad: {
+    label: '🌏 Google ถนน',
+    url: 'https://mt1.google.com/vt/lyrs=m&hl=th&x={x}&y={y}&z={z}',
+    options: { maxZoom: 20, attribution: '© Google Maps' },
+  },
+  gsat: {
+    label: '🛰️ ดาวเทียม',
+    url: 'https://mt1.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}',
+    options: { maxZoom: 20, attribution: '© Google Maps' },
+  },
+  osm: {
+    label: '🗺️ OSM',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    options: { maxZoom: 19, attribution: '© OpenStreetMap' },
+  },
+};
+
 let map;
+let tileLayer;
 let group;
 let pickedMarker;
 let resizeObs;
@@ -42,16 +70,39 @@ function fitMapToValidPins(valid, forceFit) {
     lastFitSignature = '';
     return;
   }
-  if (!props.autoFit || (!forceFit && signature === lastFitSignature)) {
+  if (!props.autoFit && !forceFit) {
+    return;
+  }
+  if (!forceFit && signature === lastFitSignature) {
     return;
   }
   lastFitSignature = signature;
   const pts = valid.map((v) => [v.lat, v.lng]);
   if (pts.length === 1) {
-    map.setView(pts[0], Math.max(map.getZoom(), 15), { animate: false });
+    map.setView(pts[0], Math.max(map.getZoom(), 15), { animate: forceFit });
   } else {
-    map.fitBounds(L.latLngBounds(pts), { padding: [56, 56], maxZoom: 15, animate: false });
+    map.fitBounds(L.latLngBounds(pts), { padding: [56, 56], maxZoom: 15, animate: forceFit });
   }
+}
+
+function fitAll() {
+  if (!map) return;
+  const valid = extractValidPins(props.pins);
+  if (valid.length) {
+    fitMapToValidPins(valid, true);
+  } else {
+    map.setView([15.2287, 104.8564], 10, { animate: true });
+  }
+}
+
+function setTileStyle(key) {
+  if (!map || !TILE_LAYERS[key]) return;
+  activeTileKey.value = key;
+  if (tileLayer) {
+    map.removeLayer(tileLayer);
+  }
+  const cfg = TILE_LAYERS[key];
+  tileLayer = L.tileLayer(cfg.url, cfg.options).addTo(map);
 }
 
 function computePixelSpreadPositions(valid) {
@@ -128,18 +179,27 @@ function computePixelSpreadPositions(valid) {
 function makeMarkerIcon(pin, isSelected) {
   const meta = pinTypeMeta(pin);
   const photoCount = Number(pin.photo_count || 0);
+  const firstPhotoUrl = pin.photos?.[0]?.url ? esc(pin.photos[0].url) : '';
   const selectedClass = isSelected ? ' is-selected' : '';
+  const hasPhotoClass = firstPhotoUrl ? ' has-photo' : '';
   const badgeHtml = photoCount > 0 ? `<span class="cm-pin-badge">📷 ${photoCount}</span>` : '';
+  const innerHtml = firstPhotoUrl
+    ? `<img src="${firstPhotoUrl}" alt="" class="cm-pin-img" />`
+    : `<span>🏪</span>`;
+  const shortName = esc(pinDisplayName(pin)).slice(0, 18);
+  const showNamePill = isSelected || currentZoom.value >= 14;
+  const labelPillHtml = showNamePill ? `<span class="cm-pin-name">${shortName}</span>` : '';
   return L.divIcon({
-    className: `cm-pin-wrap${selectedClass}`,
-    html: `<div class="cm-pin" style="--pin-color:${meta.color}"><span>🏪</span></div>${badgeHtml}`,
-    iconSize: [36, 40],
-    iconAnchor: [18, 22],
+    className: `cm-pin-wrap${selectedClass}${hasPhotoClass}`,
+    html: `<div class="cm-pin" style="--pin-color:${meta.color}">${innerHtml}</div>${badgeHtml}${labelPillHtml}`,
+    iconSize: [40, 44],
+    iconAnchor: [20, 24],
   });
 }
 
 function redraw(forceFit = false) {
   if (!map || !group) return;
+  currentZoom.value = map.getZoom();
   group.clearLayers();
   markerCoordsById.clear();
 
@@ -193,7 +253,7 @@ function redraw(forceFit = false) {
 
     marker.bindTooltip(tooltipHtml, {
       direction: 'top',
-      offset: [0, -20],
+      offset: [0, -22],
       opacity: 0.96,
       className: 'cm-tooltip',
     });
@@ -215,15 +275,29 @@ function redrawPicked() {
   const lat = Number(props.pickedLocation?.latitude);
   const lng = Number(props.pickedLocation?.longitude);
   if (Number.isFinite(lat) && Number.isFinite(lng)) {
-    pickedMarker = L.circleMarker([lat, lng], {
-      radius: 9,
-      color: '#ffffff',
-      weight: 3,
-      fillColor: '#0f9d7a',
-      fillOpacity: 0.95,
+    const pickedIcon = L.divIcon({
+      className: 'cm-picked-wrap',
+      html: `<div class="cm-picked-pulse"></div><div class="cm-picked-pin">📍</div>`,
+      iconSize: [38, 38],
+      iconAnchor: [19, 32],
+    });
+    pickedMarker = L.marker([lat, lng], {
+      icon: pickedIcon,
+      draggable: Boolean(props.selectMode),
+      zIndexOffset: 900,
     })
       .addTo(map)
-      .bindTooltip('ตำแหน่งที่เลือกใหม่', { direction: 'top' });
+      .bindTooltip('จุดที่จะปักหมุด (ลากขยับได้)', { direction: 'top', offset: [0, -26], className: 'cm-tooltip' });
+
+    pickedMarker.on('dragend', (ev) => {
+      const ll = ev.target.getLatLng();
+      emit('picked', {
+        latitude: Number(ll.lat.toFixed(7)),
+        longitude: Number(ll.lng.toFixed(7)),
+      });
+    });
+
+    map.panTo([lat, lng], { animate: true });
   }
 }
 
@@ -231,10 +305,7 @@ const onZoomEnd = () => redraw(false);
 
 onMounted(() => {
   map = L.map(element.value, { zoomControl: true }).setView([15.2287, 104.8564], 10);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© OpenStreetMap contributors',
-  }).addTo(map);
+  setTileStyle(activeTileKey.value);
   group = L.layerGroup().addTo(map);
   map.on('zoomend', onZoomEnd);
   map.on('click', (e) => {
@@ -268,12 +339,14 @@ watch(
     if (map && id != null) {
       const coords = markerCoordsById.get(String(id));
       if (coords) {
-        map.panTo(coords, { animate: true });
+        map.setView(coords, Math.max(map.getZoom(), 14), { animate: true });
       }
     }
   }
 );
 watch(() => props.pickedLocation, redrawPicked, { deep: true });
+
+defineExpose({ fitAll });
 
 onBeforeUnmount(() => {
   map?.off('zoomend', onZoomEnd);
@@ -283,11 +356,37 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="element" class="cm-canvas" :style="{ height: props.height }"></div>
+  <div class="cm-shell" :style="{ height: props.height }">
+    <div ref="element" class="cm-canvas"></div>
+
+    <!-- Floating Top-Right Toolbar: Tile switcher + Fit All -->
+    <div class="cm-floating-toolbar" @click.stop>
+      <div class="cm-tile-pills" role="group" aria-label="รูปแบบแผนที่">
+        <button
+          v-for="(cfg, key) in TILE_LAYERS"
+          :key="key"
+          type="button"
+          :class="['cm-tool-btn', { active: activeTileKey === key }]"
+          @click="setTileStyle(key)"
+        >
+          {{ cfg.label }}
+        </button>
+      </div>
+      <button type="button" class="cm-tool-btn cm-fit-btn" title="ซูมดูหมุดทั้งหมด" @click="fitAll">
+        🎯 ดูทั้งหมด
+      </button>
+    </div>
+
+    <!-- Floating top-center banner when in interactive pinning mode -->
+    <div v-if="props.selectMode && props.pickingHint" class="cm-picking-banner" @click.stop>
+      <span class="cm-picking-dot"></span>
+      <span>{{ props.pickingHint }}</span>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.cm-canvas {
+.cm-shell {
   position: relative;
   z-index: 1;
   isolation: isolate;
@@ -297,6 +396,104 @@ onBeforeUnmount(() => {
   background: #eaf0f7;
 }
 
+.cm-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.cm-floating-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cm-tile-pills {
+  display: flex;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 10px;
+  padding: 2px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+}
+
+.cm-tool-btn {
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 28px;
+  transition: all 0.14s ease;
+  white-space: nowrap;
+}
+
+.cm-tool-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.cm-tool-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.cm-fit-btn {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 10px;
+  padding: 5px 10px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+}
+
+.cm-fit-btn:hover {
+  background: #ffffff;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+.cm-picking-banner {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(6px);
+  color: #ffffff;
+  border-radius: 99px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cm-picking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.28);
+  flex-shrink: 0;
+}
+
 :deep(.cm-pin-wrap) {
   background: transparent;
   border: 0;
@@ -304,15 +501,16 @@ onBeforeUnmount(() => {
 }
 
 :deep(.cm-pin) {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50% 50% 50% 6px;
   transform: rotate(-45deg);
-  background: var(--pin-color, #2f63e8);
+  background: var(--pin-color, #0284c7);
   border: 3px solid #ffffff;
   box-shadow: 0 6px 14px rgba(15, 26, 51, 0.28);
   display: grid;
   place-items: center;
+  overflow: hidden;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
@@ -322,9 +520,17 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
+:deep(.cm-pin-img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: rotate(45deg) scale(1.25);
+  display: block;
+}
+
 :deep(.cm-pin-wrap.is-selected .cm-pin) {
-  transform: rotate(-45deg) scale(1.18);
-  box-shadow: 0 0 0 6px rgba(47, 99, 232, 0.25), 0 8px 18px rgba(15, 26, 51, 0.32);
+  transform: rotate(-45deg) scale(1.22);
+  box-shadow: 0 0 0 6px rgba(2, 132, 199, 0.28), 0 8px 18px rgba(15, 26, 51, 0.34);
 }
 
 :deep(.cm-pin-badge) {
@@ -336,11 +542,66 @@ onBeforeUnmount(() => {
   border: 2px solid #ffffff;
   border-radius: 99px;
   padding: 1px 6px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   line-height: 1.3;
   white-space: nowrap;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+}
+
+:deep(.cm-pin-name) {
+  position: absolute;
+  top: 38px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+  pointer-events: none;
+}
+
+:deep(.cm-picked-wrap) {
+  background: transparent;
+  border: 0;
+  position: relative;
+}
+
+:deep(.cm-picked-pulse) {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.28);
+  animation: cmPulse 1.6s infinite ease-out;
+}
+
+:deep(.cm-picked-pin) {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #059669;
+  border: 3px solid #ffffff;
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+@keyframes cmPulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
 }
 
 :deep(.cm-tooltip) {

@@ -186,6 +186,8 @@
 
         <CustomerMapBoard />
 
+        <SalesTargetAndAlertBoard />
+
         <!-- Reservation (ใบจอง 207) & Salesperson Breakdown (Admin sees all; Sales sees only own) -->
         <div class="middle">
           <div class="card">
@@ -411,6 +413,7 @@ import { RouterLink } from 'vue-router';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import CustomerMapBoard from '../components/CustomerMapBoard.vue';
+import SalesTargetAndAlertBoard from '../components/SalesTargetAndAlertBoard.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import {
   crmGet,

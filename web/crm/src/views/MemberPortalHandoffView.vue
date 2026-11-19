@@ -15,7 +15,7 @@
       เพื่อความปลอดภัย: ระบบ CRM พนักงาน (Staff Guard) และ Member Portal (Member Guard) แยก Cookie, Session และ CSRF อิสระต่อกัน ลูกค้าสามารถสมัครด้วยเบอร์โทรศัพท์หรืออีเมล (รหัสผ่าน 12+ ตัวอักษร) แล้วรอทีมงานยืนยันกับบัญชี ERP ก่อนจึงจะเห็นบิลขายและคะแนน
     </div>
 
-    <div class="kpis" style="margin-bottom:16px">
+    <div v-if="isManager" class="kpis" style="margin-bottom:16px">
       <div class="card kpi">
         <div class="kpi-label">บัญชีสมาชิกทั้งหมด</div>
         <div class="kpi-value">{{ fmt((members || []).length) }}</div>
@@ -54,7 +54,7 @@
             <div class="small muted">ก่อนอนุมัติระบบจะบล็อก /api/member/invoices และ /api/member/points ด้วย HTTP 403 เสมอ</div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <div v-if="isManager" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
           <RouterLink to="/members" class="btn primary">ไปหน้าตรวจคำขอ &amp; สมาชิก →</RouterLink>
           <RouterLink to="/loyalty" class="btn light">ไปหน้ากติกาคะแนน</RouterLink>
         </div>

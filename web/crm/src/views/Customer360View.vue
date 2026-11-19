@@ -205,18 +205,23 @@
         </div>
       </div>
 
+      <section v-if="detail.erp_customer" class="card panel-pad" style="margin-bottom:16px">
+        <h3 style="margin:0 0 12px">ยอดซื้อและประวัติบิลตามช่วงวันที่</h3>
+        <CustomerPurchaseHistory :customer-id="detail.erp_customer.id" />
+      </section>
+
       <!-- 4 Separated Domains Grid -->
-      <div class="kpis" style="margin-bottom:16px">
+      <div class="kpis customer-domains" style="margin-bottom:16px">
         <div class="card panel-pad">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <strong>1. Bplus ERP (Read-Only)</strong>
+            <strong>1. ข้อมูลลูกค้า ERP</strong>
             <span class="tag gray">MIRROR</span>
           </div>
           <template v-if="detail.erp_customer">
             <div class="minirow"><span>รหัส ERP</span><b>{{ detail.erp_customer.erp_customer_code }}</b></div>
             <div class="minirow"><span>ชื่อใน Bplus</span><span>{{ detail.erp_customer.customer_name }}</span></div>
             <div class="minirow"><span>พนักงานขาย</span><span>{{ detail.erp_customer.salesperson_name || detail.erp_customer.salesperson_code || '—' }}</span></div>
-            <div class="minirow"><span>บิลขายจริง / ยอดซื้อสุทธิ</span><b>{{ fmt(detail.sales_summary?.sale_invoice_count || 0) }} บิล · {{ fmt(detail.sales_summary?.net_purchase_before_vat || 0) }} ฿</b></div>
+            <div class="minirow"><span>บิลขายจริง / ยอดซื้อสุทธิสะสม</span><b>{{ fmt(detail.sales_summary?.sale_invoice_count || 0) }} บิล · {{ fmt(detail.sales_summary?.net_purchase_before_vat || 0) }} ฿</b></div>
             <div class="minirow"><span>วงเงินเครดิต</span><span>{{ fmt(detail.erp_customer.credit_limit) }} ฿ ({{ detail.erp_customer.credit_term_days || 0 }} วัน)</span></div>
           </template>
           <div v-else class="small muted">
@@ -226,7 +231,7 @@
 
         <div class="card panel-pad">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <strong>2. CRM Lead &amp; GPS Location</strong>
+            <strong>2. ข้อมูลร้านและพิกัด</strong>
             <span class="tag blue">FIELD OPS</span>
           </div>
           <template v-if="detail.crm_lead">
@@ -244,7 +249,7 @@
 
         <div class="card panel-pad">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <strong>3. Member &amp; Loyalty</strong>
+            <strong>3. ข้อมูลสมาชิก</strong>
             <span class="tag" :class="detail.member_link?.verification_status === 'verified' ? 'green' : 'orange'">
               {{ detail.member_link?.verification_status || 'UNLINKED' }}
             </span>
@@ -262,7 +267,7 @@
 
         <div class="card panel-pad">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <strong>4. ติดตาม &amp; หลักการแยกข้อมูล</strong>
+            <strong>4. งานติดตาม</strong>
             <span class="tag teal">ISOLATED</span>
           </div>
           <div class="minirow"><span>เข้าพบสะสม</span><b>{{ fmt((detail.visits || []).length) }} ครั้ง</b></div>
@@ -360,6 +365,7 @@ import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
+import CustomerPurchaseHistory from '../components/CustomerPurchaseHistory.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import {
   crmGet,
@@ -409,7 +415,7 @@ const {
 const { data: auditLogs, refetch: refetchAudit } = useQuery({
   queryKey: computed(() => ['crm', 'customer360-audit', selectedMasterId.value]),
   queryFn: ({ signal }) => crmGet(`/customer-master/${selectedMasterId.value}/audit`, { signal }),
-  enabled: computed(() => Boolean(selectedMasterId.value)),
+  enabled: computed(() => Boolean(selectedMasterId.value) && isManager.value),
 });
 
 const linkErpModalOpen = ref(false);
@@ -533,3 +539,7 @@ async function viewVisitPhotos(visitId) {
   }
 }
 </script>
+
+<style scoped>
+@media (max-width: 600px) { .customer-domains { grid-template-columns: 1fr; } }
+</style>

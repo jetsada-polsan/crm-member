@@ -3,6 +3,7 @@
 namespace App\Modules\CRM;
 
 use App\Modules\ERPIntegration\SalesRules;
+use App\Modules\LINE\LineConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -935,13 +936,31 @@ final class CrmController
 
     public function visits(Request $request): JsonResponse
     {
+        $filters = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d', 'required_with:to'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'required_with:from', 'after_or_equal:from'],
+            'route_code' => ['nullable', 'string', 'max:32'],
+        ]);
         $user = Auth::guard('staff')->user();
         $query = DB::table('crm_customer_visits as v')
             ->leftJoin('erp_customers as c', 'c.id', '=', 'v.erp_customer_id')
             ->leftJoin('crm_leads as l', 'l.id', '=', 'v.crm_lead_id')
+            ->leftJoin('erp_customers as lc', 'lc.id', '=', 'l.converted_erp_customer_id')
             ->leftJoin('staff_users as s', 's.id', '=', 'v.staff_user_id');
         if (! CustomerAccess::isManager($user)) {
             $query->where('v.staff_user_id', $user->id);
+        }
+        if (! empty($filters['from']) && ! empty($filters['to'])) {
+            $start = Carbon::parse($filters['from'], 'Asia/Bangkok')->startOfDay();
+            $end = Carbon::parse($filters['to'], 'Asia/Bangkok')->addDay()->startOfDay();
+            $pgsql = DB::connection()->getDriverName() === 'pgsql';
+            $query->where('v.visited_at', '>=', $pgsql ? $start->toIso8601String() : $start->format('Y-m-d H:i:s'))
+                ->where('v.visited_at', '<', $pgsql ? $end->toIso8601String() : $end->format('Y-m-d H:i:s'));
+        }
+        if (! empty($filters['route_code'])) {
+            $query->where(function ($q) use ($filters): void {
+                $q->where('c.route_code', $filters['route_code'])->orWhere('lc.route_code', $filters['route_code']);
+            });
         }
 
         $search = trim((string) $request->query('q', ''));
@@ -1137,9 +1156,9 @@ final class CrmController
         $activeRules = DB::table('loyalty_rules')->where('is_active', true)->count();
         $totalRules = DB::table('loyalty_rules')->count();
 
-        $lineRaw = \App\Modules\LINE\LineConfig::allRaw();
-        $lineSecret = \App\Modules\LINE\LineConfig::channelSecret();
-        $lineToken = \App\Modules\LINE\LineConfig::channelAccessToken();
+        $lineRaw = LineConfig::allRaw();
+        $lineSecret = LineConfig::channelSecret();
+        $lineToken = LineConfig::channelAccessToken();
         $boundLineMembers = DB::table('member_line_accounts')->whereNull('revoked_at')->count();
         $lineWebhookEvents = DB::table('line_webhook_events')->count();
 
@@ -1152,11 +1171,11 @@ final class CrmController
                 'line_channel_id' => $lineRaw['line_channel_id'] ?? '',
                 'line_bot_basic_id' => $lineRaw['line_bot_basic_id'] ?? '',
                 'line_liff_id' => $lineRaw['line_liff_id'] ?? '',
-                'line_welcome_message' => \App\Modules\LINE\LineConfig::welcomeMessage(),
+                'line_welcome_message' => LineConfig::welcomeMessage(),
                 'secret_configured' => $lineSecret !== '',
-                'secret_masked' => \App\Modules\LINE\LineConfig::maskSecret($lineSecret),
+                'secret_masked' => LineConfig::maskSecret($lineSecret),
                 'access_token_configured' => $lineToken !== '',
-                'access_token_masked' => \App\Modules\LINE\LineConfig::maskSecret($lineToken),
+                'access_token_masked' => LineConfig::maskSecret($lineToken),
                 'webhook_path' => '/api/line/webhook',
                 'bound_member_count' => $boundLineMembers,
                 'webhook_event_count' => $lineWebhookEvents,
@@ -1190,7 +1209,7 @@ final class CrmController
             'line_welcome_message' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        \App\Modules\LINE\LineConfig::save($d, (int) $actor->id);
+        LineConfig::save($d, (int) $actor->id);
 
         DB::table('crm_audit_logs')->insert([
             'entity_type' => 'line_settings',
@@ -1332,5 +1351,377 @@ final class CrmController
         ]);
 
         return response()->json(['ok' => true, 'id' => $id]);
+    }
+
+    public function salesTargets(Request $request): JsonResponse
+    {
+        $user = Auth::guard('staff')->user();
+        $isManager = CustomerAccess::isManager($user);
+
+        $monthParam = trim((string) $request->query('month', now()->format('Y-m')));
+        if (! preg_match('/^\d{4}-\d{2}$/', $monthParam)) {
+            $monthParam = now()->format('Y-m');
+        }
+        $periodStart = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->startOfMonth()->toDateString();
+        $periodEnd = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->endOfMonth()->toDateString();
+
+        $staffQuery = DB::table('staff_users')
+            ->where('role', 'sales')
+            ->where('is_active', true)
+            ->orderBy('salesperson_code')
+            ->orderBy('id');
+        if (! $isManager) {
+            $staffQuery->where('id', $user->id);
+        }
+        $salesStaff = $staffQuery->get(['id', 'name', 'email', 'salesperson_code', 'reservation_doc_types']);
+
+        $targetsByStaff = DB::table('crm_sales_targets')
+            ->where('period_start', $periodStart)
+            ->get()
+            ->keyBy('staff_user_id');
+
+        // Pre-aggregate actual sales by salesperson_code
+        $salesBySpQuery = DB::table('erp_sales_invoices as inv');
+        SalesRules::applyActualSalesScope($salesBySpQuery, 'inv');
+        $salesBySp = $salesBySpQuery
+            ->whereNotNull('inv.salesperson_code')
+            ->groupBy('inv.salesperson_code')
+            ->select(
+                'inv.salesperson_code',
+                DB::raw('COUNT(*) as invoice_count'),
+                DB::raw('COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as net_sales')
+            )
+            ->get()
+            ->keyBy('salesperson_code');
+
+        // Pre-aggregate reservation sales by doc_type
+        $resByDoc = DB::table('erp_sales_invoices as r')
+            ->where('r.dt_properties', 207)
+            ->where('r.status', '!=', 'cancelled')
+            ->groupBy('r.doc_type')
+            ->select(
+                'r.doc_type',
+                DB::raw('COUNT(*) as res_count'),
+                DB::raw('COALESCE(SUM(COALESCE(r.before_vat_amount, r.net_amount)), 0) as res_amount')
+            )
+            ->get()
+            ->keyBy('doc_type');
+
+        // Pre-aggregate visits per staff user
+        $visitsByStaff = DB::table('crm_customer_visits')
+            ->groupBy('staff_user_id')
+            ->select(
+                'staff_user_id',
+                DB::raw('COUNT(*) as total_visits'),
+                DB::raw('SUM(CASE WHEN visited_at >= ? AND visited_at <= ? THEN 1 ELSE 0 END) as month_visits')
+            )
+            ->addBinding([$periodStart.' 00:00:00', $periodEnd.' 23:59:59'], 'select')
+            ->get()
+            ->keyBy('staff_user_id');
+
+        $rows = [];
+        $totalTargetAmount = 0.0;
+        $totalActualSales = 0.0;
+        $totalTargetVisits = 0;
+        $totalActualVisits = 0;
+
+        foreach ($salesStaff as $staff) {
+            $tRow = $targetsByStaff->get($staff->id);
+            $targetAmount = $tRow ? (float) $tRow->target_amount : 150000.0;
+            $targetVisits = $tRow ? (int) $tRow->target_visits : 30;
+
+            $spCode = CustomerAccess::salespersonCode($staff);
+            $docTypes = CustomerAccess::reservationDocTypes($staff);
+
+            $actualSales = 0.0;
+            $invoiceCount = 0;
+            if ($spCode !== null && $salesBySp->has($spCode)) {
+                $spAgg = $salesBySp->get($spCode);
+                $actualSales = (float) $spAgg->net_sales;
+                $invoiceCount = (int) $spAgg->invoice_count;
+            }
+
+            $reservationAmount = 0.0;
+            $reservationCount = 0;
+            foreach ($docTypes as $dt) {
+                if ($resByDoc->has($dt)) {
+                    $rAgg = $resByDoc->get($dt);
+                    $reservationAmount += (float) $rAgg->res_amount;
+                    $reservationCount += (int) $rAgg->res_count;
+                }
+            }
+
+            $vAgg = $visitsByStaff->get($staff->id);
+            $totalVisits = $vAgg ? (int) $vAgg->total_visits : 0;
+            $monthVisits = $vAgg ? (int) $vAgg->month_visits : 0;
+
+            $salesPct = $targetAmount > 0 ? round(($actualSales / $targetAmount) * 100, 1) : 0.0;
+            $visitPct = $targetVisits > 0 ? round(($totalVisits / $targetVisits) * 100, 1) : 0.0;
+
+            $totalTargetAmount += $targetAmount;
+            $totalActualSales += $actualSales;
+            $totalTargetVisits += $targetVisits;
+            $totalActualVisits += $totalVisits;
+
+            $rows[] = [
+                'staff_user_id' => (int) $staff->id,
+                'staff_name' => $staff->name,
+                'salesperson_code' => $spCode,
+                'reservation_doc_types' => $docTypes,
+                'target_id' => $tRow ? (int) $tRow->id : null,
+                'is_custom_target' => (bool) $tRow,
+                'target_amount' => $targetAmount,
+                'target_visits' => $targetVisits,
+                'actual_sales' => $actualSales,
+                'invoice_count' => $invoiceCount,
+                'reservation_amount' => $reservationAmount,
+                'reservation_count' => $reservationCount,
+                'actual_visits' => $totalVisits,
+                'month_visits' => $monthVisits,
+                'sales_achievement_pct' => $salesPct,
+                'visit_achievement_pct' => $visitPct,
+            ];
+        }
+
+        return response()->json([
+            'month' => $monthParam,
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
+            'summary' => [
+                'staff_count' => count($rows),
+                'total_target_amount' => round($totalTargetAmount, 2),
+                'total_actual_sales' => round($totalActualSales, 2),
+                'overall_sales_pct' => $totalTargetAmount > 0 ? round(($totalActualSales / $totalTargetAmount) * 100, 1) : 0.0,
+                'total_target_visits' => $totalTargetVisits,
+                'total_actual_visits' => $totalActualVisits,
+                'overall_visit_pct' => $totalTargetVisits > 0 ? round(($totalActualVisits / $totalTargetVisits) * 100, 1) : 0.0,
+            ],
+            'rows' => $rows,
+        ]);
+    }
+
+    public function saveSalesTarget(Request $request): JsonResponse
+    {
+        $actor = Auth::guard('staff')->user();
+        abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+
+        $d = $request->validate([
+            'month' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
+            'staff_user_id' => ['nullable', 'integer', 'exists:staff_users,id'],
+            'apply_to_all' => ['nullable', 'boolean'],
+            'target_amount' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'target_visits' => ['required', 'integer', 'min:0', 'max:10000'],
+        ]);
+
+        $monthParam = $d['month'] ?? now()->format('Y-m');
+        $periodStart = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->startOfMonth()->toDateString();
+        $periodEnd = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->endOfMonth()->toDateString();
+
+        $staffIds = [];
+        if (! empty($d['apply_to_all'])) {
+            $staffIds = DB::table('staff_users')
+                ->where('role', 'sales')
+                ->where('is_active', true)
+                ->pluck('id')
+                ->map(fn ($v) => (int) $v)
+                ->all();
+        } elseif (! empty($d['staff_user_id'])) {
+            $staffIds = [(int) $d['staff_user_id']];
+        } else {
+            abort(422, 'staff_user_id or apply_to_all is required');
+        }
+
+        $now = now();
+        $updatedCount = 0;
+        foreach ($staffIds as $sid) {
+            $existing = DB::table('crm_sales_targets')
+                ->where('staff_user_id', $sid)
+                ->where('period_start', $periodStart)
+                ->first();
+            if ($existing) {
+                DB::table('crm_sales_targets')->where('id', $existing->id)->update([
+                    'period_end' => $periodEnd,
+                    'target_amount' => $d['target_amount'],
+                    'target_visits' => $d['target_visits'],
+                    'updated_at' => $now,
+                ]);
+            } else {
+                DB::table('crm_sales_targets')->insert([
+                    'staff_user_id' => $sid,
+                    'period_start' => $periodStart,
+                    'period_end' => $periodEnd,
+                    'target_amount' => $d['target_amount'],
+                    'target_visits' => $d['target_visits'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+            $updatedCount++;
+        }
+
+        return response()->json([
+            'ok' => true,
+            'updated_count' => $updatedCount,
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
+        ]);
+    }
+
+    public function inactiveCustomers(Request $request): JsonResponse
+    {
+        $daysThreshold = max(7, min(365, (int) $request->query('days', 30)));
+        $mode = trim((string) $request->query('mode', 'all_alerts')); // all_alerts | unvisited | inactive | no_pin
+        $search = trim((string) $request->query('q', ''));
+
+        $invAgg = SalesRules::customerActualInvoiceSubquery();
+        $visitAgg = DB::table('crm_customer_visits')
+            ->whereNotNull('erp_customer_id')
+            ->groupBy('erp_customer_id')
+            ->select(
+                'erp_customer_id',
+                DB::raw('COUNT(*) as visit_count'),
+                DB::raw('MAX(visited_at) as last_visited_at')
+            );
+
+        // Anchor relative to the latest invoice date in ERP mirror so historical snapshots work accurately
+        $latestErpDateRaw = DB::table('erp_sales_invoices')->max('sold_at');
+        $referenceDate = $latestErpDateRaw ? Carbon::parse($latestErpDateRaw) : now();
+        $cutoffDate = $referenceDate->copy()->subDays($daysThreshold);
+
+        $baseQuery = $this->accessibleCustomers('c')
+            ->leftJoinSub($invAgg, 'inv_agg', function ($join): void {
+                $join->on('inv_agg.source_system', '=', 'c.source_system')
+                    ->on('inv_agg.erp_customer_code', '=', 'c.erp_customer_code');
+            })
+            ->leftJoinSub($visitAgg, 'v_agg', 'v_agg.erp_customer_id', '=', 'c.id')
+            ->leftJoin('crm_customer_locations as loc', 'loc.erp_customer_id', '=', 'c.id');
+
+        $totalScoped = (clone $baseQuery)->count();
+        $unvisitedCount = (clone $baseQuery)->whereRaw('COALESCE(v_agg.visit_count, 0) = 0')->count();
+        $inactiveCount = (clone $baseQuery)->where(function ($w) use ($cutoffDate): void {
+            $w->whereNull('inv_agg.last_purchase_at')
+                ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
+        })->count();
+        $unpinnedCount = (clone $baseQuery)->whereNull('loc.latitude')->count();
+
+        if ($search !== '') {
+            $likeOp = SalesRules::likeOperator();
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+            $baseQuery->where(function ($w) use ($likeOp, $like): void {
+                $w->where('c.erp_customer_code', $likeOp, $like)
+                    ->orWhere('c.customer_name', $likeOp, $like)
+                    ->orWhere('c.phone', $likeOp, $like)
+                    ->orWhere('c.province', $likeOp, $like)
+                    ->orWhere('c.salesperson_name', $likeOp, $like);
+            });
+        }
+
+        if ($mode === 'unvisited') {
+            $baseQuery->whereRaw('COALESCE(v_agg.visit_count, 0) = 0');
+        } elseif ($mode === 'inactive') {
+            $baseQuery->where(function ($w) use ($cutoffDate): void {
+                $w->whereNull('inv_agg.last_purchase_at')
+                    ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
+            });
+        } elseif ($mode === 'no_pin') {
+            $baseQuery->whereNull('loc.latitude');
+        } else {
+            $baseQuery->where(function ($w) use ($cutoffDate): void {
+                $w->whereRaw('COALESCE(v_agg.visit_count, 0) = 0')
+                    ->orWhereNull('inv_agg.last_purchase_at')
+                    ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
+            });
+        }
+
+        $rows = $baseQuery
+            ->select(
+                'c.id',
+                'c.erp_customer_code',
+                'c.customer_name',
+                'c.phone',
+                'c.province',
+                'c.address',
+                'c.salesperson_code',
+                'c.salesperson_name',
+                DB::raw('COALESCE(inv_agg.sale_invoice_count, 0) as sale_invoice_count'),
+                DB::raw('COALESCE(inv_agg.actual_before_vat, 0) as total_sales_net'),
+                'inv_agg.last_purchase_at',
+                DB::raw('COALESCE(v_agg.visit_count, 0) as visit_count'),
+                'v_agg.last_visited_at',
+                'loc.latitude',
+                'loc.longitude'
+            )
+            ->orderByDesc(DB::raw('COALESCE(inv_agg.actual_before_vat, 0)'))
+            ->limit(150)
+            ->get()
+            ->map(function ($row) use ($referenceDate) {
+                $daysSincePurchase = null;
+                if ($row->last_purchase_at) {
+                    $daysSincePurchase = max(0, (int) Carbon::parse($row->last_purchase_at)->diffInDays($referenceDate));
+                }
+                $row->days_since_purchase = $daysSincePurchase;
+                $row->has_pin = $row->latitude !== null && $row->longitude !== null;
+                return $row;
+            });
+
+        return response()->json([
+            'reference_date' => $referenceDate->toDateString(),
+            'days_threshold' => $daysThreshold,
+            'summary' => [
+                'total_scoped_customers' => $totalScoped,
+                'unvisited_count' => $unvisitedCount,
+                'inactive_count' => $inactiveCount,
+                'unpinned_count' => $unpinnedCount,
+            ],
+            'rows' => $rows,
+        ]);
+    }
+
+    public function products(Request $request): JsonResponse
+    {
+        $search = trim((string) $request->query('q', ''));
+        $limit = max(10, min(150, (int) $request->query('limit', 60)));
+
+        $latestPriceSub = DB::table('erp_sales_items')
+            ->where('unit_price', '>', 0)
+            ->groupBy('erp_product_code')
+            ->select(
+                'erp_product_code',
+                DB::raw('MAX(unit_price) as default_price'),
+                DB::raw('MAX(unit_name) as last_unit_name')
+            );
+
+        $q = DB::table('erp_products as p')
+            ->leftJoinSub($latestPriceSub, 'pr', 'pr.erp_product_code', '=', 'p.erp_product_code')
+            ->where(function ($w): void {
+                $w->whereNull('p.category_code')
+                    ->orWhereNotIn('p.category_code', ['CC', 'CO', 'AS', 'PK']);
+            });
+
+        if ($search !== '') {
+            $likeOp = SalesRules::likeOperator();
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+            $q->where(function ($w) use ($likeOp, $like): void {
+                $w->where('p.erp_product_code', $likeOp, $like)
+                    ->orWhere('p.product_name', $likeOp, $like)
+                    ->orWhere('p.category_name', $likeOp, $like);
+            });
+        }
+
+        $items = $q->select(
+            'p.id',
+            'p.erp_product_code',
+            'p.product_name',
+            DB::raw("COALESCE(NULLIF(p.unit, ''), NULLIF(pr.last_unit_name, ''), 'ชิ้น') as unit"),
+            'p.category_code',
+            'p.category_name',
+            DB::raw('COALESCE(pr.default_price, 0) as default_price')
+        )
+            ->orderByDesc(DB::raw('COALESCE(pr.default_price, 0) > 0'))
+            ->orderBy('p.erp_product_code')
+            ->limit($limit)
+            ->get();
+
+        return response()->json($items);
     }
 }

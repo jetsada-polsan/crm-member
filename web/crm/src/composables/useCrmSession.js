@@ -57,6 +57,7 @@ export const offlineDrafts = ref([]);
 export const offlineSyncing = ref(false);
 
 export const fmt = (n) => Number(n ?? 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+export const money = (n) => Number(n ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const stageLabel = (s) => PIPELINE_STAGES.find((x) => x.id === s)?.label || s;
 export const stageTagClass = (s) => PIPELINE_STAGES.find((x) => x.id === s)?.tag || 'blue';
 
