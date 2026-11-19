@@ -349,9 +349,76 @@ final class CustomerAccess
         return $list === [] ? null : implode(',', $list);
     }
 
+    public const CLOSED_CUSTOMER_KEYWORDS = [
+        'ยกเลิก',
+        'ปิดกิจการ',
+        'เลิกกิจการ',
+        'ห้ามเปิดบิล',
+        'ห้ามขาย',
+        'ไม่ใช้งาน',
+        'ไม่ใช้แล้ว',
+        'เปลี่ยนใช้รหัส',
+        'เปลี่ยนรหัสใหม่',
+    ];
+
+    /**
+     * Exclude ERP customers that are closed/disabled in Bplus (AR_ENABLE <> 'Y' or cancelled/closed name markers).
+     */
+    public static function applyActiveCustomerFilter(Builder $query, string $alias = 'erp_customers', bool $allowNull = false): Builder
+    {
+        $likeOp = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+        $colEnable = "{$alias}.ar_enable";
+        $colName = "{$alias}.customer_name";
+        $colId = "{$alias}.id";
+
+        $applyChecks = static function (Builder $w) use ($colEnable, $colName, $likeOp): void {
+            $w->where(function (Builder $en) use ($colEnable): void {
+                $en->whereNull($colEnable)
+                    ->orWhereRaw("UPPER(TRIM({$colEnable})) = 'Y'")
+                    ->orWhereRaw("TRIM({$colEnable}) = ''");
+            });
+
+            foreach (self::CLOSED_CUSTOMER_KEYWORDS as $kw) {
+                $w->where(function (Builder $nw) use ($colName, $likeOp, $kw): void {
+                    $nw->whereNull($colName)
+                        ->orWhere($colName, 'not '.$likeOp, '%'.$kw.'%');
+                });
+            }
+        };
+
+        if ($allowNull) {
+            return $query->where(function (Builder $outer) use ($colId, $applyChecks): void {
+                $outer->whereNull($colId)
+                    ->orWhere(function (Builder $inner) use ($applyChecks): void {
+                        $applyChecks($inner);
+                    });
+            });
+        }
+
+        return $query->where($applyChecks);
+    }
+
+    public static function isClosedCustomerRecord(?string $arEnable, ?string $customerName): bool
+    {
+        if ($arEnable !== null && trim($arEnable) !== '' && strtoupper(trim($arEnable)) !== 'Y') {
+            return true;
+        }
+        $name = (string) ($customerName ?? '');
+        if ($name !== '') {
+            foreach (self::CLOSED_CUSTOMER_KEYWORDS as $kw) {
+                if (mb_stripos($name, $kw, 0, 'UTF-8') !== false) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public static function query(string $alias = 'erp_customers', ?object $user = null): Builder
     {
         $query = DB::table('erp_customers as '.$alias);
+        self::applyActiveCustomerFilter($query, $alias, false);
 
         return self::applyCustomerScope($query, $alias, $user);
     }

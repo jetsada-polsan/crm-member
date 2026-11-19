@@ -22,6 +22,13 @@ final class ErpMirrorUpserter
             ->where('erp_customer_code', $code)
             ->exists();
 
+        if (! $exists && \App\Modules\CRM\CustomerAccess::isClosedCustomerRecord(
+            isset($rec['ar_enable']) ? (string) $rec['ar_enable'] : null,
+            isset($rec['customer_name']) ? (string) $rec['customer_name'] : null
+        )) {
+            return false;
+        }
+
         DB::table('erp_customers')->updateOrInsert(
             ['source_system' => $source, 'erp_customer_code' => $code],
             array_merge(

@@ -56,7 +56,7 @@ final class ErpLocalSyncController
         $this->requireAdmin();
 
         $counts = [
-            'customers' => DB::table('erp_customers')->count(),
+            'customers' => \App\Modules\CRM\CustomerAccess::applyActiveCustomerFilter(DB::table('erp_customers'), 'erp_customers', false)->count(),
             'products' => DB::table('erp_products')->count(),
             'invoices' => DB::table('erp_sales_invoices')->count(),
             'sales_items' => DB::table('erp_sales_items')->count(),

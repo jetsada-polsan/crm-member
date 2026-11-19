@@ -106,12 +106,15 @@ final class CustomerMasterController
         $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
         $page = max(1, (int) $request->query('page', 1));
 
-        // Lazily register any recently synced ERP customers into crm_customer_masters in fast batches
+        // Lazily register any recently synced active ERP customers into crm_customer_masters in fast batches
         $now = now();
         while (true) {
-            $missingErp = DB::table('erp_customers as c')
+            $missingErpQuery = DB::table('erp_customers as c')
                 ->leftJoin('crm_customer_masters as m', 'm.erp_customer_id', '=', 'c.id')
-                ->whereNull('m.id')
+                ->whereNull('m.id');
+            CustomerAccess::applyActiveCustomerFilter($missingErpQuery, 'c', false);
+
+            $missingErp = $missingErpQuery
                 ->orderBy('c.id')
                 ->limit(500)
                 ->select([
@@ -177,6 +180,8 @@ final class CustomerMasterController
                 $join->on('exc.source_system', '=', 'ec.source_system')
                     ->on('exc.erp_customer_code', '=', 'ec.erp_customer_code');
             });
+
+        CustomerAccess::applyActiveCustomerFilter($q, 'ec', true);
 
         if (! $isManager) {
             CustomerAccess::applyCustomerAndLeadScope($q, 'ec', 'l', $user);

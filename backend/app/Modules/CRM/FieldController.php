@@ -1072,6 +1072,7 @@ final class FieldController
         $isManager = $this->manager();
         $user = $this->user();
         $applyScope = function ($q) use ($user): void {
+            CustomerAccess::applyActiveCustomerFilter($q, 'c', true);
             CustomerAccess::applyCustomerAndLeadScope($q, 'c', 'd', $user);
         };
 
@@ -1552,6 +1553,8 @@ final class FieldController
                     ->on('inv_agg.erp_customer_code', '=', 'c.erp_customer_code');
             })
             ->leftJoinSub($visitAgg, 'v_agg', 'v_agg.erp_customer_id', '=', 'c.id');
+
+        CustomerAccess::applyActiveCustomerFilter($q, 'c', false);
 
         if (! CustomerAccess::isManager($staff)) {
             CustomerAccess::applyCustomerScope($q, 'c', $staff);
