@@ -1,0 +1,322 @@
+﻿#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Fast resumable forward-only 2026 invoice & reservation bulk sync from Bplus SQL Server to PostgreSQL.
+    Reads strictly from erp_sync_cursors forward (DI_DATE >= '20260101' AND DI_KEY > cursor) — never goes backwards.
+#>
+param(
+    [int]$BatchSize = 2500,
+    [int]$MaxBatches = 0,
+    [string]$StartDate = "20260101"
+)
+
+$ErrorActionPreference = "Stop"
+Import-Module (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
+Add-Type -AssemblyName System.Data
+Add-Type -AssemblyName System.Web.Extensions
+$JsonSerializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+$JsonSerializer.MaxJsonLength = [int]::MaxValue
+
+$AgentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RootDir = Split-Path -Parent $AgentDir
+$ConfigFile = Join-Path $AgentDir "config.env"
+$PhpExe = "D:\xampp\php\php.exe"
+$ImporterScript = Join-Path $RootDir "backend\scripts\bulk_upsert_invoices.php"
+$LogFile = Join-Path $AgentDir "sync-2026-progress.log"
+$TmpJson = Join-Path $AgentDir ".tmp-sync-2026-chunk.json"
+
+function Write-Log {
+    param([string]$Msg)
+    $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $Msg"
+    Write-Host $line
+    Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
+}
+
+function Load-ConfigEnv {
+    param([string]$Path)
+    $map = @{}
+    foreach ($line in Get-Content $Path -Encoding UTF8) {
+        $trim = $line.Trim()
+        if ($trim -eq "" -or $trim.StartsWith("#")) { continue }
+        $idx = $trim.IndexOf("=")
+        if ($idx -gt 0) {
+            $map[$trim.Substring(0, $idx).Trim()] = $trim.Substring($idx + 1).Trim().Trim('"').Trim("'")
+        }
+    }
+    return $map
+}
+
+function Convert-SqlVal {
+    param($val)
+    if ($null -eq $val -or $val -is [DBNull]) { return $null }
+    if ($val -is [bool]) { return $val }
+    if ($val -is [DateTime]) { return $val.ToString("yyyy-MM-ddTHH:mm:sszzz") }
+    if ($val -is [Decimal] -or $val -is [Double] -or $val -is [Single]) { return [string]$val }
+    return ([string]$val).Trim()
+}
+
+$cfg = Load-ConfigEnv -Path $ConfigFile
+$SourceSystem = if ($cfg["SYNC_SOURCE"]) { $cfg["SYNC_SOURCE"] } else { "BPLUS" }
+
+$securePwd = ConvertTo-SecureString -String $cfg["SQL_PASSWORD_DPAPI"]
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePwd)
+$pwd = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+
+$builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+$builder["Data Source"] = "tcp:$($cfg['SQL_SERVER']),$($cfg['SQL_PORT'])"
+$builder["Initial Catalog"] = $cfg["SQL_DATABASE"]
+$builder["User ID"] = $cfg["SQL_USER"]
+$builder["Password"] = $pwd
+$builder["Encrypt"] = $true
+$builder["TrustServerCertificate"] = $true
+$builder["Connect Timeout"] = 20
+$connStr = $builder.ConnectionString
+$pwd = $null
+
+$cursorRaw = & $PhpExe $ImporterScript --get-cursor $SourceSystem
+[long]$cursor = [long]($cursorRaw.Trim())
+
+$HeaderSql = @"
+SELECT TOP (@limit)
+  di_key,
+  branch_code,
+  doc_type,
+  dt_properties,
+  doc_category,
+  invoice_no,
+  erp_customer_code,
+  salesperson_code,
+  salesperson_name,
+  sold_at,
+  before_vat_amount,
+  vat_amount,
+  gross_amount,
+  net_amount,
+  status
+FROM (
+  SELECT
+    DOCINFO.DI_KEY AS di_key,
+    CAST(COALESCE(BRANCH.BR_CODE, '001') AS varchar(32)) AS branch_code,
+    CAST(DOCTYPE.DT_DOCCODE AS varchar(32)) AS doc_type,
+    CAST(DOCTYPE.DT_PROPERTIES AS int) AS dt_properties,
+    CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN 'return' ELSE 'sale' END AS doc_category,
+    CAST(DOCINFO.DI_REF AS varchar(80)) AS invoice_no,
+    CAST(ARFILE.AR_CODE AS varchar(64)) AS erp_customer_code,
+    CAST(COALESCE(SM.SLMN_CODE, ARC_SM.SLMN_CODE, ARFILE.AR_SLMNCODE) AS varchar(32)) AS salesperson_code,
+    CAST(COALESCE(SM.SLMN_NAME, ARC_SM.SLMN_NAME) AS nvarchar(120)) AS salesperson_name,
+    DOCINFO.DI_DATE AS sold_at,
+    CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0)) ELSE (COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0)) END AS decimal(16, 2)) AS before_vat_amount,
+    CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(ARDETAIL.ARD_B_VAT, 0)) ELSE COALESCE(ARDETAIL.ARD_B_VAT, 0) END AS decimal(16, 2)) AS vat_amount,
+    CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(ARDETAIL.ARD_B_AMT, 0)) ELSE COALESCE(ARDETAIL.ARD_B_AMT, 0) END AS decimal(16, 2)) AS gross_amount,
+    CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0)) ELSE (COALESCE(ARDETAIL.ARD_B_SV, 0) + COALESCE(ARDETAIL.ARD_B_SNV, 0)) END AS decimal(16, 2)) AS net_amount,
+    CASE WHEN DOCINFO.DI_ACTIVE = 1 THEN 'cancelled' WHEN DOCINFO.DI_ACTIVE = 0 AND DOCTYPE.DT_PROPERTIES = 308 THEN 'returned' WHEN DOCINFO.DI_ACTIVE = 0 THEN 'posted' ELSE 'other' END AS status
+  FROM DOCINFO
+  INNER JOIN DOCTYPE ON DOCINFO.DI_DT = DOCTYPE.DT_KEY
+  INNER JOIN ARDETAIL ON DOCINFO.DI_KEY = ARDETAIL.ARD_DI
+  INNER JOIN ARFILE ON ARDETAIL.ARD_AR = ARFILE.AR_KEY
+  LEFT JOIN TRANSTKH ON DOCINFO.DI_KEY = TRANSTKH.TRH_DI
+  LEFT JOIN BRANCH ON TRANSTKH.TRH_BR = BRANCH.BR_KEY
+  OUTER APPLY (
+    SELECT TOP 1 S.SLMN_CODE, S.SLMN_NAME
+    FROM SLDETAIL SD
+    INNER JOIN SALESMAN S ON S.SLMN_KEY = SD.SLD_SLMN
+    WHERE SD.SLD_DI = DOCINFO.DI_KEY
+    ORDER BY S.SLMN_CODE ASC
+  ) AS SM
+  LEFT JOIN SALESMAN ARC_SM ON ARC_SM.SLMN_CODE = ARFILE.AR_SLMNCODE
+  WHERE DOCTYPE.DT_PROPERTIES IN (302, 307, 308, 337)
+    AND DOCINFO.DI_REF IS NOT NULL
+    AND DOCINFO.DI_DATE >= @startDate
+    AND DOCINFO.DI_KEY > @afterKey
+
+  UNION ALL
+
+  SELECT
+    DOCINFO.DI_KEY AS di_key,
+    CAST(COALESCE(BRANCH.BR_CODE, '001') AS varchar(32)) AS branch_code,
+    CAST(DOCTYPE.DT_DOCCODE AS varchar(32)) AS doc_type,
+    CAST(DOCTYPE.DT_PROPERTIES AS int) AS dt_properties,
+    'reservation' AS doc_category,
+    CAST(DOCINFO.DI_REF AS varchar(80)) AS invoice_no,
+    CAST(ARFILE.AR_CODE AS varchar(64)) AS erp_customer_code,
+    CAST(COALESCE(SM.SLMN_CODE, ARC_SM.SLMN_CODE, ARFILE.AR_SLMNCODE) AS varchar(32)) AS salesperson_code,
+    CAST(COALESCE(SM.SLMN_NAME, ARC_SM.SLMN_NAME) AS nvarchar(120)) AS salesperson_name,
+    DOCINFO.DI_DATE AS sold_at,
+    CAST(COALESCE(AROE.AROE_B_SV, 0) + COALESCE(AROE.AROE_B_SNV, 0) AS decimal(16, 2)) AS before_vat_amount,
+    CAST(COALESCE(AROE.AROE_B_VAT, 0) AS decimal(16, 2)) AS vat_amount,
+    CAST(COALESCE(AROE.AROE_B_AMT, 0) AS decimal(16, 2)) AS gross_amount,
+    CAST(COALESCE(AROE.AROE_B_SV, 0) + COALESCE(AROE.AROE_B_SNV, 0) AS decimal(16, 2)) AS net_amount,
+    CASE WHEN DOCINFO.DI_ACTIVE = 1 THEN 'cancelled' WHEN DOCINFO.DI_ACTIVE = 0 THEN 'reserved' ELSE 'other' END AS status
+  FROM DOCINFO
+  INNER JOIN DOCTYPE ON DOCINFO.DI_DT = DOCTYPE.DT_KEY
+  INNER JOIN AROE ON DOCINFO.DI_KEY = AROE.AROE_DI
+  INNER JOIN ARFILE ON AROE.AROE_AR = ARFILE.AR_KEY
+  LEFT JOIN TRANSTKH ON DOCINFO.DI_KEY = TRANSTKH.TRH_DI
+  LEFT JOIN BRANCH ON TRANSTKH.TRH_BR = BRANCH.BR_KEY
+  LEFT JOIN SALESMAN SM ON AROE.AROE_SLMN = SM.SLMN_KEY
+  LEFT JOIN SALESMAN ARC_SM ON ARC_SM.SLMN_CODE = ARFILE.AR_SLMNCODE
+  WHERE DOCTYPE.DT_PROPERTIES = 207
+    AND DOCINFO.DI_REF IS NOT NULL
+    AND DOCINFO.DI_DATE >= @startDate
+    AND DOCINFO.DI_KEY > @afterKey
+) AS merged
+ORDER BY di_key ASC;
+"@
+
+# Bulk fetch line items ONLY for actual sales & returns (302, 307, 308, 337) in the current DI_KEY window
+$ItemsSql = @"
+SELECT
+  CAST(COALESCE(BRANCH.BR_CODE, '001') AS varchar(32)) AS branch_code,
+  CAST(DOCTYPE.DT_DOCCODE AS varchar(32)) AS doc_type,
+  CAST(DOCINFO.DI_REF AS varchar(80)) AS invoice_no,
+  CAST(TRANSTKD.TRD_SEQ AS int) AS line_no,
+  CAST(COALESCE(SKUMASTER.SKU_CODE, TRANSTKD.TRD_SH_CODE) AS varchar(64)) AS erp_product_code,
+  CAST(COALESCE(SKUMASTER.SKU_NAME, TRANSTKD.TRD_SH_NAME) AS nvarchar(255)) AS product_name,
+  CAST(ICCAT.ICCAT_CODE AS varchar(32)) AS iccat_code,
+  CAST(ICCAT.ICCAT_NAME AS nvarchar(120)) AS iccat_name,
+  CAST(CASE WHEN UPPER(LTRIM(RTRIM(COALESCE(ICCAT.ICCAT_CODE, '')))) IN ('CC', 'CO', 'AS', 'PK') THEN 1 ELSE 0 END AS bit) AS is_excluded_kpi,
+  CAST(TRANSTKD.TRD_QTY AS decimal(16, 4)) AS qty,
+  CAST(TRANSTKD.TRD_UTQNAME AS nvarchar(30)) AS unit_name,
+  CAST(TRANSTKD.TRD_U_PRC AS decimal(16, 4)) AS unit_price,
+  CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(TRANSTKD.TRD_B_SELL, 0)) ELSE COALESCE(TRANSTKD.TRD_B_SELL, 0) END AS decimal(16, 2)) AS before_vat_amount,
+  CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(TRANSTKD.TRD_B_VAT, 0)) ELSE COALESCE(TRANSTKD.TRD_B_VAT, 0) END AS decimal(16, 2)) AS vat_amount,
+  CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(TRANSTKD.TRD_B_AMT, 0)) ELSE COALESCE(TRANSTKD.TRD_B_AMT, 0) END AS decimal(16, 2)) AS gross_amount,
+  CAST(CASE WHEN DOCTYPE.DT_PROPERTIES = 308 THEN -ABS(COALESCE(TRANSTKD.TRD_B_SELL, 0)) ELSE COALESCE(TRANSTKD.TRD_B_SELL, 0) END AS decimal(16, 2)) AS net_amount,
+  CAST(TRANSTKD.TRD_REFER_TRD AS varchar(64)) AS refer_trd_key,
+  CAST(TRANSTKD.TRD_REFER_REF AS varchar(80)) AS refer_doc_ref
+FROM DOCINFO
+INNER JOIN DOCTYPE ON DOCINFO.DI_DT = DOCTYPE.DT_KEY
+INNER JOIN TRANSTKH ON DOCINFO.DI_KEY = TRANSTKH.TRH_DI
+INNER JOIN TRANSTKD ON TRANSTKH.TRH_KEY = TRANSTKD.TRD_TRH
+LEFT JOIN BRANCH ON TRANSTKH.TRH_BR = BRANCH.BR_KEY
+LEFT JOIN SKUMASTER ON TRANSTKD.TRD_SKU = SKUMASTER.SKU_KEY
+LEFT JOIN ICCAT ON SKUMASTER.SKU_ICCAT = ICCAT.ICCAT_KEY
+WHERE DOCTYPE.DT_PROPERTIES IN (302, 307, 308, 337)
+  AND DOCINFO.DI_REF IS NOT NULL
+  AND DOCINFO.DI_DATE >= @startDate
+  AND DOCINFO.DI_KEY > @minKey
+  AND DOCINFO.DI_KEY <= @maxKey
+ORDER BY DOCINFO.DI_KEY ASC, TRANSTKD.TRD_SEQ ASC;
+"@
+
+$conn = New-Object System.Data.SqlClient.SqlConnection($connStr)
+$conn.Open()
+
+$batchNum = 0
+$totalInv = 0
+$totalItems = 0
+$swAll = [System.Diagnostics.Stopwatch]::StartNew()
+
+Write-Log "เริ่มซิงก์บิลปี 2026 ต่อจาก cursor DI_KEY > $cursor (BatchSize=$BatchSize, StartDate=$StartDate)"
+
+try {
+    while ($true) {
+        if ($MaxBatches -gt 0 -and $batchNum -ge $MaxBatches) {
+            Write-Log "ครบจำนวนรอบทดสอบ MaxBatches=$MaxBatches (หยุดชั่วคราวที่ cursor=$cursor)"
+            break
+        }
+        $batchNum++
+        $swBatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        # 1. Bulk fetch invoice headers
+        $cmdH = $conn.CreateCommand()
+        $cmdH.CommandTimeout = 120
+        $cmdH.CommandText = $HeaderSql
+        [void]$cmdH.Parameters.Add("@limit", [System.Data.SqlDbType]::Int)
+        $cmdH.Parameters["@limit"].Value = $BatchSize
+        [void]$cmdH.Parameters.Add("@startDate", [System.Data.SqlDbType]::VarChar, 8)
+        $cmdH.Parameters["@startDate"].Value = $StartDate
+        [void]$cmdH.Parameters.Add("@afterKey", [System.Data.SqlDbType]::BigInt)
+        $cmdH.Parameters["@afterKey"].Value = $cursor
+
+        $invoices = New-Object System.Collections.ArrayList
+        $maxKey = $cursor
+        $lastDate = ""
+        $hasSalesInBatch = $false
+
+        $rH = $cmdH.ExecuteReader()
+        $fieldCount = $rH.FieldCount
+        $fieldNames = @()
+        for ($i = 0; $i -lt $fieldCount; $i++) { $fieldNames += $rH.GetName($i) }
+        while ($rH.Read()) {
+            $obj = @{}
+            for ($i = 0; $i -lt $fieldCount; $i++) {
+                $obj[$fieldNames[$i]] = Convert-SqlVal $rH.GetValue($i)
+            }
+            $dk = [long]$obj["di_key"]
+            if ($dk -gt $maxKey) { $maxKey = $dk }
+            if ($obj["sold_at"]) { $lastDate = ([string]$obj["sold_at"]).Substring(0, 10) }
+            if ($obj["doc_category"] -ne "reservation") { $hasSalesInBatch = $true }
+            [void]$invoices.Add($obj)
+        }
+        $rH.Close()
+
+        if ($invoices.Count -eq 0) {
+            Write-Log "ไม่มีเอกสารใหม่เหลือแล้ว ซิงก์ครบถึงปัจจุบันแล้วครับ!"
+            break
+        }
+
+        # 2. Bulk fetch line items for sales/returns in this DI_KEY window
+        $items = New-Object System.Collections.ArrayList
+        if ($hasSalesInBatch) {
+            $cmdI = $conn.CreateCommand()
+            $cmdI.CommandTimeout = 120
+            $cmdI.CommandText = $ItemsSql
+            [void]$cmdI.Parameters.Add("@startDate", [System.Data.SqlDbType]::VarChar, 8)
+            $cmdI.Parameters["@startDate"].Value = $StartDate
+            [void]$cmdI.Parameters.Add("@minKey", [System.Data.SqlDbType]::BigInt)
+            $cmdI.Parameters["@minKey"].Value = $cursor
+            [void]$cmdI.Parameters.Add("@maxKey", [System.Data.SqlDbType]::BigInt)
+            $cmdI.Parameters["@maxKey"].Value = $maxKey
+
+            $rI = $cmdI.ExecuteReader()
+            $iFieldCount = $rI.FieldCount
+            $iFieldNames = @()
+            for ($i = 0; $i -lt $iFieldCount; $i++) { $iFieldNames += $rI.GetName($i) }
+            while ($rI.Read()) {
+                $obj = @{}
+                for ($i = 0; $i -lt $iFieldCount; $i++) {
+                    $obj[$iFieldNames[$i]] = Convert-SqlVal $rI.GetValue($i)
+                }
+                [void]$items.Add($obj)
+            }
+            $rI.Close()
+        }
+
+        # 3. Write chunk JSON (via fast compiled .NET JavaScriptSerializer) & bulk upsert into PostgreSQL
+        $payload = @{
+            source = $SourceSystem
+            next_cursor = $maxKey
+            invoices = $invoices
+            items = $items
+        }
+        $json = $JsonSerializer.Serialize($payload)
+        [System.IO.File]::WriteAllText($TmpJson, $json, [System.Text.UTF8Encoding]::new($false))
+
+        $phpOut = & $PhpExe $ImporterScript $TmpJson
+        if ($LASTEXITCODE -ne 0) {
+            throw "PHP bulk_upsert_invoices failed (exit $LASTEXITCODE): $phpOut"
+        }
+
+        $cursor = $maxKey
+        $totalInv += $invoices.Count
+        $totalItems += $items.Count
+        $secBatch = [Math]::Round($swBatch.Elapsed.TotalSeconds, 2)
+        $rate = if ($swAll.Elapsed.TotalSeconds -gt 0) { [Math]::Round($totalInv / $swAll.Elapsed.TotalSeconds, 0) } else { 0 }
+        Write-Log "Batch #$batchNum | บิล +$($invoices.Count) (สะสม $totalInv) | รายการสินค้า +$($items.Count) (สะสม $totalItems) | วันที่ถึง $lastDate | DI_KEY=$cursor | ใช้เวลา ${secBatch}s (~$rate บิล/วิ)"
+
+        if ($invoices.Count -lt $BatchSize) {
+            Write-Log "ถึงเอกสารล่าสุดของปี 2026 แล้ว!"
+            break
+        }
+    }
+}
+finally {
+    if ($conn.State -ne [System.Data.ConnectionState]::Closed) { $conn.Close() }
+    $conn.Dispose()
+    if (Test-Path -LiteralPath $TmpJson) { Remove-Item -LiteralPath $TmpJson -Force -ErrorAction SilentlyContinue }
+}
+
+$finalJson = & $PhpExe $ImporterScript --finalize-staff
+Write-Log "เสร็จสิ้น! สรุปหลังซิงก์: $finalJson"
