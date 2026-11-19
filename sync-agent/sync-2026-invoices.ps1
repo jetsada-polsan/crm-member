@@ -2,10 +2,11 @@
 <#
 .SYNOPSIS
     Fast resumable forward-only 2026 invoice & reservation bulk sync from Bplus SQL Server to PostgreSQL.
+    Streams UTF-8 TSV chunks directly via .NET StreamWriter (ultra-fast, zero JSON serialization overhead).
     Reads strictly from erp_sync_cursors forward (DI_DATE >= '20260101' AND DI_KEY > cursor) — never goes backwards.
 #>
 param(
-    [int]$BatchSize = 2500,
+    [int]$BatchSize = 3000,
     [int]$MaxBatches = 0,
     [string]$StartDate = "20260101"
 )
@@ -13,9 +14,6 @@ param(
 $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
 Add-Type -AssemblyName System.Data
-Add-Type -AssemblyName System.Web.Extensions
-$JsonSerializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-$JsonSerializer.MaxJsonLength = [int]::MaxValue
 
 $AgentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = Split-Path -Parent $AgentDir
@@ -23,7 +21,9 @@ $ConfigFile = Join-Path $AgentDir "config.env"
 $PhpExe = "D:\xampp\php\php.exe"
 $ImporterScript = Join-Path $RootDir "backend\scripts\bulk_upsert_invoices.php"
 $LogFile = Join-Path $AgentDir "sync-2026-progress.log"
-$TmpJson = Join-Path $AgentDir ".tmp-sync-2026-chunk.json"
+$TmpInvTsv = Join-Path $AgentDir ".tmp-sync-2026-inv.tsv"
+$TmpItemTsv = Join-Path $AgentDir ".tmp-sync-2026-items.tsv"
+$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 function Write-Log {
     param([string]$Msg)
@@ -46,13 +46,16 @@ function Load-ConfigEnv {
     return $map
 }
 
-function Convert-SqlVal {
+function Format-TsvVal {
     param($val)
-    if ($null -eq $val -or $val -is [DBNull]) { return $null }
-    if ($val -is [bool]) { return $val }
+    if ($null -eq $val -or $val -is [DBNull]) { return "" }
+    if ($val -is [bool]) { return $(if ($val) { "1" } else { "0" }) }
     if ($val -is [DateTime]) { return $val.ToString("yyyy-MM-ddTHH:mm:sszzz") }
-    if ($val -is [Decimal] -or $val -is [Double] -or $val -is [Single]) { return [string]$val }
-    return ([string]$val).Trim()
+    $s = ([string]$val).Trim()
+    if ($s.IndexOfAny(@([char]9, [char]10, [char]13)) -ge 0) {
+        $s = $s -replace "[\t\r\n]+", " "
+    }
+    return $s
 }
 
 $cfg = Load-ConfigEnv -Path $ConfigFile
@@ -164,7 +167,6 @@ FROM (
 ORDER BY di_key ASC;
 "@
 
-# Bulk fetch line items ONLY for actual sales & returns (302, 307, 308, 337) in the current DI_KEY window
 $ItemsSql = @"
 SELECT
   CAST(COALESCE(BRANCH.BR_CODE, '001') AS varchar(32)) AS branch_code,
@@ -208,7 +210,7 @@ $totalInv = 0
 $totalItems = 0
 $swAll = [System.Diagnostics.Stopwatch]::StartNew()
 
-Write-Log "เริ่มซิงก์บิลปี 2026 ต่อจาก cursor DI_KEY > $cursor (BatchSize=$BatchSize, StartDate=$StartDate)"
+Write-Log "เริ่มซิงก์บิลปี 2026 (โหมด TSV ความเร็วสูง) ต่อจาก cursor DI_KEY > $cursor (BatchSize=$BatchSize, StartDate=$StartDate)"
 
 try {
     while ($true) {
@@ -219,9 +221,9 @@ try {
         $batchNum++
         $swBatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-        # 1. Bulk fetch invoice headers
+        # 1. Stream invoice headers straight to TSV file
         $cmdH = $conn.CreateCommand()
-        $cmdH.CommandTimeout = 120
+        $cmdH.CommandTimeout = 180
         $cmdH.CommandText = $HeaderSql
         [void]$cmdH.Parameters.Add("@limit", [System.Data.SqlDbType]::Int)
         $cmdH.Parameters["@limit"].Value = $BatchSize
@@ -230,83 +232,94 @@ try {
         [void]$cmdH.Parameters.Add("@afterKey", [System.Data.SqlDbType]::BigInt)
         $cmdH.Parameters["@afterKey"].Value = $cursor
 
-        $invoices = New-Object System.Collections.ArrayList
+        $invCount = 0
         $maxKey = $cursor
         $lastDate = ""
         $hasSalesInBatch = $false
 
         $rH = $cmdH.ExecuteReader()
-        $fieldCount = $rH.FieldCount
-        $fieldNames = @()
-        for ($i = 0; $i -lt $fieldCount; $i++) { $fieldNames += $rH.GetName($i) }
-        while ($rH.Read()) {
-            $obj = @{}
-            for ($i = 0; $i -lt $fieldCount; $i++) {
-                $obj[$fieldNames[$i]] = Convert-SqlVal $rH.GetValue($i)
+        $swInv = New-Object System.IO.StreamWriter($TmpInvTsv, $false, $Utf8NoBom)
+        try {
+            $fc = $rH.FieldCount
+            $cols = New-Object string[] $fc
+            for ($i = 0; $i -lt $fc; $i++) { $cols[$i] = $rH.GetName($i) }
+            $swInv.WriteLine([string]::Join("`t", $cols))
+            $vals = New-Object string[] $fc
+            while ($rH.Read()) {
+                for ($i = 0; $i -lt $fc; $i++) {
+                    $vals[$i] = Format-TsvVal $rH.GetValue($i)
+                }
+                $swInv.WriteLine([string]::Join("`t", $vals))
+                $dk = [long]$vals[0]
+                if ($dk -gt $maxKey) { $maxKey = $dk }
+                if ($vals[4] -ne "reservation") { $hasSalesInBatch = $true }
+                if ($vals[9].Length -ge 10) { $lastDate = $vals[9].Substring(0, 10) }
+                $invCount++
             }
-            $dk = [long]$obj["di_key"]
-            if ($dk -gt $maxKey) { $maxKey = $dk }
-            if ($obj["sold_at"]) { $lastDate = ([string]$obj["sold_at"]).Substring(0, 10) }
-            if ($obj["doc_category"] -ne "reservation") { $hasSalesInBatch = $true }
-            [void]$invoices.Add($obj)
         }
-        $rH.Close()
+        finally {
+            $swInv.Close()
+            $rH.Close()
+        }
 
-        if ($invoices.Count -eq 0) {
+        if ($invCount -eq 0) {
             Write-Log "ไม่มีเอกสารใหม่เหลือแล้ว ซิงก์ครบถึงปัจจุบันแล้วครับ!"
             break
         }
 
-        # 2. Bulk fetch line items for sales/returns in this DI_KEY window
-        $items = New-Object System.Collections.ArrayList
-        if ($hasSalesInBatch) {
-            $cmdI = $conn.CreateCommand()
-            $cmdI.CommandTimeout = 120
-            $cmdI.CommandText = $ItemsSql
-            [void]$cmdI.Parameters.Add("@startDate", [System.Data.SqlDbType]::VarChar, 8)
-            $cmdI.Parameters["@startDate"].Value = $StartDate
-            [void]$cmdI.Parameters.Add("@minKey", [System.Data.SqlDbType]::BigInt)
-            $cmdI.Parameters["@minKey"].Value = $cursor
-            [void]$cmdI.Parameters.Add("@maxKey", [System.Data.SqlDbType]::BigInt)
-            $cmdI.Parameters["@maxKey"].Value = $maxKey
+        # 2. Stream sales/return line items straight to TSV file
+        $itemCount = 0
+        $swIt = New-Object System.IO.StreamWriter($TmpItemTsv, $false, $Utf8NoBom)
+        try {
+            if ($hasSalesInBatch) {
+                $cmdI = $conn.CreateCommand()
+                $cmdI.CommandTimeout = 180
+                $cmdI.CommandText = $ItemsSql
+                [void]$cmdI.Parameters.Add("@startDate", [System.Data.SqlDbType]::VarChar, 8)
+                $cmdI.Parameters["@startDate"].Value = $StartDate
+                [void]$cmdI.Parameters.Add("@minKey", [System.Data.SqlDbType]::BigInt)
+                $cmdI.Parameters["@minKey"].Value = $cursor
+                [void]$cmdI.Parameters.Add("@maxKey", [System.Data.SqlDbType]::BigInt)
+                $cmdI.Parameters["@maxKey"].Value = $maxKey
 
-            $rI = $cmdI.ExecuteReader()
-            $iFieldCount = $rI.FieldCount
-            $iFieldNames = @()
-            for ($i = 0; $i -lt $iFieldCount; $i++) { $iFieldNames += $rI.GetName($i) }
-            while ($rI.Read()) {
-                $obj = @{}
-                for ($i = 0; $i -lt $iFieldCount; $i++) {
-                    $obj[$iFieldNames[$i]] = Convert-SqlVal $rI.GetValue($i)
+                $rI = $cmdI.ExecuteReader()
+                try {
+                    $ifc = $rI.FieldCount
+                    $icols = New-Object string[] $ifc
+                    for ($i = 0; $i -lt $ifc; $i++) { $icols[$i] = $rI.GetName($i) }
+                    $swIt.WriteLine([string]::Join("`t", $icols))
+                    $ivals = New-Object string[] $ifc
+                    while ($rI.Read()) {
+                        for ($i = 0; $i -lt $ifc; $i++) {
+                            $ivals[$i] = Format-TsvVal $rI.GetValue($i)
+                        }
+                        $swIt.WriteLine([string]::Join("`t", $ivals))
+                        $itemCount++
+                    }
                 }
-                [void]$items.Add($obj)
+                finally {
+                    $rI.Close()
+                }
             }
-            $rI.Close()
+        }
+        finally {
+            $swIt.Close()
         }
 
-        # 3. Write chunk JSON (via fast compiled .NET JavaScriptSerializer) & bulk upsert into PostgreSQL
-        $payload = @{
-            source = $SourceSystem
-            next_cursor = $maxKey
-            invoices = $invoices
-            items = $items
-        }
-        $json = $JsonSerializer.Serialize($payload)
-        [System.IO.File]::WriteAllText($TmpJson, $json, [System.Text.UTF8Encoding]::new($false))
-
-        $phpOut = & $PhpExe $ImporterScript $TmpJson
+        # 3. Bulk upsert TSV files into PostgreSQL
+        $phpOut = & $PhpExe $ImporterScript --tsv $SourceSystem $maxKey $TmpInvTsv $TmpItemTsv
         if ($LASTEXITCODE -ne 0) {
             throw "PHP bulk_upsert_invoices failed (exit $LASTEXITCODE): $phpOut"
         }
 
         $cursor = $maxKey
-        $totalInv += $invoices.Count
-        $totalItems += $items.Count
+        $totalInv += $invCount
+        $totalItems += $itemCount
         $secBatch = [Math]::Round($swBatch.Elapsed.TotalSeconds, 2)
         $rate = if ($swAll.Elapsed.TotalSeconds -gt 0) { [Math]::Round($totalInv / $swAll.Elapsed.TotalSeconds, 0) } else { 0 }
-        Write-Log "Batch #$batchNum | บิล +$($invoices.Count) (สะสม $totalInv) | รายการสินค้า +$($items.Count) (สะสม $totalItems) | วันที่ถึง $lastDate | DI_KEY=$cursor | ใช้เวลา ${secBatch}s (~$rate บิล/วิ)"
+        Write-Log "Batch #$batchNum | บิล +$invCount (สะสม $totalInv) | สินค้าท้ายบิล +$itemCount (สะสม $totalItems) | ถึงวันที่ $lastDate | DI_KEY=$cursor | ใช้เวลา ${secBatch}s (~$rate บิล/วิ)"
 
-        if ($invoices.Count -lt $BatchSize) {
+        if ($invCount -lt $BatchSize) {
             Write-Log "ถึงเอกสารล่าสุดของปี 2026 แล้ว!"
             break
         }
@@ -315,7 +328,8 @@ try {
 finally {
     if ($conn.State -ne [System.Data.ConnectionState]::Closed) { $conn.Close() }
     $conn.Dispose()
-    if (Test-Path -LiteralPath $TmpJson) { Remove-Item -LiteralPath $TmpJson -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $TmpInvTsv) { Remove-Item -LiteralPath $TmpInvTsv -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $TmpItemTsv) { Remove-Item -LiteralPath $TmpItemTsv -Force -ErrorAction SilentlyContinue }
 }
 
 $finalJson = & $PhpExe $ImporterScript --finalize-staff

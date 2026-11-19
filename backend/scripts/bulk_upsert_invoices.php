@@ -32,27 +32,81 @@ if ($action === '--finalize-staff') {
     exit(0);
 }
 
-$jsonPath = $argv[1] ?? '';
-if ($jsonPath === '' || ! is_file($jsonPath)) {
-    fwrite(STDERR, "Usage: php bulk_upsert_invoices.php <chunk.json> | --get-cursor [SOURCE] | --finalize-staff\n");
-    exit(2);
+/**
+ * Read a headered UTF-8 TSV file into an array of associative arrays.
+ *
+ * @return list<array<string, string>>
+ */
+function readTsvRows(string $path): array
+{
+    if (! is_file($path)) {
+        return [];
+    }
+    $fh = fopen($path, 'rb');
+    if ($fh === false) {
+        return [];
+    }
+    $headerLine = fgets($fh);
+    if ($headerLine === false) {
+        fclose($fh);
+        return [];
+    }
+    if (str_starts_with($headerLine, "\xEF\xBB\xBF")) {
+        $headerLine = substr($headerLine, 3);
+    }
+    $headers = explode("\t", rtrim($headerLine, "\r\n"));
+    $colCount = count($headers);
+    $rows = [];
+    while (($line = fgets($fh)) !== false) {
+        $line = rtrim($line, "\r\n");
+        if ($line === '') {
+            continue;
+        }
+        $parts = explode("\t", $line);
+        $row = [];
+        for ($i = 0; $i < $colCount; $i++) {
+            $row[$headers[$i]] = $parts[$i] ?? '';
+        }
+        $rows[] = $row;
+    }
+    fclose($fh);
+
+    return $rows;
 }
 
-$raw = file_get_contents($jsonPath);
-// Strip UTF-8 BOM if present from PowerShell
-if (str_starts_with($raw, "\xEF\xBB\xBF")) {
-    $raw = substr($raw, 3);
-}
-$payload = json_decode($raw, true);
-if (! is_array($payload)) {
-    fwrite(STDERR, "Invalid JSON payload in {$jsonPath}\n");
-    exit(1);
+$source = 'BPLUS';
+$nextCursor = 0;
+$rawInvoices = [];
+$rawItems = [];
+
+if ($action === '--tsv') {
+    $source = (string) ($argv[2] ?? 'BPLUS');
+    $nextCursor = (int) ($argv[3] ?? 0);
+    $invPath = (string) ($argv[4] ?? '');
+    $itemPath = (string) ($argv[5] ?? '');
+    $rawInvoices = readTsvRows($invPath);
+    $rawItems = readTsvRows($itemPath);
+} else {
+    $jsonPath = $action;
+    if ($jsonPath === '' || ! is_file($jsonPath)) {
+        fwrite(STDERR, "Usage: php bulk_upsert_invoices.php --tsv <SOURCE> <NEXT_CURSOR> <inv.tsv> <items.tsv>\n");
+        exit(2);
+    }
+    $raw = file_get_contents($jsonPath);
+    if (str_starts_with($raw, "\xEF\xBB\xBF")) {
+        $raw = substr($raw, 3);
+    }
+    $payload = json_decode($raw, true);
+    if (! is_array($payload)) {
+        fwrite(STDERR, "Invalid JSON payload in {$jsonPath}\n");
+        exit(1);
+    }
+    $source = (string) ($payload['source'] ?? 'BPLUS');
+    $nextCursor = (int) ($payload['next_cursor'] ?? 0);
+    $rawInvoices = $payload['invoices'] ?? [];
+    $rawItems = $payload['items'] ?? [];
 }
 
-$source = (string) ($payload['source'] ?? 'BPLUS');
-$nextCursor = (int) ($payload['next_cursor'] ?? 0);
-$rawInvoices = $payload['invoices'] ?? [];
-$rawItems = $payload['items'] ?? [];
 $now = now()->toDateTimeString();
 
 // Deduplicate invoices by business unique key (source_system, branch_code, doc_type, invoice_no)
@@ -78,12 +132,12 @@ foreach ($rawInvoices as $inv) {
             ? mb_substr(trim((string) $inv['salesperson_name']), 0, 120)
             : null,
         'sold_at' => (string) ($inv['sold_at'] ?? $now),
-        'dt_properties' => isset($inv['dt_properties']) && $inv['dt_properties'] !== '' ? (int) $inv['dt_properties'] : null,
+        'dt_properties' => isset($inv['dt_properties']) && trim((string) $inv['dt_properties']) !== '' ? (int) $inv['dt_properties'] : null,
         'doc_category' => mb_substr((string) ($inv['doc_category'] ?? 'sale'), 0, 24),
-        'before_vat_amount' => isset($inv['before_vat_amount']) && $inv['before_vat_amount'] !== '' ? (string) $inv['before_vat_amount'] : '0.00',
-        'vat_amount' => isset($inv['vat_amount']) && $inv['vat_amount'] !== '' ? (string) $inv['vat_amount'] : '0.00',
-        'gross_amount' => isset($inv['gross_amount']) && $inv['gross_amount'] !== '' ? (string) $inv['gross_amount'] : '0.00',
-        'net_amount' => isset($inv['net_amount']) && $inv['net_amount'] !== '' ? (string) $inv['net_amount'] : '0.00',
+        'before_vat_amount' => isset($inv['before_vat_amount']) && trim((string) $inv['before_vat_amount']) !== '' ? (string) $inv['before_vat_amount'] : '0.00',
+        'vat_amount' => isset($inv['vat_amount']) && trim((string) $inv['vat_amount']) !== '' ? (string) $inv['vat_amount'] : '0.00',
+        'gross_amount' => isset($inv['gross_amount']) && trim((string) $inv['gross_amount']) !== '' ? (string) $inv['gross_amount'] : '0.00',
+        'net_amount' => isset($inv['net_amount']) && trim((string) $inv['net_amount']) !== '' ? (string) $inv['net_amount'] : '0.00',
         'status' => mb_substr((string) ($inv['status'] ?? 'posted'), 0, 20),
         'created_at' => $now,
         'updated_at' => $now,
@@ -104,7 +158,8 @@ foreach ($rawItems as $it) {
     $iccatCode = isset($it['iccat_code']) && trim((string) $it['iccat_code']) !== ''
         ? mb_substr(trim((string) $it['iccat_code']), 0, 32)
         : null;
-    $isExcluded = ! empty($it['is_excluded_kpi']);
+    $rawEx = strtolower(trim((string) ($it['is_excluded_kpi'] ?? '0')));
+    $isExcluded = in_array($rawEx, ['1', 'true', 't', 'yes'], true);
     if (! $isExcluded && $iccatCode !== null && in_array(strtoupper($iccatCode), ['CC', 'CO', 'AS', 'PK'], true)) {
         $isExcluded = true;
     }
@@ -122,15 +177,15 @@ foreach ($rawItems as $it) {
             ? mb_substr(trim((string) $it['iccat_name']), 0, 120)
             : null,
         'is_excluded_kpi' => $isExcluded,
-        'qty' => isset($it['qty']) && $it['qty'] !== '' ? (string) $it['qty'] : '0',
+        'qty' => isset($it['qty']) && trim((string) $it['qty']) !== '' ? (string) $it['qty'] : '0',
         'unit_name' => isset($it['unit_name']) && trim((string) $it['unit_name']) !== ''
             ? mb_substr(trim((string) $it['unit_name']), 0, 60)
             : null,
-        'unit_price' => isset($it['unit_price']) && $it['unit_price'] !== '' ? (string) $it['unit_price'] : '0',
-        'before_vat_amount' => isset($it['before_vat_amount']) && $it['before_vat_amount'] !== '' ? (string) $it['before_vat_amount'] : '0',
-        'vat_amount' => isset($it['vat_amount']) && $it['vat_amount'] !== '' ? (string) $it['vat_amount'] : '0',
-        'gross_amount' => isset($it['gross_amount']) && $it['gross_amount'] !== '' ? (string) $it['gross_amount'] : '0',
-        'net_amount' => isset($it['net_amount']) && $it['net_amount'] !== '' ? (string) $it['net_amount'] : '0',
+        'unit_price' => isset($it['unit_price']) && trim((string) $it['unit_price']) !== '' ? (string) $it['unit_price'] : '0',
+        'before_vat_amount' => isset($it['before_vat_amount']) && trim((string) $it['before_vat_amount']) !== '' ? (string) $it['before_vat_amount'] : '0',
+        'vat_amount' => isset($it['vat_amount']) && trim((string) $it['vat_amount']) !== '' ? (string) $it['vat_amount'] : '0',
+        'gross_amount' => isset($it['gross_amount']) && trim((string) $it['gross_amount']) !== '' ? (string) $it['gross_amount'] : '0',
+        'net_amount' => isset($it['net_amount']) && trim((string) $it['net_amount']) !== '' ? (string) $it['net_amount'] : '0',
         'refer_trd_key' => isset($it['refer_trd_key']) && trim((string) $it['refer_trd_key']) !== ''
             ? mb_substr(trim((string) $it['refer_trd_key']), 0, 64)
             : null,
@@ -146,7 +201,7 @@ $invRows = array_values($invMap);
 $itemRows = array_values($itemMap);
 
 DB::transaction(function () use ($invRows, $itemRows, $source, $nextCursor, $now): void {
-    foreach (array_chunk($invRows, 400) as $chunk) {
+    foreach (array_chunk($invRows, 500) as $chunk) {
         DB::table('erp_sales_invoices')->upsert(
             $chunk,
             ['source_system', 'branch_code', 'doc_type', 'invoice_no'],
@@ -167,7 +222,7 @@ DB::transaction(function () use ($invRows, $itemRows, $source, $nextCursor, $now
         );
     }
 
-    foreach (array_chunk($itemRows, 500) as $chunk) {
+    foreach (array_chunk($itemRows, 600) as $chunk) {
         DB::table('erp_sales_items')->upsert(
             $chunk,
             ['source_system', 'branch_code', 'doc_type', 'invoice_no', 'line_no'],
