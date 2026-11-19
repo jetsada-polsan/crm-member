@@ -752,12 +752,12 @@ async function savePin() {
 }
 
 .map-select {
-  border: 1px solid var(--border);
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 7px 11px;
+  border: 1px solid #d5e0ec;
+  background-color: #f8fafc;
+  border-radius: 14px;
+  padding: 8px 36px 8px 14px;
   font-size: 13.5px;
-  min-height: 38px;
+  min-height: 40px;
   color: var(--ink);
 }
 
@@ -770,12 +770,12 @@ async function savePin() {
 
 .map-search-input {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid #d5e0ec;
   background: #f8fafc;
-  border-radius: 10px;
-  padding: 7px 30px 7px 12px;
+  border-radius: 14px;
+  padding: 8px 32px 8px 14px;
   font-size: 13.5px;
-  min-height: 38px;
+  min-height: 40px;
   color: var(--ink);
   outline: none;
 }

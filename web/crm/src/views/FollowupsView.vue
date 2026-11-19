@@ -60,7 +60,7 @@
           </select>
         </div>
         <div class="field span2"><label>หัวข้องาน *</label><input v-model="taskForm.title" required placeholder="โทรติดตามผลใบเสนอราคา" /></div>
-        <div class="field span2"><label>วันครบกำหนด</label><input v-model="taskForm.due_date" type="date" /></div>
+        <div class="field span2"><label>วันครบกำหนด</label><NiceDateInput v-model="taskForm.due_date" placeholder="เลือกวันครบกำหนด..." /></div>
       </form>
       <template #footer="{ requestClose }">
         <button type="button" class="btn" @click="requestClose">ยกเลิก</button>
@@ -74,6 +74,7 @@
 import { ref } from 'vue';
 import { useMutation, useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import NiceDateInput from '../../../shared/components/NiceDateInput.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';

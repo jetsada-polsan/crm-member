@@ -137,7 +137,7 @@
         </div>
         <div class="field">
           <label>วันที่ออกตลาด *</label>
-          <input v-model="planForm.visit_date" type="date" required />
+          <NiceDateInput v-model="planForm.visit_date" :clearable="false" placeholder="เลือกวันที่ออกตลาด" />
         </div>
         <div class="field">
           <label>พื้นที่ / อำเภอ</label>
@@ -224,6 +224,7 @@
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import NiceDateInput from '../../../shared/components/NiceDateInput.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
@@ -358,9 +359,9 @@ async function removeStop(planId, stopId) {
 
 function checkinStop(stop) {
   if (stop.erp_customer_id) {
-    openVisitWizard({ kind: 'erp', id: Number(stop.erp_customer_id), planStopId: Number(stop.id) });
+    openVisitWizard({ kind: 'erp', id: Number(stop.erp_customer_id), planStopId: Number(stop.id), label: stop.shop_name });
   } else if (stop.crm_lead_id) {
-    openVisitWizard({ kind: 'lead', id: Number(stop.crm_lead_id), planStopId: Number(stop.id) });
+    openVisitWizard({ kind: 'lead', id: Number(stop.crm_lead_id), planStopId: Number(stop.id), label: stop.shop_name });
   }
 }
 

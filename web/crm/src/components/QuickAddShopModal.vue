@@ -141,7 +141,7 @@
           </div>
           <div class="field">
             <label>กำหนดวันติดตามผล</label>
-            <input v-model="form.next_follow_up_date" type="date" />
+            <NiceDateInput v-model="form.next_follow_up_date" placeholder="เลือกวันติดตามผล..." />
           </div>
           <div class="field">
             <label>งานติดตามผลถัดไป</label>
@@ -167,6 +167,7 @@
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue';
 import FullScreenMobileForm from '../../../shared/components/FullScreenMobileForm.vue';
+import NiceDateInput from '../../../shared/components/NiceDateInput.vue';
 import UploadProgressBar from '../../../shared/components/UploadProgressBar.vue';
 import { apiUploadWithProgress } from '../../../shared/api/http.js';
 import { compressImageFile, formatBytes } from '../../../shared/utils/imageCompress.js';

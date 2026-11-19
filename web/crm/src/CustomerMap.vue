@@ -16,28 +16,28 @@ const props = defineProps({
 
 const emit = defineEmits(['picked', 'select']);
 const element = ref(null);
-const activeTileKey = ref('clean');
+const activeTileKey = ref('groad');
 const currentZoom = ref(10);
 
 const TILE_LAYERS = {
-  clean: {
-    label: '✨ สว่างคมชัด',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    options: { maxZoom: 19, attribution: '© OpenStreetMap · © CARTO' },
-  },
   groad: {
-    label: '🌏 Google ถนน',
-    url: 'https://mt1.google.com/vt/lyrs=m&hl=th&x={x}&y={y}&z={z}',
-    options: { maxZoom: 20, attribution: '© Google Maps' },
+    label: '🌏 แผนที่ถนน (ไทย)',
+    url: 'https://mt{s}.google.com/vt/lyrs=m&hl=th&x={x}&y={y}&z={z}',
+    options: { subdomains: ['0', '1', '2', '3'], maxZoom: 20, attribution: '© Google Maps' },
   },
   gsat: {
-    label: '🛰️ ดาวเทียม',
-    url: 'https://mt1.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}',
-    options: { maxZoom: 20, attribution: '© Google Maps' },
+    label: '🛰️ ดาวเทียม (ไทย)',
+    url: 'https://mt{s}.google.com/vt/lyrs=y&hl=th&x={x}&y={y}&z={z}',
+    options: { subdomains: ['0', '1', '2', '3'], maxZoom: 20, attribution: '© Google Maps' },
+  },
+  gterrain: {
+    label: '⛰️ ภูมิประเทศ',
+    url: 'https://mt{s}.google.com/vt/lyrs=p&hl=th&x={x}&y={y}&z={z}',
+    options: { subdomains: ['0', '1', '2', '3'], maxZoom: 18, attribution: '© Google Maps' },
   },
   osm: {
     label: '🗺️ OSM',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: { maxZoom: 19, attribution: '© OpenStreetMap' },
   },
 };
@@ -390,10 +390,11 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   isolation: isolate;
-  border-radius: 14px;
+  border-radius: 18px;
   overflow: hidden;
-  border: 1px solid #dbe3ef;
-  background: #eaf0f7;
+  border: 1px solid #dbe5f0;
+  background: #eaf1f8;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .cm-canvas {
@@ -401,25 +402,47 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
+:deep(.leaflet-control-zoom) {
+  border: 0 !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+}
+
+:deep(.leaflet-control-zoom a) {
+  width: 34px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+  color: #0f172a !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  font-weight: 700 !important;
+}
+
+:deep(.leaflet-control-zoom a:hover) {
+  background: #f0f9ff !important;
+  color: #0284c7 !important;
+}
+
 .cm-floating-toolbar {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 12px;
+  right: 12px;
   z-index: 500;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .cm-tile-pills {
   display: flex;
   background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  border-radius: 10px;
-  padding: 2px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
 }
 
 .cm-tool-btn {
@@ -427,13 +450,13 @@ onBeforeUnmount(() => {
   background: transparent;
   color: #334155;
   font-family: var(--font);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
-  padding: 5px 9px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
   cursor: pointer;
-  min-height: 28px;
-  transition: all 0.14s ease;
+  min-height: 30px;
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
@@ -443,17 +466,18 @@ onBeforeUnmount(() => {
 }
 
 .cm-tool-btn.active {
-  background: #0284c7;
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
   color: #ffffff;
+  box-shadow: 0 3px 10px rgba(2, 132, 199, 0.28);
 }
 
 .cm-fit-btn {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  border-radius: 10px;
-  padding: 5px 10px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  border-radius: 999px;
+  padding: 6px 13px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
 }
 
 .cm-fit-btn:hover {

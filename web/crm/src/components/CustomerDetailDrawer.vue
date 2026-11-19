@@ -227,7 +227,7 @@
               <option v-for="p in PIPELINE_STAGES" :key="p.id" :value="p.id">{{ p.label }}</option>
             </select>
           </div>
-          <div class="field"><label>ติดตามถัดไป</label><input v-model="leadForm.next_follow_up_date" type="date" /></div>
+          <div class="field"><label>ติดตามถัดไป</label><NiceDateInput v-model="leadForm.next_follow_up_date" placeholder="เลือกวันติดตามถัดไป..." /></div>
           <div class="field span2"><label>แหล่งที่ซื้อสินค้า</label><input v-model="leadForm.supplier_source" /></div>
           <div class="field span2"><label>หมวดสินค้าที่ใช้</label><input v-model="leadForm.product_categories" /></div>
           <div class="field span2"><label>ที่อยู่</label><textarea v-model="leadForm.address" rows="2" /></div>
@@ -293,6 +293,7 @@ import { computed, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import SlideOverDrawer from '../../../shared/components/SlideOverDrawer.vue';
+import NiceDateInput from '../../../shared/components/NiceDateInput.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import UploadProgressBar from '../../../shared/components/UploadProgressBar.vue';
 import CustomerPurchaseHistory from './CustomerPurchaseHistory.vue';

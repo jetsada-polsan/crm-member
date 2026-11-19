@@ -32,7 +32,7 @@
             <span class="tag" :class="stageTagClass(l.pipeline_stage)">{{ stageLabel(l.pipeline_stage) }}</span>
             <select
               :value="l.pipeline_stage"
-              style="font-size:13px;padding:5px 8px;min-height:36px;border-radius:9px;border:1px solid var(--border);background:#fff"
+              style="font-size:13px;padding:6px 34px 6px 12px;min-height:36px;border-radius:12px"
               @click.stop
               @change.stop="moveStage(l, $event.target.value)"
             >
@@ -82,7 +82,7 @@
           </div>
           <div class="field">
             <label>วันที่เสนอราคา</label>
-            <input v-model="quoteDoc.quoteDate" type="date" />
+            <NiceDateInput v-model="quoteDoc.quoteDate" :clearable="false" placeholder="เลือกวันที่เสนอราคา" />
           </div>
           <div class="field">
             <label>ยืนราคา (วัน)</label>
@@ -236,6 +236,7 @@
 import { computed, ref } from 'vue';
 import { useMutation, useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import NiceDateInput from '../../../shared/components/NiceDateInput.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';

@@ -21,7 +21,8 @@
     <!-- Step 1: Select Shop / Lead or Quick Create -->
     <div v-if="step === 1" class="panel-pad" style="padding:4px 0">
       <h4 style="margin-top:0">1. เลือกร้านค้าเป้าหมายที่จะเข้าพบ</h4>
-      <div class="form">
+      <div v-if="planStopId" class="notice">ร้านจากแผน: <strong>{{ selectedSubjectLabel }}</strong></div>
+      <div v-else class="form">
         <div class="field">
           <label>ประเภทลูกค้า</label>
           <select v-model="subjectKind" @change="subjectId = ''">
@@ -42,7 +43,7 @@
           </select>
         </div>
       </div>
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <div v-if="!planStopId" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button type="button" class="btn light" @click="openQuickAdd()">＋ ไม่พบร้านนี้ — สร้างร้านใหม่ด่วน</button>
       </div>
     </div>
@@ -82,8 +83,8 @@
         <div v-else class="notice">
           ยังไม่ได้รับพิกัด GPS (หากพนักงานหรืออุปกรณ์ปฏิเสธสิทธิ์ สามารถดำเนินการต่อได้โดยระบบจะบันทึกสถานะ permission ตามจริง)
         </div>
-        <button type="button" class="btn primary" style="width:100%" @click="requestGps">
-          📍 {{ gps ? 'ดึงพิกัด GPS ใหม่อีกครั้ง' : 'ขอรับพิกัด GPS ปัจจุบัน' }}
+        <button type="button" class="btn primary" style="width:100%" :disabled="gpsLoading" @click="requestGps">
+          📍 {{ gpsLoading ? 'กำลังค้นหาพิกัด…' : gps ? 'ดึงพิกัด GPS ใหม่อีกครั้ง' : 'ขอรับพิกัด GPS ปัจจุบัน' }}
         </button>
         <p class="small muted" style="margin:10px 0 0">
           หมายเหตุ: พิกัด GPS และภาพถ่ายใช้เป็นข้อมูลอ้างอิงประกอบการทำงานภาคสนามเท่านั้น
@@ -197,7 +198,7 @@
         </div>
         <div class="field">
           <label>นัดติดตามวันที่</label>
-          <input v-model="survey.follow_up_date" type="date" />
+          <NiceDateInput v-model="survey.follow_up_date" placeholder="เลือกวันนัดติดตาม..." />
         </div>
         <div class="field span2">
           <label>งานติดตามผลถัดไป (ข้อ 5)</label>
@@ -253,6 +254,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import FullScreenMobileForm from '../../../shared/components/FullScreenMobileForm.vue';
+import NiceDateInput from '../../../shared/components/NiceDateInput.vue';
 import UploadProgressBar from '../../../shared/components/UploadProgressBar.vue';
 import SuccessCheckAnimation from '../../../shared/components/SuccessCheckAnimation.vue';
 import { apiUploadWithProgress } from '../../../shared/api/http.js';
@@ -289,6 +291,9 @@ const subjectFilter = ref('');
 const deviceRecordedAt = ref('');
 const gps = ref(null);
 const gpsPermission = ref('prompt');
+const gpsLoading = ref(false);
+const planStopId = ref(null);
+let gpsRequestId = 0;
 const storefrontPhoto = ref(null);
 const secondPhoto = ref(null);
 const secondPhotoCategory = ref('products');
@@ -336,7 +341,7 @@ const filteredSubjects = computed(() => {
 });
 
 const selectedSubjectLabel = computed(
-  () => filteredSubjects.value.find((x) => String(x.id) === String(subjectId.value))?.label || ''
+  () => filteredSubjects.value.find((x) => String(x.id) === String(subjectId.value))?.label || (planStopId.value ? visitWizardTarget.value?.label : '') || ''
 );
 
 const canNext = computed(() => {
@@ -357,13 +362,16 @@ const isDirty = computed(() =>
 );
 
 function resetWizard() {
-  step.value = 1;
+  planStopId.value = visitWizardTarget.value?.planStopId || null;
+  step.value = planStopId.value ? 2 : 1;
   clientDraftId.value = generateDraftId('visit');
   subjectKind.value = visitWizardTarget.value?.kind || 'lead';
   subjectId.value = visitWizardTarget.value?.id ? String(visitWizardTarget.value.id) : '';
   subjectFilter.value = '';
   deviceRecordedAt.value = '';
   gps.value = null;
+  gpsRequestId++;
+  gpsLoading.value = false;
   gpsPermission.value = 'prompt';
   clearSlot('storefront');
   clearSlot('second');
@@ -409,13 +417,18 @@ function nextStep() {
 }
 
 async function requestGps() {
+  if (gpsLoading.value) return;
   if (!navigator.geolocation) {
     gpsPermission.value = 'unavailable';
     toast.warning('เบราว์เซอร์นี้ไม่รองรับ GPS');
     return;
   }
+  gpsLoading.value = true;
+  const requestId = ++gpsRequestId;
   navigator.geolocation.getCurrentPosition(
     (p) => {
+      if (requestId !== gpsRequestId) return;
+      gpsLoading.value = false;
       gpsPermission.value = 'granted';
       gps.value = {
         latitude: Number(p.coords.latitude.toFixed(7)),
@@ -425,10 +438,12 @@ async function requestGps() {
       toast.success('บันทึกพิกัด GPS สำเร็จ');
     },
     (err) => {
+      if (requestId !== gpsRequestId) return;
+      gpsLoading.value = false;
       gpsPermission.value = err.code === 1 ? 'denied' : 'unavailable';
       toast.warning('ไม่สามารถรับพิกัด GPS', err.message);
     },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 15000 }
   );
 }
 
@@ -453,6 +468,7 @@ function buildVisitPayload() {
     ...(subjectKind.value === 'erp'
       ? { erp_customer_id: Number(subjectId.value) }
       : { crm_lead_id: Number(subjectId.value) }),
+    ...(planStopId.value ? { plan_stop_id: Number(planStopId.value) } : {}),
     client_draft_id: clientDraftId.value,
     visited_at: nowIso,
     device_recorded_at: nowIso,
