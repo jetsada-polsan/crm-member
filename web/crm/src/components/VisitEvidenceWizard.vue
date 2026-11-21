@@ -19,32 +19,126 @@
     </div>
 
     <!-- Step 1: Select Shop / Lead or Quick Create -->
-    <div v-if="step === 1" class="panel-pad" style="padding:4px 0">
-      <h4 style="margin-top:0">1. เลือกร้านค้าเป้าหมายที่จะเข้าพบ</h4>
+    <div v-if="step === 1" class="wizard-step-panel">
+      <h4 class="wizard-step-heading">1. เลือกร้านค้าเป้าหมายที่จะเข้าพบ</h4>
       <div v-if="planStopId" class="notice">ร้านจากแผน: <strong>{{ selectedSubjectLabel }}</strong></div>
-      <div v-else class="form">
+      <div v-else class="stack-md">
+        <!-- Customer Type Segmented Toggle -->
+        <div class="subject-kind-tabs" role="tablist" aria-label="ประเภทลูกค้า">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="subjectKind === 'erp'"
+            :class="['subject-kind-btn', { active: subjectKind === 'erp' }]"
+            @click="switchSubjectKind('erp')"
+          >
+            🏢 ลูกค้าเดิม (ERP)
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="subjectKind === 'lead'"
+            :class="['subject-kind-btn', { active: subjectKind === 'lead' }]"
+            @click="switchSubjectKind('lead')"
+          >
+            🌱 ร้านค้าใหม่ (Lead)
+          </button>
+        </div>
+
+        <!-- Search Input with Clear Button -->
         <div class="field">
-          <label>ประเภทลูกค้า</label>
-          <select v-model="subjectKind" @change="subjectId = ''">
-            <option value="lead">ร้านค้าใหม่ (CRM Lead)</option>
-            <option value="erp">ลูกค้าเดิม (ERP Mirror)</option>
-          </select>
+          <label for="wizard-shop-search">ค้นหาชื่อร้าน / รหัสลูกค้า / เบอร์โทร</label>
+          <div class="search-input-wrap">
+            <input
+              id="wizard-shop-search"
+              v-model="subjectFilter"
+              type="search"
+              placeholder="พิมพ์ชื่อร้าน รหัสลูกหนี้ หรือเบอร์โทร..."
+              @input="subjectId = ''"
+            />
+            <button
+              v-if="subjectFilter"
+              type="button"
+              class="search-clear-btn"
+              aria-label="ล้างคำค้นหา"
+              @click="clearSubjectFilter"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-        <div class="field">
-          <label>ค้นหาชื่อร้าน / รหัส</label>
-          <input v-model="subjectFilter" placeholder="พิมพ์ชื่อร้านหรือเบอร์โทร..." />
+
+        <!-- ERP Purchase Filter Pills (Clean Touch Chips) -->
+        <div v-if="subjectKind === 'erp'" class="erp-scope-row">
+          <button
+            type="button"
+            :class="['scope-chip', { active: purchaseFilter === 'all' }]"
+            @click="setPurchaseFilter('all')"
+          >
+            ลูกค้าเดิมทั้งหมด
+          </button>
+          <button
+            type="button"
+            :class="['scope-chip', { active: purchaseFilter === 'purchasing' }]"
+            @click="setPurchaseFilter('purchasing')"
+          >
+            มีบิลซื้อปีนี้
+          </button>
+          <span class="small muted scope-count">
+            <template v-if="erpLoading">กำลังค้นหา...</template>
+            <template v-else>พบ {{ filteredSubjects.length }} รายการ</template>
+          </span>
         </div>
-        <div class="field span2">
-          <label>เลือกร้านค้า *</label>
-          <select v-model="subjectId" size="6" style="min-height:140px">
-            <option v-for="opt in filteredSubjects" :key="opt.id" :value="String(opt.id)">
-              {{ opt.label }}
-            </option>
-          </select>
+
+        <!-- Selected Shop Banner -->
+        <div v-if="selectedSubjectLabel" class="selected-shop-banner">
+          <span class="selected-shop-badge">✓ เลือกแล้ว</span>
+          <strong>{{ selectedSubjectLabel }}</strong>
         </div>
-      </div>
-      <div v-if="!planStopId" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn light" @click="openQuickAdd()">＋ ไม่พบร้านนี้ — สร้างร้านใหม่ด่วน</button>
+
+        <!-- Touch-Friendly Scrollable Shop Picker List (replaces broken native <select size="6"> on mobile) -->
+        <div class="subject-picker-box">
+          <div v-if="subjectKind === 'erp' && erpLoading && !filteredSubjects.length" class="subject-picker-empty">
+            กำลังค้นหารายชื่อลูกค้าเดิม...
+          </div>
+          <div v-else-if="subjectKind === 'erp' && erpError" class="error" style="margin:8px">
+            ค้นหาร้านไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
+          </div>
+          <div v-else-if="!filteredSubjects.length" class="subject-picker-empty">
+            ไม่พบร้านที่ตรงกับคำค้นหา — ลองเปลี่ยนคำค้น หรือกดสร้างร้านใหม่ด้านล่าง
+          </div>
+          <div v-else class="subject-picker-list" role="listbox" aria-label="รายชื่อร้านค้า">
+            <button
+              v-for="opt in filteredSubjects"
+              :key="opt.id"
+              type="button"
+              role="option"
+              :aria-selected="String(subjectId) === String(opt.id)"
+              :class="['subject-pick-item', { selected: String(subjectId) === String(opt.id) }]"
+              @click="subjectId = String(opt.id)"
+            >
+              <div class="subject-pick-top">
+                <strong class="subject-pick-name">{{ opt.name }}</strong>
+                <span :class="['tag', subjectKind === 'erp' ? 'gray' : 'blue']">{{ opt.code }}</span>
+              </div>
+              <div class="subject-pick-meta">
+                <span>{{ opt.meta }}</span>
+                <span v-if="String(subjectId) === String(opt.id)" class="subject-pick-check">✓ เลือกอยู่</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Pagination when ERP has multiple pages -->
+        <div v-if="subjectKind === 'erp' && (erpData?.meta?.last_page || 1) > 1" class="pager-btns">
+          <button type="button" class="btn light" :disabled="subjectPage <= 1" @click="subjectPage--; subjectId = ''">← ก่อนหน้า</button>
+          <span class="small muted">หน้า {{ subjectPage }} / {{ erpData.meta.last_page }}</span>
+          <button type="button" class="btn light" :disabled="subjectPage >= erpData.meta.last_page" @click="subjectPage++; subjectId = ''">ถัดไป →</button>
+        </div>
+
+        <button type="button" class="btn light w-full" @click="openQuickAdd()">
+          ＋ ไม่พบร้านนี้ — สร้างร้านใหม่ด่วน
+        </button>
       </div>
     </div>
 
@@ -56,7 +150,7 @@
       </div>
       <div class="card panel-pad">
         <p class="small muted" style="margin-top:0">
-          ระบบจะบันทึก <b>เวลาอุปกรณ์ (Device Time)</b> ทันทีที่กดเริ่มเข้าพบ และแยกบันทึก <b>เวลาเซิร์ฟเวอร์ (Server Time)</b> ณ ตอนส่งข้อมูลเพื่อความโปร่งใส
+          ระบบบันทึกเวลาเริ่มเข้าพบจากเครื่องของคุณ และบันทึกเวลาที่ส่งข้อมูลเข้าระบบแยกไว้ด้วย
         </p>
         <div v-if="deviceRecordedAt" class="success" style="margin-bottom:10px">
           Check-in แล้ว (เวลาเครื่องพนักงาน): <strong>{{ new Date(deviceRecordedAt).toLocaleString('th-TH') }}</strong>
@@ -234,7 +328,7 @@
       </div>
     </div>
 
-    <template #footer="{ requestClose }">
+    <template #footer>
       <template v-if="step < 8">
         <button v-if="step > 1" type="button" class="btn" :disabled="busy" @click="step--">← ย้อนกลับ</button>
         <button type="button" class="btn" :disabled="busy" @click="saveAsOfflineDraft">💾 เก็บ Draft Offline</button>
@@ -285,9 +379,40 @@ const STEPS = [
 
 const step = ref(1);
 const clientDraftId = ref(generateDraftId('visit'));
-const subjectKind = ref('lead');
+const subjectKind = ref('erp');
 const subjectId = ref('');
 const subjectFilter = ref('');
+const debouncedSubjectFilter = ref('');
+const purchaseFilter = ref('all');
+const subjectPage = ref(1);
+let subjectSearchTimer;
+watch(subjectFilter, (value) => {
+  clearTimeout(subjectSearchTimer);
+  subjectSearchTimer = setTimeout(() => {
+    debouncedSubjectFilter.value = value.trim();
+    subjectPage.value = 1;
+  }, 250);
+});
+onUnmounted(() => clearTimeout(subjectSearchTimer));
+
+function switchSubjectKind(kind) {
+  subjectKind.value = kind;
+  subjectId.value = '';
+  subjectPage.value = 1;
+}
+
+function setPurchaseFilter(status) {
+  purchaseFilter.value = status;
+  subjectId.value = '';
+  subjectPage.value = 1;
+}
+
+function clearSubjectFilter() {
+  subjectFilter.value = '';
+  debouncedSubjectFilter.value = '';
+  subjectId.value = '';
+  subjectPage.value = 1;
+}
 const deviceRecordedAt = ref('');
 const gps = ref(null);
 const gpsPermission = ref('prompt');
@@ -319,25 +444,43 @@ const { data: leadsData } = useQuery({
   enabled: visitWizardOpen,
 });
 
-const { data: erpData } = useQuery({
-  queryKey: ['crm', 'wizard-customers'],
-  queryFn: ({ signal }) => crmGet('/customers', { signal }),
-  enabled: visitWizardOpen,
+const { data: erpData, isFetching: erpLoading, isError: erpError } = useQuery({
+  queryKey: ['crm', 'wizard-customers', debouncedSubjectFilter, purchaseFilter, subjectPage],
+  queryFn: ({ signal }) => {
+    const effectiveStatus = debouncedSubjectFilter.value ? 'all' : purchaseFilter.value;
+    return crmGet(
+      `/customers?${new URLSearchParams({
+        picker: '1',
+        per_page: '50',
+        page: String(subjectPage.value),
+        status: effectiveStatus,
+        q: debouncedSubjectFilter.value,
+      })}`,
+      { signal }
+    );
+  },
+  enabled: computed(() => visitWizardOpen.value && subjectKind.value === 'erp' && !planStopId.value),
 });
 
 const filteredSubjects = computed(() => {
   const q = subjectFilter.value.trim().toLowerCase();
   const list = subjectKind.value === 'erp'
-    ? (erpData.value || []).map((c) => ({
+    ? (erpData.value?.data || []).map((c) => ({
         id: c.id,
-        label: `[${c.erp_customer_code}] ${c.customer_name} (${c.phone || 'ไม่มีเบอร์'})`,
+        code: c.erp_customer_code || `ERP-${c.id}`,
+        name: c.customer_name || 'ลูกค้า ERP',
+        meta: [c.phone || 'ไม่มีเบอร์', c.province || ''].filter(Boolean).join(' · '),
+        label: `[${c.erp_customer_code}] ${c.customer_name}`,
       }))
     : (leadsData.value || []).map((l) => ({
         id: l.id,
-        label: `[LEAD-${l.id}] ${l.shop_name} (${l.phone || 'ไม่มีเบอร์'})`,
+        code: l.internal_customer_code || `LEAD-${l.id}`,
+        name: l.shop_name || 'ร้านค้าใหม่',
+        meta: [l.phone || 'ไม่มีเบอร์', l.province || l.district || ''].filter(Boolean).join(' · '),
+        label: `[${l.internal_customer_code || `LEAD-${l.id}`}] ${l.shop_name}`,
       }));
-  if (!q) return list;
-  return list.filter((x) => x.label.toLowerCase().includes(q));
+  if (!q || subjectKind.value === 'erp') return list;
+  return list.filter((x) => `${x.code} ${x.name} ${x.meta}`.toLowerCase().includes(q));
 });
 
 const selectedSubjectLabel = computed(
@@ -365,9 +508,12 @@ function resetWizard() {
   planStopId.value = visitWizardTarget.value?.planStopId || null;
   step.value = planStopId.value ? 2 : 1;
   clientDraftId.value = generateDraftId('visit');
-  subjectKind.value = visitWizardTarget.value?.kind || 'lead';
+  subjectKind.value = visitWizardTarget.value?.kind || 'erp';
   subjectId.value = visitWizardTarget.value?.id ? String(visitWizardTarget.value.id) : '';
   subjectFilter.value = '';
+  debouncedSubjectFilter.value = '';
+  purchaseFilter.value = 'all';
+  subjectPage.value = 1;
   deviceRecordedAt.value = '';
   gps.value = null;
   gpsRequestId++;
@@ -635,3 +781,185 @@ function finishAndClose() {
   closeVisitWizard();
 }
 </script>
+
+<style scoped>
+.wizard-step-panel {
+  padding: 4px 0;
+}
+
+.wizard-step-heading {
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.subject-kind-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.subject-kind-btn {
+  border: 1px solid #d5e0ec;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 14px;
+  padding: 10px 12px;
+  min-height: 46px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  transition: all 0.14s ease;
+}
+
+.subject-kind-btn.active {
+  background: var(--blue-soft);
+  border-color: var(--blue);
+  color: var(--blue);
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.14);
+}
+
+.erp-scope-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scope-chip {
+  border: 1px solid #d5e0ec;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.14s ease;
+}
+
+.scope-chip.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+}
+
+.scope-count {
+  margin-left: auto;
+}
+
+.selected-shop-banner {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #14532d;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.selected-shop-badge {
+  background: #16a34a;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.subject-picker-box {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.subject-picker-list {
+  max-height: 290px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+
+.subject-pick-item {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  padding: 12px 14px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink);
+  transition: background-color 0.12s ease;
+}
+
+.subject-pick-item:last-child {
+  border-bottom: 0;
+}
+
+.subject-pick-item:hover {
+  background: #f8fafc;
+}
+
+.subject-pick-item.selected {
+  background: #e0f2fe;
+}
+
+.subject-pick-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.subject-pick-name {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-size: 14.5px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.subject-pick-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.subject-pick-check {
+  color: #0369a1;
+  font-weight: 700;
+}
+
+.subject-picker-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .panel-pad .small,
+  .panel-pad small {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .panel-pad .field label { font-size: 14px; }
+  .panel-pad input,
+  .panel-pad select,
+  .panel-pad textarea { font-size: 16px; }
+}
+</style>

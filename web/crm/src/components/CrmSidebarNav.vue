@@ -99,37 +99,25 @@ const props = defineProps({
 
 defineEmits(['prefetch', 'navigate', 'open-visit', 'open-quick-add']);
 
-const openGroupIds = ref(new Set(['contacts', 'field-sales']));
+const openGroupId = ref(null);
 
 function isGroupActive(group) {
   return group.items.some((item) => item.name === props.activeRouteName);
 }
 
 function isGroupOpen(group) {
-  return openGroupIds.value.has(group.id) || isGroupActive(group);
+  return openGroupId.value === group.id;
 }
 
 function toggleGroup(groupId) {
-  const next = new Set(openGroupIds.value);
-  if (next.has(groupId)) {
-    next.delete(groupId);
-  } else {
-    next.add(groupId);
-  }
-  openGroupIds.value = next;
+  openGroupId.value = openGroupId.value === groupId ? null : groupId;
 }
 
 watch(
   () => props.activeRouteName,
   (routeName) => {
-    if (!routeName) return;
-    for (const g of props.groups) {
-      if (g.items.some((i) => i.name === routeName)) {
-        const next = new Set(openGroupIds.value);
-        next.add(g.id);
-        openGroupIds.value = next;
-      }
-    }
+    const group = props.groups.find((g) => g.items.some((i) => i.name === routeName));
+    openGroupId.value = group && !group.directPath && group.items.length > 1 ? group.id : null;
   },
   { immediate: true }
 );

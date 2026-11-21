@@ -18,11 +18,22 @@
 
     <div class="card panel-pad" style="margin-bottom:16px">
       <div class="head-filter" style="margin-bottom:0">
-        <input
-          v-model="searchRaw"
-          style="min-width:220px;flex:1"
-          placeholder="ค้นหารหัสลูกค้า ERP (AR...), ชื่อร้าน, จังหวัด, เบอร์โทร..."
-        />
+        <div class="search-input-wrap">
+          <input
+            v-model="searchRaw"
+            type="search"
+            placeholder="ค้นหารหัสลูกค้า ERP (AR...), ชื่อร้าน, จังหวัด, เบอร์โทร..."
+          />
+          <button
+            v-if="searchRaw"
+            type="button"
+            class="search-clear-btn"
+            aria-label="ล้างคำค้นหา"
+            @click="searchRaw = ''; search = ''; page = 1"
+          >
+            ✕
+          </button>
+        </div>
         <select v-model="erpStatus" @change="page = 1">
           <option value="all">ลูกค้า ERP ทั้งหมด</option>
           <option value="purchasing">มีบิลซื้อแล้ว</option>
@@ -80,27 +91,29 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards panel-pad">
         <div
           v-for="c in rows"
           :key="`erp-m-${c.id}`"
           class="card mob-card"
           @click="openDetailDrawer('erp', c.id)"
         >
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <strong>{{ c.customer_name }}</strong>
+          <div class="row-between-start">
+            <strong style="min-width:0;flex:1 1 170px">{{ c.customer_name }}</strong>
             <span class="tag gray">{{ c.erp_customer_code }}</span>
           </div>
-          <div class="small muted" style="margin:6px 0">
+          <div class="small muted mt-sm">
             {{ c.province || '—' }} · โทร {{ c.phone || '—' }} · {{ fmt(c.sale_invoice_count) }} บิลขายจริง
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-            <b>{{ fmt(c.total_sales_net) }} ฿</b>
-            <button type="button" class="btn primary" style="padding:6px 10px" @click.stop="openVisitWizard({ kind: 'erp', id: c.id })">
+          <div class="small mt-sm">ยอดซื้อสุทธิ <b>{{ fmt(c.total_sales_net) }} ฿</b></div>
+          <div class="mob-card-actions">
+            <button type="button" class="btn light" @click.stop="openDetailDrawer('erp', c.id)">ดูบิล/รายละเอียด</button>
+            <button type="button" class="btn primary" @click.stop="openVisitWizard({ kind: 'erp', id: c.id })">
               📸 เข้าพบ
             </button>
           </div>
         </div>
+        <div v-if="!rows.length" class="placeholder">ไม่พบลูกค้า ERP ที่ตรงเงื่อนไข</div>
       </div>
 
       <div class="pager">

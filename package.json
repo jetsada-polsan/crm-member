@@ -7,16 +7,24 @@
     "build:crm": "vite build --config web/crm/vite.config.js",
     "build:member": "vite build --config web/member/vite.config.js",
     "dev:crm": "vite --config web/crm/vite.config.js",
-    "dev:member": "vite --config web/member/vite.config.js"
+    "dev:member": "vite --config web/member/vite.config.js",
+    "lint": "eslint web/crm/src web/member/src web/shared",
+    "lint:fix": "eslint --fix web/crm/src web/member/src web/shared",
+    "format:check": "prettier --check \"web/**/*.{js,vue,css}\""
   },
   "dependencies": {
-    "vue": "^3.5.0",
-    "vue-router": "^4.6.5",
     "@tanstack/vue-query": "^5.90.0",
-    "leaflet": "^1.9.4"
+    "leaflet": "^1.9.4",
+    "vue": "^3.5.0",
+    "vue-router": "^4.6.5"
   },
   "devDependencies": {
-    "vite": "^7.0.0",
-    "@vitejs/plugin-vue": "^6.0.0"
+    "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "eslint": "^10.15.0",
+    "eslint-plugin-vue": "^10.12.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "vite": "^7.0.0"
   }
 }

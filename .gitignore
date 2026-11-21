@@ -19,3 +19,8 @@ setup-log.txt
 *.bak-docker
 _docker_backup/
 /backend/storage/logs/*.log
+
+/tools/cloudflared.exe
+/tools/cloudflared.log
+/sync-agent/*.log
+/sync-agent/*.zip

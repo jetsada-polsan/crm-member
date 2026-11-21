@@ -79,19 +79,133 @@ final class CrmController
             $q->where('c.province', $province);
         }
 
+        // The visit picker only needs identity fields and purchase existence;
+        // avoid aggregating every invoice and item for each search keystroke.
+        if ($request->boolean('picker')) {
+            $statusFilter = trim((string) $request->query('status', 'all'));
+            $hasSale = static function ($sub): void {
+                $sub->selectRaw('1')->from('erp_sales_invoices as inv')
+                    ->whereColumn('inv.source_system', 'c.source_system')
+                    ->whereColumn('inv.erp_customer_code', 'c.erp_customer_code')
+                    ->where('inv.doc_category', 'sale');
+                SalesRules::applyActualSalesScope($sub, 'inv');
+            };
+            if ($statusFilter === 'purchasing') {
+                $q->whereExists($hasSale);
+            } elseif ($statusFilter === 'no_purchase') {
+                $q->whereNotExists($hasSale);
+            }
+            $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
+            $page = max(1, (int) $request->query('page', 1));
+            $total = (clone $q)->count();
+            $lastPage = max(1, (int) ceil($total / $perPage));
+            $page = min($page, $lastPage);
+
+            return response()->json([
+                'data' => $q->select('c.id', 'c.erp_customer_code', 'c.customer_name', 'c.phone')
+                    ->orderBy('c.customer_name')->orderBy('c.id')
+                    ->offset(($page - 1) * $perPage)->limit($perPage)->get(),
+                'meta' => ['current_page' => $page, 'last_page' => $lastPage, 'per_page' => $perPage, 'total' => $total],
+            ]);
+        }
+
+        $statusFilter = trim((string) $request->query('status', 'all'));
+        $sort = trim((string) $request->query('sort', 'name_asc'));
+        $needsSalesJoinForFilterOrSort = in_array($statusFilter, ['purchasing', 'no_purchase'], true)
+            || in_array($sort, ['sales_desc', 'recent_purchase'], true);
+
+        // Fast path: when sorting by name/code and status=all, paginate erp_customers first,
+        // then aggregate invoices & excluded items ONLY for the <=perPage customers on this page.
+        if (! $needsSalesJoinForFilterOrSort) {
+            $baseSelect = [
+                'c.id', 'c.source_system', 'c.erp_customer_code', 'c.customer_name',
+                'c.phone', 'c.province', 'c.address', 'c.ar_enable',
+                'c.route_code', 'c.route_name', 'c.credit_limit', 'c.credit_term_days',
+                'c.salesperson_code', 'c.salesperson_name', 'c.updated_at',
+            ];
+            if ($sort === 'code_asc') {
+                $q->orderBy('c.erp_customer_code');
+            } else {
+                $q->orderBy('c.customer_name');
+            }
+
+            $meta = null;
+            if ($request->boolean('paginate')) {
+                $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
+                $page = max(1, (int) $request->query('page', 1));
+                $total = (clone $q)->count();
+                $lastPage = max(1, (int) ceil($total / $perPage));
+                $page = min($page, $lastPage);
+                $items = $q->select($baseSelect)->offset(($page - 1) * $perPage)->limit($perPage)->get();
+                $meta = ['current_page' => $page, 'last_page' => $lastPage, 'per_page' => $perPage, 'total' => $total];
+            } else {
+                $items = $q->select($baseSelect)->limit(250)->get();
+            }
+
+            $codes = $items->pluck('erp_customer_code')->filter()->unique()->values()->all();
+            $ids = $items->pluck('id')->all();
+            $invMap = [];
+            $excMap = [];
+            $masterMap = [];
+            $locMap = [];
+            if ($codes !== []) {
+                foreach (SalesRules::customerActualInvoiceSubquery($codes)->get() as $ir) {
+                    $invMap[$ir->source_system.'|'.$ir->erp_customer_code] = $ir;
+                }
+                foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
+                    $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
+                }
+            }
+            if ($ids !== []) {
+                foreach (DB::table('crm_customer_masters')->whereIn('erp_customer_id', $ids)->select('id', 'erp_customer_id', 'internal_customer_code')->get() as $m) {
+                    $masterMap[$m->erp_customer_id] ??= $m;
+                }
+                foreach (DB::table('crm_customer_locations')->whereIn('erp_customer_id', $ids)->orderByDesc('id')->select('erp_customer_id', 'latitude', 'longitude')->get() as $l) {
+                    $locMap[$l->erp_customer_id] ??= $l;
+                }
+            }
+
+            $items = $items->map(static function ($row) use ($invMap, $excMap, $masterMap, $locMap) {
+                $key = $row->source_system.'|'.$row->erp_customer_code;
+                $inv = $invMap[$key] ?? null;
+                $exc = $excMap[$key] ?? 0.0;
+                $actualBeforeVat = (float) ($inv->actual_before_vat ?? 0);
+                $row->invoice_count = (int) ($inv->invoice_count ?? 0);
+                $row->sale_invoice_count = (int) ($inv->sale_invoice_count ?? 0);
+                $row->return_count = (int) ($inv->return_count ?? 0);
+                $row->gross_purchase_before_vat = (float) ($inv->gross_purchase_before_vat ?? 0);
+                $row->return_amount_before_vat = abs((float) ($inv->return_before_vat ?? 0));
+                $row->net_purchase_before_vat = $actualBeforeVat;
+                $row->total_sales_net = $actualBeforeVat;
+                $row->product_sales_kpi_before_vat = $actualBeforeVat - $exc;
+                $row->total_sales_gross = (float) ($inv->actual_gross ?? 0);
+                $row->last_purchase_at = $inv->last_purchase_at ?? null;
+                $row->customer_master_id = $masterMap[$row->id]->id ?? null;
+                $row->internal_customer_code = $masterMap[$row->id]->internal_customer_code ?? null;
+                $row->latitude = $locMap[$row->id]->latitude ?? null;
+                $row->longitude = $locMap[$row->id]->longitude ?? null;
+
+                return $row;
+            });
+
+            if ($meta !== null) {
+                return response()->json(['data' => $items, 'meta' => $meta]);
+            }
+
+            return response()->json($items);
+        }
+
+        $totalWithoutSalesJoin = $statusFilter === 'all' && $request->boolean('paginate')
+            ? (clone $q)->count()
+            : null;
+
         $invAgg = SalesRules::customerActualInvoiceSubquery();
-        $excAgg = SalesRules::customerExcludedItemsSubquery();
 
         $q->leftJoinSub($invAgg, 'inv_agg', function ($join): void {
             $join->on('inv_agg.source_system', '=', 'c.source_system')
                 ->on('inv_agg.erp_customer_code', '=', 'c.erp_customer_code');
-        })
-            ->leftJoinSub($excAgg, 'exc_agg', function ($join): void {
-                $join->on('exc_agg.source_system', '=', 'c.source_system')
-                    ->on('exc_agg.erp_customer_code', '=', 'c.erp_customer_code');
-            });
+        });
 
-        $statusFilter = trim((string) $request->query('status', 'all'));
         if ($statusFilter === 'purchasing') {
             $q->whereRaw('COALESCE(inv_agg.sale_invoice_count, 0) > 0');
         } elseif ($statusFilter === 'no_purchase') {
@@ -121,7 +235,6 @@ final class CrmController
             DB::raw('ABS(COALESCE(inv_agg.return_before_vat, 0)) as return_amount_before_vat'),
             DB::raw('COALESCE(inv_agg.actual_before_vat, 0) as net_purchase_before_vat'),
             DB::raw('COALESCE(inv_agg.actual_before_vat, 0) as total_sales_net'),
-            DB::raw('COALESCE(inv_agg.actual_before_vat, 0) - COALESCE(exc_agg.excluded_before_vat, 0) as product_sales_kpi_before_vat'),
             DB::raw('COALESCE(inv_agg.actual_gross, 0) as total_sales_gross'),
             DB::raw('inv_agg.last_purchase_at as last_purchase_at'),
             DB::raw('(SELECT cm.id FROM crm_customer_masters cm WHERE cm.erp_customer_id = c.id LIMIT 1) as customer_master_id'),
@@ -130,7 +243,6 @@ final class CrmController
             DB::raw('(SELECT loc.longitude FROM crm_customer_locations loc WHERE loc.erp_customer_id = c.id ORDER BY loc.id DESC LIMIT 1) as longitude')
         );
 
-        $sort = trim((string) $request->query('sort', 'name_asc'));
         if ($sort === 'sales_desc') {
             $q->orderByDesc(DB::raw('COALESCE(inv_agg.actual_before_vat, 0)'))
                 ->orderBy('c.customer_name');
@@ -142,13 +254,30 @@ final class CrmController
             $q->orderBy('c.customer_name');
         }
 
+        $attachExcluded = static function ($items) {
+            $codes = $items->pluck('erp_customer_code')->filter()->unique()->values()->all();
+            $excMap = [];
+            if ($codes !== []) {
+                foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
+                    $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
+                }
+            }
+
+            return $items->map(static function ($row) use ($excMap) {
+                $exc = $excMap[$row->source_system.'|'.$row->erp_customer_code] ?? 0.0;
+                $row->product_sales_kpi_before_vat = (float) ($row->net_purchase_before_vat ?? 0) - $exc;
+
+                return $row;
+            });
+        };
+
         if ($request->boolean('paginate')) {
             $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
             $page = max(1, (int) $request->query('page', 1));
-            $total = (clone $q)->count();
+            $total = $totalWithoutSalesJoin ?? (clone $q)->count();
             $lastPage = max(1, (int) ceil($total / $perPage));
             $page = min($page, $lastPage);
-            $items = $q->offset(($page - 1) * $perPage)->limit($perPage)->get();
+            $items = $attachExcluded($q->offset(($page - 1) * $perPage)->limit($perPage)->get());
 
             return response()->json([
                 'data' => $items,
@@ -161,7 +290,7 @@ final class CrmController
             ]);
         }
 
-        return response()->json($q->limit(250)->get());
+        return response()->json($attachExcluded($q->limit(250)->get()));
     }
 
     public function customerDetail(int $id): JsonResponse
@@ -234,15 +363,153 @@ final class CrmController
         ]);
     }
 
-    public function dashboard(): JsonResponse
+    public function dashboard(Request $request): JsonResponse
     {
+        $dates = $request->validate([
+            'from' => ['nullable', 'required_with:to', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'required_with:from', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+        $from = $dates['from'] ?? null;
+        $to = $dates['to'] ?? null;
         $customerQuery = $this->accessibleCustomers('erp_customers');
         $user = Auth::guard('staff')->user();
         $isManager = CustomerAccess::isManager($user);
         $salesFilter = $this->salesScopeFilter($user, $isManager);
 
-        $salesSummary = SalesRules::summarizeInvoices($salesFilter);
-        $monthlyChart = SalesRules::monthlySalesSeries($salesFilter);
+        $periodSalesFilter = static function ($query, string $alias) use ($salesFilter, $from, $to): void {
+            if ($salesFilter !== null) {
+                $salesFilter($query, $alias);
+            }
+            if ($from !== null && $to !== null) {
+                $query->where("{$alias}.sold_at", '>=', $from.' 00:00:00')
+                    ->where("{$alias}.sold_at", '<', Carbon::parse($to)->addDay()->toDateString().' 00:00:00');
+            }
+        };
+
+        $scopeKey = $isManager
+            ? 'mgr'
+            : ('u:'.$user->id.':sp:'.($user->salesperson_code ?? '').':doc:'.($user->reservation_doc_types ?? ''));
+
+        // Cache heavy ERP mirror analytics (auto-invalidated on ERP insert/upsert; leads/visits/tasks below stay live)
+        $erpAnalytics = SalesRules::cacheRemember('dash:'.md5($scopeKey.'|'.($from ?? '').'|'.($to ?? '')), 3600, function () use ($customerQuery, $salesFilter, $periodSalesFilter, $isManager, $user, $from, $to): array {
+            $salesSummary = SalesRules::summarizeInvoices($periodSalesFilter);
+            $monthlyChart = SalesRules::monthlySalesSeries($salesFilter);
+
+            $custCounts = (clone $customerQuery)->selectRaw("
+                COUNT(*) as total_customers,
+                COALESCE(SUM(CASE WHEN ar_enable = 'Y' OR ar_enable IS NULL THEN 1 ELSE 0 END), 0) as active_customers
+            ")->first();
+            $totalCustomers = (int) ($custCounts->total_customers ?? 0);
+            $activeCustomers = (int) ($custCounts->active_customers ?? 0);
+
+            $purchasingCustomers = (clone $customerQuery)
+                ->whereExists(function ($sub): void {
+                    $sub->select(DB::raw(1))
+                        ->from('erp_sales_invoices as inv')
+                        ->whereColumn('inv.source_system', 'erp_customers.source_system')
+                        ->whereColumn('inv.erp_customer_code', 'erp_customers.erp_customer_code');
+                    SalesRules::applyActualSalesScope($sub, 'inv');
+                })
+                ->count();
+            $topProvinces = (clone $customerQuery)
+                ->selectRaw("COALESCE(NULLIF(province, ''), 'ไม่ระบุจังหวัด') as province, COUNT(*) as total")
+                ->groupByRaw("COALESCE(NULLIF(province, ''), 'ไม่ระบุจังหวัด')")
+                ->orderByDesc('total')
+                ->limit(10)
+                ->get()
+                ->all();
+
+            // Reservation (ใบจอง 207) summary by doc_type using 2-stage GROUP BY (avoids slow COUNT(DISTINCT) sort)
+            $resInner = DB::table('erp_sales_invoices as r')
+                ->where('r.dt_properties', 207)
+                ->where('r.status', '!=', 'cancelled');
+            if ($from !== null && $to !== null) {
+                $resInner->where('r.sold_at', '>=', $from.' 00:00:00')->where('r.sold_at', '<', Carbon::parse($to)->addDay()->toDateString().' 00:00:00');
+            }
+            if (! $isManager) {
+                $boundDocs = CustomerAccess::reservationDocTypes($user);
+                $spCode = CustomerAccess::salespersonCode($user);
+                if ($boundDocs === [] && $spCode === null) {
+                    $resInner->whereRaw('1 = 0');
+                } else {
+                    $resInner->where(function ($w) use ($boundDocs, $spCode): void {
+                        if ($boundDocs !== []) {
+                            $w->orWhereIn('r.doc_type', $boundDocs);
+                        }
+                        if ($spCode !== null) {
+                            $w->orWhere('r.salesperson_code', $spCode);
+                        }
+                    });
+                }
+            }
+            $resInner->groupBy('r.doc_type', 'r.erp_customer_code')
+                ->select(
+                    'r.doc_type',
+                    'r.erp_customer_code',
+                    DB::raw('COUNT(*) as cnt'),
+                    DB::raw('COALESCE(SUM(COALESCE(r.before_vat_amount, r.net_amount)), 0) as amt'),
+                    DB::raw("MAX(CASE WHEN r.salesperson_code IS NOT NULL AND r.salesperson_code != '' AND r.salesperson_code != '0' THEN r.salesperson_code ELSE NULL END) as sp_code"),
+                    DB::raw("MAX(CASE WHEN r.salesperson_name IS NOT NULL AND r.salesperson_name != '' AND r.salesperson_name != 'ขายเอง' THEN r.salesperson_name ELSE r.salesperson_name END) as sp_name")
+                );
+            $reservationByDocType = DB::query()
+                ->fromSub($resInner, 'sub')
+                ->groupBy('sub.doc_type')
+                ->select(
+                    'sub.doc_type',
+                    DB::raw('SUM(sub.cnt) as doc_count'),
+                    DB::raw('COUNT(*) as customer_count'),
+                    DB::raw('COALESCE(SUM(sub.amt), 0) as total_before_vat'),
+                    DB::raw('MAX(sub.sp_code) as salesperson_code'),
+                    DB::raw('MAX(sub.sp_name) as salesperson_name')
+                )
+                ->orderByDesc('total_before_vat')
+                ->get()
+                ->all();
+
+            // Actual sales breakdown by salesperson using 2-stage GROUP BY
+            $spInner = DB::table('erp_sales_invoices as inv');
+            SalesRules::applyActualSalesScope($spInner, 'inv');
+            $periodSalesFilter($spInner, 'inv');
+            $spInner->groupByRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0'), COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง'), inv.erp_customer_code")
+                ->selectRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0') as sp_code")
+                ->selectRaw("COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง') as sp_name")
+                ->selectRaw('inv.erp_customer_code')
+                ->selectRaw('COUNT(*) as cnt')
+                ->selectRaw('COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as amt');
+            $salesBySalesperson = DB::query()
+                ->fromSub($spInner, 'sub')
+                ->groupBy('sub.sp_code', 'sub.sp_name')
+                ->select(
+                    'sub.sp_code as salesperson_code',
+                    'sub.sp_name as salesperson_name',
+                    DB::raw('SUM(sub.cnt) as invoice_count'),
+                    DB::raw('COUNT(*) as customer_count'),
+                    DB::raw('COALESCE(SUM(sub.amt), 0) as net_sales_before_vat')
+                )
+                ->orderByDesc('net_sales_before_vat')
+                ->get()
+                ->all();
+
+            return [
+                'sales_summary' => $salesSummary,
+                'monthly_chart' => $monthlyChart,
+                'total_customers' => $totalCustomers,
+                'active_customers' => $activeCustomers,
+                'purchasing_customers' => $purchasingCustomers,
+                'top_provinces' => $topProvinces,
+                'reservation_by_doc_type' => $reservationByDocType,
+                'sales_by_salesperson' => $salesBySalesperson,
+            ];
+        });
+
+        $salesSummary = $erpAnalytics['sales_summary'];
+        $monthlyChart = $erpAnalytics['monthly_chart'];
+        $totalCustomers = $erpAnalytics['total_customers'];
+        $activeCustomers = $erpAnalytics['active_customers'];
+        $purchasingCustomers = $erpAnalytics['purchasing_customers'];
+        $topProvinces = $erpAnalytics['top_provinces'];
+        $reservationByDocType = $erpAnalytics['reservation_by_doc_type'];
+        $salesBySalesperson = $erpAnalytics['sales_by_salesperson'];
 
         // Acquisition KPIs (strictly scoped for sales rep vs manager/admin)
         $leadBase = DB::table('crm_leads as l');
@@ -255,6 +522,7 @@ final class CrmController
         $monthStart = now()->startOfMonth();
 
         $totalLeads = (clone $leadBase)->count();
+        $periodLeads = (clone $leadBase)->when($from && $to, fn ($q) => $q->where('l.created_at', '>=', $from.' 00:00:00')->where('l.created_at', '<', Carbon::parse($to)->addDay()->toDateString().' 00:00:00'))->count();
         $leadsToday = (clone $leadBase)->where('l.created_at', '>=', $todayStart)->count();
         $leadsThisWeek = (clone $leadBase)->where('l.created_at', '>=', $weekStart)->count();
         $leadsThisMonth = (clone $leadBase)->where('l.created_at', '>=', $monthStart)->count();
@@ -294,35 +562,13 @@ final class CrmController
             ->orderByDesc('total_leads')
             ->get();
 
-        // Customer segmentation
-        $totalCustomers = (clone $customerQuery)->count();
-        $activeCustomers = (clone $customerQuery)
-            ->where(function ($w): void {
-                $w->where('ar_enable', 'Y')->orWhereNull('ar_enable');
-            })
-            ->count();
-        $purchasingCustomers = (clone $customerQuery)
-            ->whereExists(function ($sub): void {
-                $sub->select(DB::raw(1))
-                    ->from('erp_sales_invoices as inv')
-                    ->whereColumn('inv.source_system', 'erp_customers.source_system')
-                    ->whereColumn('inv.erp_customer_code', 'erp_customers.erp_customer_code');
-                SalesRules::applyActualSalesScope($sub, 'inv');
-            })
-            ->count();
-        $topProvinces = (clone $customerQuery)
-            ->selectRaw("COALESCE(NULLIF(province, ''), 'ไม่ระบุจังหวัด') as province, COUNT(*) as total")
-            ->groupByRaw("COALESCE(NULLIF(province, ''), 'ไม่ระบุจังหวัด')")
-            ->orderByDesc('total')
-            ->limit(10)
-            ->get();
-
         // Visit & task performance
         $visitBase = DB::table('crm_customer_visits as v');
         if (! $isManager) {
             $visitBase->where('v.staff_user_id', $user->id);
         }
         $totalVisits = (clone $visitBase)->count();
+        $periodVisits = (clone $visitBase)->when($from && $to, fn ($q) => $q->where('v.visited_at', '>=', $from.' 00:00:00')->where('v.visited_at', '<', Carbon::parse($to)->addDay()->toDateString().' 00:00:00'))->count();
         $visitsThisMonth = (clone $visitBase)->where('v.visited_at', '>=', $monthStart)->count();
 
         $taskBase = DB::table('crm_follow_up_tasks');
@@ -348,56 +594,8 @@ final class CrmController
             ->limit(10)
             ->get();
 
-        // Reservation (ใบจอง 207) summary by doc_type, scoped to the logged-in user
-        $resQuery = DB::table('erp_sales_invoices as r')
-            ->where('r.dt_properties', 207)
-            ->where('r.status', '!=', 'cancelled');
-        if (! $isManager) {
-            $boundDocs = CustomerAccess::reservationDocTypes($user);
-            $spCode = CustomerAccess::salespersonCode($user);
-            if ($boundDocs === [] && $spCode === null) {
-                $resQuery->whereRaw('1 = 0');
-            } else {
-                $resQuery->where(function ($w) use ($boundDocs, $spCode): void {
-                    if ($boundDocs !== []) {
-                        $w->orWhereIn('r.doc_type', $boundDocs);
-                    }
-                    if ($spCode !== null) {
-                        $w->orWhere('r.salesperson_code', $spCode);
-                    }
-                });
-            }
-        }
-        $reservationByDocType = $resQuery
-            ->groupBy('r.doc_type')
-            ->select(
-                'r.doc_type',
-                DB::raw('COUNT(*) as doc_count'),
-                DB::raw('COUNT(DISTINCT r.erp_customer_code) as customer_count'),
-                DB::raw('COALESCE(SUM(COALESCE(r.before_vat_amount, r.net_amount)), 0) as total_before_vat'),
-                DB::raw("MAX(CASE WHEN r.salesperson_code IS NOT NULL AND r.salesperson_code != '' AND r.salesperson_code != '0' THEN r.salesperson_code ELSE NULL END) as salesperson_code"),
-                DB::raw("MAX(CASE WHEN r.salesperson_name IS NOT NULL AND r.salesperson_name != '' AND r.salesperson_name != 'ขายเอง' THEN r.salesperson_name ELSE r.salesperson_name END) as salesperson_name")
-            )
-            ->orderByDesc('total_before_vat')
-            ->get();
-
-        // Actual sales breakdown by salesperson, scoped to the logged-in user
-        $spSalesQuery = DB::table('erp_sales_invoices as inv');
-        SalesRules::applyActualSalesScope($spSalesQuery, 'inv');
-        if ($salesFilter !== null) {
-            $salesFilter($spSalesQuery, 'inv');
-        }
-        $salesBySalesperson = $spSalesQuery
-            ->groupByRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0'), COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง')")
-            ->selectRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0') as salesperson_code")
-            ->selectRaw("COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง') as salesperson_name")
-            ->selectRaw('COUNT(*) as invoice_count')
-            ->selectRaw('COUNT(DISTINCT inv.erp_customer_code) as customer_count')
-            ->selectRaw('COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as net_sales_before_vat')
-            ->orderByDesc('net_sales_before_vat')
-            ->get();
-
         return response()->json([
+            'period' => ['from' => $from, 'to' => $to],
             'scope_info' => [
                 'is_manager' => $isManager,
                 'role' => $user->role,
@@ -420,6 +618,7 @@ final class CrmController
             ],
             'visit_performance' => [
                 'total_visits' => $totalVisits,
+                'period_visits' => $periodVisits,
                 'visits_this_month' => $visitsThisMonth,
                 'open_tasks' => $openTasks,
                 'completed_tasks' => $completedTasks,
@@ -427,6 +626,7 @@ final class CrmController
             'recent_activities' => $recentVisits,
             'acquisition' => [
                 'total_leads' => $totalLeads,
+                'period_leads' => $periodLeads,
                 'leads_today' => $leadsToday,
                 'leads_this_week' => $leadsThisWeek,
                 'leads_this_month' => $leadsThisMonth,
@@ -651,55 +851,68 @@ final class CrmController
             }
         };
 
-        $byDocTypeQuery = DB::table('erp_sales_invoices as inv');
-        $dateAndRoleFilter($byDocTypeQuery, 'inv');
-        $byDocType = $byDocTypeQuery
-            ->groupBy('inv.doc_type', 'inv.dt_properties', 'inv.doc_category', 'inv.status')
-            ->select(
-                'inv.doc_type',
-                'inv.dt_properties',
-                'inv.doc_category',
-                'inv.status',
-                DB::raw('COUNT(*) as doc_count'),
-                DB::raw('COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as before_vat_total'),
-                DB::raw('COALESCE(SUM(COALESCE(inv.vat_amount, 0)), 0) as vat_total'),
-                DB::raw('COALESCE(SUM(COALESCE(inv.gross_amount, inv.net_amount)), 0) as gross_total')
-            )
-            ->orderBy('inv.dt_properties')
-            ->orderBy('inv.doc_type')
-            ->get();
+        $scopeKey = $isManager
+            ? 'mgr'
+            : ('u:'.$user->id.':sp:'.($user->salesperson_code ?? '').':doc:'.($user->reservation_doc_types ?? ''));
 
-        $excludedByCatQuery = DB::table('erp_sales_items as it')
-            ->join('erp_sales_invoices as inv', function ($join): void {
-                $join->on('inv.source_system', '=', 'it.source_system')
-                    ->on('inv.branch_code', '=', 'it.branch_code')
-                    ->on('inv.doc_type', '=', 'it.doc_type')
-                    ->on('inv.invoice_no', '=', 'it.invoice_no');
-            })
-            ->where('it.is_excluded_kpi', true);
-        SalesRules::applyActualSalesScope($excludedByCatQuery, 'inv');
-        $dateAndRoleFilter($excludedByCatQuery, 'inv');
-        $excludedByCat = $excludedByCatQuery
-            ->groupBy('it.iccat_code', 'it.iccat_name')
-            ->select(
-                'it.iccat_code',
-                'it.iccat_name',
-                DB::raw('COUNT(*) as line_count'),
-                DB::raw('COALESCE(SUM(COALESCE(it.before_vat_amount, it.net_amount)), 0) as before_vat_total'),
-                DB::raw('COALESCE(SUM(COALESCE(it.gross_amount, it.net_amount)), 0) as gross_total')
-            )
-            ->orderBy('it.iccat_code')
-            ->get();
+        $report = SalesRules::cacheRemember(
+            'recon:'.md5($scopeKey.'|'.($filters['from'] ?? '').'|'.($filters['to'] ?? '')),
+            3600,
+            static function () use ($filters, $dateAndRoleFilter): array {
+                $byDocTypeQuery = DB::table('erp_sales_invoices as inv');
+                $dateAndRoleFilter($byDocTypeQuery, 'inv');
+                $byDocType = $byDocTypeQuery
+                    ->groupBy('inv.doc_type', 'inv.dt_properties', 'inv.doc_category', 'inv.status')
+                    ->select(
+                        'inv.doc_type',
+                        'inv.dt_properties',
+                        'inv.doc_category',
+                        'inv.status',
+                        DB::raw('COUNT(*) as doc_count'),
+                        DB::raw('COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as before_vat_total'),
+                        DB::raw('COALESCE(SUM(COALESCE(inv.vat_amount, 0)), 0) as vat_total'),
+                        DB::raw('COALESCE(SUM(COALESCE(inv.gross_amount, inv.net_amount)), 0) as gross_total')
+                    )
+                    ->orderBy('inv.dt_properties')
+                    ->orderBy('inv.doc_type')
+                    ->get();
 
-        $report = [
-            'filters' => [
-                'from' => $filters['from'] ?? null,
-                'to' => $filters['to'] ?? null,
-            ],
-            'summary' => SalesRules::summarizeInvoices($dateAndRoleFilter),
-            'by_doc_type' => $byDocType,
-            'excluded_categories' => $excludedByCat,
-        ];
+                $excludedByCatQuery = DB::table('erp_sales_items as it')
+                    ->join('erp_sales_invoices as inv', function ($join): void {
+                        $join->on('inv.source_system', '=', 'it.source_system')
+                            ->on('inv.branch_code', '=', 'it.branch_code')
+                            ->on('inv.doc_type', '=', 'it.doc_type')
+                            ->on('inv.invoice_no', '=', 'it.invoice_no');
+                    })
+                    ->where('it.is_excluded_kpi', true);
+                SalesRules::applyActualSalesScope($excludedByCatQuery, 'inv');
+                $dateAndRoleFilter($excludedByCatQuery, 'inv');
+                $excludedByCat = $excludedByCatQuery
+                    ->groupBy('it.iccat_code', 'it.iccat_name')
+                    ->select(
+                        'it.iccat_code',
+                        'it.iccat_name',
+                        DB::raw('COUNT(*) as line_count'),
+                        DB::raw('COALESCE(SUM(COALESCE(it.before_vat_amount, it.net_amount)), 0) as before_vat_total'),
+                        DB::raw('COALESCE(SUM(COALESCE(it.gross_amount, it.net_amount)), 0) as gross_total')
+                    )
+                    ->orderBy('it.iccat_code')
+                    ->get();
+
+                return [
+                    'filters' => [
+                        'from' => $filters['from'] ?? null,
+                        'to' => $filters['to'] ?? null,
+                    ],
+                    'summary' => SalesRules::summarizeInvoices($dateAndRoleFilter),
+                    'by_doc_type' => $byDocType,
+                    'excluded_categories' => $excludedByCat,
+                ];
+            }
+        );
+
+        $byDocType = $report['by_doc_type'];
+        $excludedByCat = $report['excluded_categories'];
 
         $format = $filters['format'] ?? 'json';
         if ($format === 'csv') {
@@ -929,6 +1142,13 @@ final class CrmController
                 'changes' => json_encode($d, JSON_UNESCAPED_UNICODE),
                 'created_at' => $now,
             ]);
+
+            if ($status === 'verified' && $existing->erp_customer_id) {
+                $erpRow = DB::table('erp_customers')->where('id', $existing->erp_customer_id)->first(['source_system', 'erp_customer_code']);
+                if ($erpRow) {
+                    \App\Modules\Loyalty\InvoicePointsSynchronizer::syncCustomer($erpRow->source_system, $erpRow->erp_customer_code, $now);
+                }
+            }
         });
 
         return response()->json(['ok' => true, 'id' => $id, 'verification_status' => $status]);
@@ -1107,12 +1327,140 @@ final class CrmController
         return response()->json($rows);
     }
 
+    /**
+     * Back-office member registration: Admin/Manager creates a Member Account directly
+     * and optionally links & verifies it against an ERP customer in a single step.
+     */
+    public function storeMember(Request $request): JsonResponse
+    {
+        $actor = Auth::guard('staff')->user();
+        abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
+
+        $d = $request->validate([
+            'name' => ['required', 'string', 'max:160'],
+            'phone' => ['nullable', 'string', 'max:40', 'required_without:email', 'unique:member_accounts,phone'],
+            'email' => ['nullable', 'email', 'max:180', 'required_without:phone', 'unique:member_accounts,email'],
+            'password' => ['required', 'string', 'min:12', 'max:120'],
+            'erp_customer_id' => ['nullable', 'integer', 'exists:erp_customers,id'],
+            'erp_member_code' => ['nullable', 'string', 'max:64'],
+            'auto_verify' => ['nullable', 'boolean'],
+            'verification_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $phone = isset($d['phone']) && trim((string) $d['phone']) !== '' ? trim((string) $d['phone']) : null;
+        $email = isset($d['email']) && trim((string) $d['email']) !== '' ? strtolower(trim((string) $d['email'])) : null;
+        $autoVerify = array_key_exists('auto_verify', $d) ? (bool) $d['auto_verify'] : true;
+        $erpCustomerId = ! empty($d['erp_customer_id']) ? (int) $d['erp_customer_id'] : null;
+        $erpMemberCode = isset($d['erp_member_code']) && trim((string) $d['erp_member_code']) !== '' ? trim((string) $d['erp_member_code']) : null;
+        $note = isset($d['verification_note']) && trim((string) $d['verification_note']) !== ''
+            ? trim((string) $d['verification_note'])
+            : 'สร้างบัญชีและยืนยันโดยทีมหลังบ้าน';
+        $now = now();
+
+        $result = DB::transaction(function () use ($d, $phone, $email, $autoVerify, $erpCustomerId, $erpMemberCode, $note, $actor, $now): array {
+            $memberId = DB::table('member_accounts')->insertGetId([
+                'name' => trim($d['name']),
+                'phone' => $phone,
+                'email' => $email,
+                'password' => bcrypt($d['password']),
+                'status' => 'active',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            $linkId = null;
+            $verificationStatus = 'unverified';
+
+            if ($erpCustomerId !== null) {
+                $master = DB::table('crm_customer_masters')->where('erp_customer_id', $erpCustomerId)->first();
+                if (! $master) {
+                    $customer = DB::table('erp_customers')->where('id', $erpCustomerId)->first();
+                    $customerMasterId = DB::table('crm_customer_masters')->insertGetId([
+                        'internal_customer_code' => sprintf('POP-ERP-%06d', $customer->id),
+                        'erp_customer_id' => $customer->id,
+                        'erp_source_system' => $customer->source_system,
+                        'erp_customer_code' => $customer->erp_customer_code,
+                        'link_status' => 'linked',
+                        'verified_at' => $now,
+                        'verified_by' => $actor->id,
+                        'display_name' => $customer->customer_name,
+                        'phone' => $customer->phone,
+                        'address' => $customer->address ?? null,
+                        'province' => $customer->province ?? null,
+                        'assigned_salesperson_code' => $customer->salesperson_code ?? null,
+                        'created_source' => 'erp_mirror',
+                        'created_by' => $actor->id,
+                        'updated_by' => $actor->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+                } else {
+                    $customerMasterId = $master->id;
+                }
+
+                $verificationStatus = $autoVerify ? 'verified' : 'pending';
+                $linkId = DB::table('member_erp_links')->insertGetId([
+                    'member_account_id' => $memberId,
+                    'crm_customer_master_id' => $customerMasterId,
+                    'erp_customer_id' => $erpCustomerId,
+                    'erp_member_code' => $erpMemberCode,
+                    'verification_status' => $verificationStatus,
+                    'verified_at' => $autoVerify ? $now : null,
+                    'verified_by' => $autoVerify ? $actor->id : null,
+                    'verification_note' => $note,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                if ($autoVerify) {
+                    $erpRow = DB::table('erp_customers')->where('id', $erpCustomerId)->first(['source_system', 'erp_customer_code']);
+                    if ($erpRow) {
+                        \App\Modules\Loyalty\InvoicePointsSynchronizer::syncCustomer($erpRow->source_system, $erpRow->erp_customer_code, $now);
+                    }
+                }
+            }
+
+            DB::table('crm_audit_logs')->insert([
+                'entity_type' => 'member_account',
+                'entity_id' => $memberId,
+                'action' => 'created_by_backoffice',
+                'actor_staff_id' => $actor->id,
+                'changes' => json_encode([
+                    'name' => trim($d['name']),
+                    'phone' => $phone,
+                    'email' => $email,
+                    'erp_customer_id' => $erpCustomerId,
+                    'erp_member_code' => $erpMemberCode,
+                    'verification_status' => $verificationStatus,
+                ], JSON_UNESCAPED_UNICODE),
+                'created_at' => $now,
+            ]);
+
+            return [
+                'member_id' => $memberId,
+                'link_id' => $linkId,
+                'verification_status' => $verificationStatus,
+            ];
+        });
+
+        return response()->json([
+            'ok' => true,
+            'id' => $result['member_id'],
+            'member_account_id' => $result['member_id'],
+            'link_id' => $result['link_id'],
+            'verification_status' => $result['verification_status'],
+            'name' => trim($d['name']),
+            'phone' => $phone,
+            'email' => $email,
+        ], 201);
+    }
+
     public function settingsOverview(): JsonResponse
     {
         $user = Auth::guard('staff')->user();
         abort_unless(CustomerAccess::isManager($user), 403, 'Admin or manager role required');
 
-        $autoSyncStats = CustomerAccess::syncStaffFromErp();
+        $autoSyncStats = SalesRules::cacheRemember('settings_auto_sync_staff', 3600, static fn (): array => CustomerAccess::syncStaffFromErp());
 
         $staff = DB::table('staff_users')
             ->select('id', 'name', 'email', 'role', 'salesperson_code', 'reservation_doc_types', 'is_active', 'created_at')
@@ -1131,20 +1479,35 @@ final class CrmController
             ->orderBy('salesperson_code')
             ->get();
 
-        $availableReservations = DB::table('erp_sales_invoices as r')
-            ->where('r.dt_properties', 207)
-            ->where('r.status', '!=', 'cancelled')
-            ->groupBy('r.doc_type')
-            ->select(
-                'r.doc_type',
-                DB::raw('COUNT(*) as doc_count'),
-                DB::raw('COUNT(DISTINCT r.erp_customer_code) as customer_count'),
-                DB::raw('COALESCE(SUM(COALESCE(r.before_vat_amount, r.net_amount)), 0) as total_before_vat'),
-                DB::raw("MAX(CASE WHEN r.salesperson_code IS NOT NULL AND r.salesperson_code != '' AND r.salesperson_code != '0' THEN r.salesperson_code ELSE NULL END) as main_sp_code"),
-                DB::raw("MAX(CASE WHEN r.salesperson_name IS NOT NULL AND r.salesperson_name != '' AND r.salesperson_name != 'ขายเอง' THEN r.salesperson_name ELSE r.salesperson_name END) as main_sp_name")
-            )
-            ->orderBy('r.doc_type')
-            ->get();
+        $availableReservations = SalesRules::cacheRemember('settings_available_reservations', 3600, static function () {
+            $resInner = DB::table('erp_sales_invoices as r')
+                ->where('r.dt_properties', 207)
+                ->where('r.status', '!=', 'cancelled')
+                ->groupBy('r.doc_type', 'r.erp_customer_code')
+                ->select(
+                    'r.doc_type',
+                    'r.erp_customer_code',
+                    DB::raw('COUNT(*) as cnt'),
+                    DB::raw('COALESCE(SUM(COALESCE(r.before_vat_amount, r.net_amount)), 0) as amt'),
+                    DB::raw("MAX(CASE WHEN r.salesperson_code IS NOT NULL AND r.salesperson_code != '' AND r.salesperson_code != '0' THEN r.salesperson_code ELSE NULL END) as main_sp_code"),
+                    DB::raw("MAX(CASE WHEN r.salesperson_name IS NOT NULL AND r.salesperson_name != '' AND r.salesperson_name != 'ขายเอง' THEN r.salesperson_name ELSE r.salesperson_name END) as main_sp_name")
+                );
+
+            return DB::query()
+                ->fromSub($resInner, 'sub')
+                ->groupBy('sub.doc_type')
+                ->select(
+                    'sub.doc_type',
+                    DB::raw('SUM(sub.cnt) as doc_count'),
+                    DB::raw('COUNT(*) as customer_count'),
+                    DB::raw('COALESCE(SUM(sub.amt), 0) as total_before_vat'),
+                    DB::raw('MAX(sub.main_sp_code) as main_sp_code'),
+                    DB::raw('MAX(sub.main_sp_name) as main_sp_name')
+                )
+                ->orderBy('sub.doc_type')
+                ->get()
+                ->all();
+        });
 
         $auditLogs = DB::table('crm_audit_logs as a')
             ->leftJoin('staff_users as s', 's.id', '=', 'a.actor_staff_id')
@@ -1384,6 +1747,8 @@ final class CrmController
         $salesBySpQuery = DB::table('erp_sales_invoices as inv');
         SalesRules::applyActualSalesScope($salesBySpQuery, 'inv');
         $salesBySp = $salesBySpQuery
+            ->where('inv.sold_at', '>=', $periodStart.' 00:00:00')
+            ->where('inv.sold_at', '<', Carbon::parse($periodEnd)->addDay()->toDateString().' 00:00:00')
             ->whereNotNull('inv.salesperson_code')
             ->groupBy('inv.salesperson_code')
             ->select(
@@ -1398,6 +1763,8 @@ final class CrmController
         $resByDoc = DB::table('erp_sales_invoices as r')
             ->where('r.dt_properties', 207)
             ->where('r.status', '!=', 'cancelled')
+            ->where('r.sold_at', '>=', $periodStart.' 00:00:00')
+            ->where('r.sold_at', '<', Carbon::parse($periodEnd)->addDay()->toDateString().' 00:00:00')
             ->groupBy('r.doc_type')
             ->select(
                 'r.doc_type',
@@ -1419,16 +1786,31 @@ final class CrmController
             ->get()
             ->keyBy('staff_user_id');
 
+        $monthStartCarbon = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->startOfMonth();
+        $monthEndCarbon = $monthStartCarbon->copy()->endOfMonth();
+        $daysInMonth = (int) $monthEndCarbon->day;
+        $todayCarbon = now()->startOfDay();
+        if ($todayCarbon->lt($monthStartCarbon)) {
+            $daysElapsed = 0;
+        } elseif ($todayCarbon->gt($monthEndCarbon)) {
+            $daysElapsed = $daysInMonth;
+        } else {
+            $daysElapsed = max(1, (int) $todayCarbon->day);
+        }
+
         $rows = [];
         $totalTargetAmount = 0.0;
         $totalActualSales = 0.0;
+        $configuredActualSales = 0.0;
         $totalTargetVisits = 0;
         $totalActualVisits = 0;
+        $configuredStaffCount = 0;
 
         foreach ($salesStaff as $staff) {
             $tRow = $targetsByStaff->get($staff->id);
-            $targetAmount = $tRow ? (float) $tRow->target_amount : 150000.0;
-            $targetVisits = $tRow ? (int) $tRow->target_visits : 30;
+            $hasTarget = $tRow !== null && ((float) $tRow->target_amount > 0 || (int) $tRow->target_visits > 0);
+            $targetAmount = $tRow ? (float) $tRow->target_amount : 0.0;
+            $targetVisits = $tRow ? (int) $tRow->target_visits : 0;
 
             $spCode = CustomerAccess::salespersonCode($staff);
             $docTypes = CustomerAccess::reservationDocTypes($staff);
@@ -1455,13 +1837,19 @@ final class CrmController
             $totalVisits = $vAgg ? (int) $vAgg->total_visits : 0;
             $monthVisits = $vAgg ? (int) $vAgg->month_visits : 0;
 
-            $salesPct = $targetAmount > 0 ? round(($actualSales / $targetAmount) * 100, 1) : 0.0;
-            $visitPct = $targetVisits > 0 ? round(($totalVisits / $targetVisits) * 100, 1) : 0.0;
+            $salesPct = $targetAmount > 0 ? round(($actualSales / $targetAmount) * 100, 1) : null;
+            $visitPct = $targetVisits > 0 ? round(($monthVisits / $targetVisits) * 100, 1) : null;
+            $dailyActualAvg = $daysElapsed > 0 ? round($actualSales / $daysElapsed, 2) : 0.0;
+            $dailyTargetAvg = $targetAmount > 0 && $daysInMonth > 0 ? round($targetAmount / $daysInMonth, 2) : 0.0;
 
+            if ($hasTarget) {
+                $configuredStaffCount++;
+                $configuredActualSales += $actualSales;
+            }
             $totalTargetAmount += $targetAmount;
             $totalActualSales += $actualSales;
             $totalTargetVisits += $targetVisits;
-            $totalActualVisits += $totalVisits;
+            $totalActualVisits += $monthVisits;
 
             $rows[] = [
                 'staff_user_id' => (int) $staff->id,
@@ -1469,14 +1857,16 @@ final class CrmController
                 'salesperson_code' => $spCode,
                 'reservation_doc_types' => $docTypes,
                 'target_id' => $tRow ? (int) $tRow->id : null,
-                'is_custom_target' => (bool) $tRow,
+                'is_custom_target' => $hasTarget,
                 'target_amount' => $targetAmount,
                 'target_visits' => $targetVisits,
                 'actual_sales' => $actualSales,
+                'daily_actual_avg' => $dailyActualAvg,
+                'daily_target_avg' => $dailyTargetAvg,
                 'invoice_count' => $invoiceCount,
                 'reservation_amount' => $reservationAmount,
                 'reservation_count' => $reservationCount,
-                'actual_visits' => $totalVisits,
+                'actual_visits' => $monthVisits,
                 'month_visits' => $monthVisits,
                 'sales_achievement_pct' => $salesPct,
                 'visit_achievement_pct' => $visitPct,
@@ -1487,14 +1877,18 @@ final class CrmController
             'month' => $monthParam,
             'period_start' => $periodStart,
             'period_end' => $periodEnd,
+            'days_in_month' => $daysInMonth,
+            'days_elapsed' => $daysElapsed,
             'summary' => [
                 'staff_count' => count($rows),
+                'configured_staff_count' => $configuredStaffCount,
                 'total_target_amount' => round($totalTargetAmount, 2),
                 'total_actual_sales' => round($totalActualSales, 2),
-                'overall_sales_pct' => $totalTargetAmount > 0 ? round(($totalActualSales / $totalTargetAmount) * 100, 1) : 0.0,
+                'configured_actual_sales' => round($configuredActualSales, 2),
+                'overall_sales_pct' => $totalTargetAmount > 0 ? round(($configuredActualSales / $totalTargetAmount) * 100, 1) : null,
                 'total_target_visits' => $totalTargetVisits,
                 'total_actual_visits' => $totalActualVisits,
-                'overall_visit_pct' => $totalTargetVisits > 0 ? round(($totalActualVisits / $totalTargetVisits) * 100, 1) : 0.0,
+                'overall_visit_pct' => $totalTargetVisits > 0 ? round(($totalActualVisits / $totalTargetVisits) * 100, 1) : null,
             ],
             'rows' => $rows,
         ]);
@@ -1572,108 +1966,369 @@ final class CrmController
         $daysThreshold = max(7, min(365, (int) $request->query('days', 30)));
         $mode = trim((string) $request->query('mode', 'all_alerts')); // all_alerts | unvisited | inactive | no_pin
         $search = trim((string) $request->query('q', ''));
+        $user = Auth::guard('staff')->user();
+        $isManager = CustomerAccess::isManager($user);
+        $scopeKey = $isManager
+            ? 'mgr'
+            : ('u:'.$user->id.':sp:'.($user->salesperson_code ?? '').':doc:'.($user->reservation_doc_types ?? ''));
 
-        $invAgg = SalesRules::customerActualInvoiceSubquery();
-        $visitAgg = DB::table('crm_customer_visits')
-            ->whereNotNull('erp_customer_id')
-            ->groupBy('erp_customer_id')
-            ->select(
-                'erp_customer_id',
-                DB::raw('COUNT(*) as visit_count'),
-                DB::raw('MAX(visited_at) as last_visited_at')
-            );
+        $compute = function () use ($daysThreshold, $mode, $search): array {
+            $invAgg = SalesRules::customerActualInvoiceSubquery();
+            $visitAgg = DB::table('crm_customer_visits')
+                ->whereNotNull('erp_customer_id')
+                ->groupBy('erp_customer_id')
+                ->select(
+                    'erp_customer_id',
+                    DB::raw('COUNT(*) as visit_count'),
+                    DB::raw('MAX(visited_at) as last_visited_at')
+                );
 
-        // Anchor relative to the latest invoice date in ERP mirror so historical snapshots work accurately
-        $latestErpDateRaw = DB::table('erp_sales_invoices')->max('sold_at');
-        $referenceDate = $latestErpDateRaw ? Carbon::parse($latestErpDateRaw) : now();
-        $cutoffDate = $referenceDate->copy()->subDays($daysThreshold);
+            // Anchor relative to the latest invoice date in ERP mirror so historical snapshots work accurately
+            $latestErpDateRaw = DB::table('erp_sales_invoices')->max('sold_at');
+            $referenceDate = $latestErpDateRaw ? Carbon::parse($latestErpDateRaw) : now();
+            $cutoffDate = $referenceDate->copy()->subDays($daysThreshold);
 
-        $baseQuery = $this->accessibleCustomers('c')
-            ->leftJoinSub($invAgg, 'inv_agg', function ($join): void {
-                $join->on('inv_agg.source_system', '=', 'c.source_system')
-                    ->on('inv_agg.erp_customer_code', '=', 'c.erp_customer_code');
-            })
-            ->leftJoinSub($visitAgg, 'v_agg', 'v_agg.erp_customer_id', '=', 'c.id')
-            ->leftJoin('crm_customer_locations as loc', 'loc.erp_customer_id', '=', 'c.id');
+            // Compute total_scoped, unvisited, and unpinned in ONE lightweight pass (no invoice join!)
+            $lightCounts = $this->accessibleCustomers('c')
+                ->leftJoinSub($visitAgg, 'v_agg', 'v_agg.erp_customer_id', '=', 'c.id')
+                ->leftJoin('crm_customer_locations as loc', 'loc.erp_customer_id', '=', 'c.id')
+                ->selectRaw('
+                    COUNT(*) as total_scoped,
+                    COALESCE(SUM(CASE WHEN COALESCE(v_agg.visit_count, 0) = 0 THEN 1 ELSE 0 END), 0) as unvisited_count,
+                    COALESCE(SUM(CASE WHEN loc.latitude IS NULL THEN 1 ELSE 0 END), 0) as unpinned_count
+                ')
+                ->first();
+            $totalScoped = (int) ($lightCounts->total_scoped ?? 0);
+            $unvisitedCount = (int) ($lightCounts->unvisited_count ?? 0);
+            $unpinnedCount = (int) ($lightCounts->unpinned_count ?? 0);
 
-        $totalScoped = (clone $baseQuery)->count();
-        $unvisitedCount = (clone $baseQuery)->whereRaw('COALESCE(v_agg.visit_count, 0) = 0')->count();
-        $inactiveCount = (clone $baseQuery)->where(function ($w) use ($cutoffDate): void {
-            $w->whereNull('inv_agg.last_purchase_at')
-                ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
-        })->count();
-        $unpinnedCount = (clone $baseQuery)->whereNull('loc.latitude')->count();
+            // Count inactive customers using fast NOT EXISTS on indexed (source_system, erp_customer_code, sold_at)
+            $inactiveCount = $this->accessibleCustomers('c')
+                ->whereNotExists(function ($sub) use ($cutoffDate): void {
+                    $sub->select(DB::raw(1))
+                        ->from('erp_sales_invoices as inv')
+                        ->whereColumn('inv.source_system', 'c.source_system')
+                        ->whereColumn('inv.erp_customer_code', 'c.erp_customer_code')
+                        ->where('inv.doc_category', 'sale')
+                        ->where('inv.sold_at', '>=', $cutoffDate->toDateTimeString());
+                    SalesRules::applyActualSalesScope($sub, 'inv');
+                })
+                ->count();
 
-        if ($search !== '') {
-            $likeOp = SalesRules::likeOperator();
-            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
-            $baseQuery->where(function ($w) use ($likeOp, $like): void {
-                $w->where('c.erp_customer_code', $likeOp, $like)
-                    ->orWhere('c.customer_name', $likeOp, $like)
-                    ->orWhere('c.phone', $likeOp, $like)
-                    ->orWhere('c.province', $likeOp, $like)
-                    ->orWhere('c.salesperson_name', $likeOp, $like);
-            });
-        }
+            $baseQuery = $this->accessibleCustomers('c')
+                ->leftJoinSub($invAgg, 'inv_agg', function ($join): void {
+                    $join->on('inv_agg.source_system', '=', 'c.source_system')
+                        ->on('inv_agg.erp_customer_code', '=', 'c.erp_customer_code');
+                })
+                ->leftJoinSub($visitAgg, 'v_agg', 'v_agg.erp_customer_id', '=', 'c.id')
+                ->leftJoin('crm_customer_locations as loc', 'loc.erp_customer_id', '=', 'c.id');
 
-        if ($mode === 'unvisited') {
-            $baseQuery->whereRaw('COALESCE(v_agg.visit_count, 0) = 0');
-        } elseif ($mode === 'inactive') {
-            $baseQuery->where(function ($w) use ($cutoffDate): void {
-                $w->whereNull('inv_agg.last_purchase_at')
-                    ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
-            });
-        } elseif ($mode === 'no_pin') {
-            $baseQuery->whereNull('loc.latitude');
-        } else {
-            $baseQuery->where(function ($w) use ($cutoffDate): void {
-                $w->whereRaw('COALESCE(v_agg.visit_count, 0) = 0')
-                    ->orWhereNull('inv_agg.last_purchase_at')
-                    ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
-            });
-        }
+            if ($search !== '') {
+                $likeOp = SalesRules::likeOperator();
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $baseQuery->where(function ($w) use ($likeOp, $like): void {
+                    $w->where('c.erp_customer_code', $likeOp, $like)
+                        ->orWhere('c.customer_name', $likeOp, $like)
+                        ->orWhere('c.phone', $likeOp, $like)
+                        ->orWhere('c.province', $likeOp, $like)
+                        ->orWhere('c.salesperson_name', $likeOp, $like);
+                });
+            }
 
-        $rows = $baseQuery
-            ->select(
-                'c.id',
-                'c.erp_customer_code',
-                'c.customer_name',
-                'c.phone',
-                'c.province',
-                'c.address',
-                'c.salesperson_code',
-                'c.salesperson_name',
-                DB::raw('COALESCE(inv_agg.sale_invoice_count, 0) as sale_invoice_count'),
-                DB::raw('COALESCE(inv_agg.actual_before_vat, 0) as total_sales_net'),
-                'inv_agg.last_purchase_at',
-                DB::raw('COALESCE(v_agg.visit_count, 0) as visit_count'),
-                'v_agg.last_visited_at',
-                'loc.latitude',
-                'loc.longitude'
-            )
-            ->orderByDesc(DB::raw('COALESCE(inv_agg.actual_before_vat, 0)'))
-            ->limit(150)
-            ->get()
-            ->map(function ($row) use ($referenceDate) {
-                $daysSincePurchase = null;
-                if ($row->last_purchase_at) {
-                    $daysSincePurchase = max(0, (int) Carbon::parse($row->last_purchase_at)->diffInDays($referenceDate));
+            if ($mode === 'unvisited') {
+                $baseQuery->whereRaw('COALESCE(v_agg.visit_count, 0) = 0');
+            } elseif ($mode === 'inactive') {
+                $baseQuery->where(function ($w) use ($cutoffDate): void {
+                    $w->whereNull('inv_agg.last_purchase_at')
+                        ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
+                });
+            } elseif ($mode === 'no_pin') {
+                $baseQuery->whereNull('loc.latitude');
+            } else {
+                $baseQuery->where(function ($w) use ($cutoffDate): void {
+                    $w->whereRaw('COALESCE(v_agg.visit_count, 0) = 0')
+                        ->orWhereNull('inv_agg.last_purchase_at')
+                        ->orWhere('inv_agg.last_purchase_at', '<', $cutoffDate->toDateTimeString());
+                });
+            }
+
+            $rows = $baseQuery
+                ->select(
+                    'c.id',
+                    'c.erp_customer_code',
+                    'c.customer_name',
+                    'c.phone',
+                    'c.province',
+                    'c.address',
+                    'c.salesperson_code',
+                    'c.salesperson_name',
+                    DB::raw('COALESCE(inv_agg.sale_invoice_count, 0) as sale_invoice_count'),
+                    DB::raw('COALESCE(inv_agg.actual_before_vat, 0) as total_sales_net'),
+                    'inv_agg.last_purchase_at',
+                    DB::raw('COALESCE(v_agg.visit_count, 0) as visit_count'),
+                    'v_agg.last_visited_at',
+                    'loc.latitude',
+                    'loc.longitude'
+                )
+                ->orderByDesc(DB::raw('COALESCE(inv_agg.actual_before_vat, 0)'))
+                ->limit(150)
+                ->get()
+                ->map(function ($row) use ($referenceDate) {
+                    $daysSincePurchase = null;
+                    if ($row->last_purchase_at) {
+                        $daysSincePurchase = max(0, (int) Carbon::parse($row->last_purchase_at)->diffInDays($referenceDate));
+                    }
+                    $row->days_since_purchase = $daysSincePurchase;
+                    $row->has_pin = $row->latitude !== null && $row->longitude !== null;
+
+                    return $row;
+                })
+                ->all();
+
+            return [
+                'reference_date' => $referenceDate->toDateString(),
+                'days_threshold' => $daysThreshold,
+                'summary' => [
+                    'total_scoped_customers' => $totalScoped,
+                    'unvisited_count' => $unvisitedCount,
+                    'inactive_count' => $inactiveCount,
+                    'unpinned_count' => $unpinnedCount,
+                ],
+                'rows' => $rows,
+            ];
+        };
+
+        $payload = $search === ''
+            ? SalesRules::cacheRemember('inactive:'.md5($scopeKey."|{$daysThreshold}|{$mode}"), 3600, $compute)
+            : $compute();
+
+        return response()->json($payload);
+    }
+
+    public function productCatalog(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'category' => ['nullable', 'string', 'max:120'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:10', 'max:500'],
+        ]);
+
+        $search = trim((string) ($data['q'] ?? ''));
+        $category = trim((string) ($data['category'] ?? ''));
+        $page = max(1, (int) ($data['page'] ?? 1));
+        $perPage = max(10, min(500, (int) ($data['per_page'] ?? 50)));
+
+        $snapshot = DB::table('erp_price_snapshots')
+            ->where('source_system', 'BPLUS')
+            ->where('price_book_code', '0')
+            ->first();
+
+        if ($snapshot) {
+            $allActiveQuery = DB::table('erp_product_prices')
+                ->where('source_system', 'BPLUS')
+                ->where('price_book_code', '0');
+
+            $allRows = $allActiveQuery
+                ->orderBy('product_name')
+                ->orderBy('erp_product_code')
+                ->orderBy('unit_qty')
+                ->orderBy('price')
+                ->orderBy('goods_code')
+                ->get(['id', 'erp_product_code', 'goods_code', 'product_name', 'category_name', 'unit', 'unit_qty', 'price']);
+
+            // Build grouped active SKUs (1 row per SKU with small unit / large unit / extra units)
+            $groupedMap = [];
+            $categoryCounts = [];
+            foreach ($allRows as $r) {
+                $sku = (string) $r->erp_product_code;
+                $cat = trim((string) ($r->category_name ?? '')) ?: 'ไม่ระบุหมวดหมู่';
+                if (! isset($groupedMap[$sku])) {
+                    $groupedMap[$sku] = [
+                        'erp_product_code' => $sku,
+                        'product_name' => (string) $r->product_name,
+                        'category_name' => $cat,
+                        'raw_units' => [],
+                    ];
+                    $categoryCounts[$cat] = ($categoryCounts[$cat] ?? 0) + 1;
                 }
-                $row->days_since_purchase = $daysSincePurchase;
-                $row->has_pin = $row->latitude !== null && $row->longitude !== null;
-                return $row;
+                $unitName = trim((string) ($r->unit ?? '')) ?: 'ไม่ระบุหน่วย';
+                $priceNum = (float) $r->price;
+                $unitQty = $r->unit_qty !== null ? (float) $r->unit_qty : null;
+                $uKey = mb_strtolower($unitName, 'UTF-8').'|'.number_format($priceNum, 4, '.', '');
+                if (! isset($groupedMap[$sku]['raw_units'][$uKey])) {
+                    $groupedMap[$sku]['raw_units'][$uKey] = [
+                        'unit' => $unitName,
+                        'price' => $priceNum,
+                        'unit_qty' => $unitQty,
+                        'goods_codes' => [],
+                    ];
+                }
+                $gc = trim((string) ($r->goods_code ?? ''));
+                if ($gc !== '' && ! in_array($gc, $groupedMap[$sku]['raw_units'][$uKey]['goods_codes'], true)) {
+                    $groupedMap[$sku]['raw_units'][$uKey]['goods_codes'][] = $gc;
+                }
+            }
+
+            $isLikelyLargeUnit = static function (array $u): bool {
+                if ($u['unit_qty'] !== null && $u['unit_qty'] > 1.0001) {
+                    return true;
+                }
+                $name = (string) ($u['unit'] ?? '');
+
+                return (bool) preg_match('/([xX\*×]\s*[2-9]|[xX\*×]\s*\d{2,}|ลัง|กล่อง|กระสอบ|หิ้ว|แพ็ก|แพ็ค|มัด|โหล|ตะกร้า)/u', $name);
+            };
+
+            $allGrouped = [];
+            $multiUnitSkus = 0;
+            foreach ($groupedMap as $item) {
+                $units = array_values($item['raw_units']);
+                usort($units, static function (array $a, array $b): int {
+                    $qa = $a['unit_qty'] ?? 0.0;
+                    $qb = $b['unit_qty'] ?? 0.0;
+                    if ($qa > 0 && $qb > 0 && abs($qa - $qb) > 0.0001) {
+                        return $qa <=> $qb;
+                    }
+
+                    return $a['price'] <=> $b['price'];
+                });
+
+                $smallUnit = null;
+                $largeUnit = null;
+                $extraUnits = [];
+
+                if (count($units) === 1) {
+                    if ($isLikelyLargeUnit($units[0])) {
+                        $largeUnit = $units[0];
+                    } else {
+                        $smallUnit = $units[0];
+                    }
+                } elseif (count($units) >= 2) {
+                    $smallUnit = $units[0];
+                    $largeUnit = $units[count($units) - 1];
+                    if (count($units) > 2) {
+                        $extraUnits = array_slice($units, 1, count($units) - 2);
+                    }
+                    $multiUnitSkus++;
+                }
+
+                $unitNames = array_values(array_unique(array_map(static fn (array $u) => $u['unit'], $units)));
+                $allBarcodes = [];
+                foreach ($units as $u) {
+                    foreach ($u['goods_codes'] as $gc) {
+                        $allBarcodes[] = $gc;
+                    }
+                }
+
+                $allGrouped[] = [
+                    'erp_product_code' => $item['erp_product_code'],
+                    'product_name' => $item['product_name'],
+                    'category_name' => $item['category_name'],
+                    'unit_summary' => implode(' / ', $unitNames),
+                    'small_unit' => $smallUnit,
+                    'large_unit' => $largeUnit,
+                    'extra_units' => $extraUnits,
+                    'unit_count' => count($units),
+                    'search_blob' => mb_strtolower(
+                        $item['erp_product_code'].' '.$item['product_name'].' '.$item['category_name'].' '.implode(' ', $unitNames).' '.implode(' ', $allBarcodes),
+                        'UTF-8'
+                    ),
+                ];
+            }
+
+            $totalActiveSkus = count($allGrouped);
+
+            // Apply category & search filter on grouped active SKUs
+            $qLower = mb_strtolower($search, 'UTF-8');
+            $filtered = array_values(array_filter($allGrouped, static function (array $item) use ($category, $qLower): bool {
+                if ($category !== '' && $item['category_name'] !== $category) {
+                    return false;
+                }
+                if ($qLower !== '' && mb_strpos($item['search_blob'], $qLower, 0, 'UTF-8') === false) {
+                    return false;
+                }
+
+                return true;
+            }));
+
+            $totalMatched = count($filtered);
+            $lastPage = max(1, (int) ceil($totalMatched / $perPage));
+            $page = min($page, $lastPage);
+            $offset = ($page - 1) * $perPage;
+            $slice = array_slice($filtered, $offset, $perPage);
+
+            $groupedPage = [];
+            foreach ($slice as $idx => $item) {
+                unset($item['search_blob']);
+                $item['row_no'] = $offset + $idx + 1;
+                $groupedPage[] = $item;
+            }
+
+            // Build sorted category list
+            arsort($categoryCounts);
+            $categories = [];
+            foreach ($categoryCounts as $catName => $cnt) {
+                $categories[] = ['name' => $catName, 'count' => $cnt];
+            }
+
+            // Keep legacy flat `products` array for backwards compatibility
+            $prices = DB::table('erp_product_prices')->where('source_system', 'BPLUS')->where('price_book_code', '0');
+            if ($search !== '') {
+                $operator = SalesRules::likeOperator();
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+                $prices->where(function ($q) use ($operator, $like): void {
+                    $q->where('erp_product_code', $operator, $like)->orWhere('product_name', $operator, $like)->orWhere('goods_code', $operator, $like);
+                });
+            }
+
+            return response()->json([
+                'products' => $prices->orderBy('product_name')->orderBy('goods_code')->limit(100)->get(['id', 'erp_product_code', 'goods_code', 'product_name', 'unit', 'price']),
+                'grouped_products' => $groupedPage,
+                'summary' => [
+                    'total_active_skus' => $totalActiveSkus,
+                    'total_matched_skus' => $totalMatched,
+                    'total_price_rows' => $allRows->count(),
+                    'multi_unit_skus' => $multiUnitSkus,
+                ],
+                'categories' => $categories,
+                'meta' => [
+                    'current_page' => $page,
+                    'last_page' => $lastPage,
+                    'per_page' => $perPage,
+                    'total' => $totalMatched,
+                    'from' => $totalMatched > 0 ? $offset + 1 : 0,
+                    'to' => min($totalMatched, $offset + count($groupedPage)),
+                ],
+                'price_status' => 'available',
+                'price_synced_at' => Carbon::parse($snapshot->synced_at)->toIso8601String(),
+                'snapshot_count' => $snapshot->row_count,
+            ]);
+        }
+
+        $query = DB::table('erp_products as p');
+        if ($search !== '') {
+            $operator = SalesRules::likeOperator();
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
+            $query->where(function ($q) use ($operator, $like): void {
+                $q->where('p.erp_product_code', $operator, $like)->orWhere('p.product_name', $operator, $like);
             });
+        }
+        $latest = DB::table('sync_runs')->where('kind', 'products')->where('status', 'success')->max('finished_at');
+        $fallbackRows = $query->orderBy('p.product_name')->limit(100)->get(['p.id', 'p.erp_product_code', 'p.product_name', 'p.unit']);
 
         return response()->json([
-            'reference_date' => $referenceDate->toDateString(),
-            'days_threshold' => $daysThreshold,
+            'products' => $fallbackRows,
+            'grouped_products' => [],
             'summary' => [
-                'total_scoped_customers' => $totalScoped,
-                'unvisited_count' => $unvisitedCount,
-                'inactive_count' => $inactiveCount,
-                'unpinned_count' => $unpinnedCount,
+                'total_active_skus' => $fallbackRows->count(),
+                'total_matched_skus' => $fallbackRows->count(),
+                'total_price_rows' => 0,
+                'multi_unit_skus' => 0,
             ],
-            'rows' => $rows,
+            'categories' => [],
+            'meta' => ['current_page' => 1, 'last_page' => 1, 'per_page' => $perPage, 'total' => $fallbackRows->count(), 'from' => 1, 'to' => $fallbackRows->count()],
+            'last_product_batch_at' => $latest,
+            'price_status' => 'pending_price_book_sync',
         ]);
     }
 

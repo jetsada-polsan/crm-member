@@ -367,7 +367,8 @@ function openFirstPhoto(pin) {
   padding: 8px 13px;
   font-size: 14px;
   min-height: var(--tap);
-  min-width: 220px;
+  min-width: 0;
+  flex: 1 1 200px;
   color: var(--ink);
   outline: none;
 }

@@ -112,8 +112,9 @@
               </button>
               <button
                 type="button"
-                class="btn light stop-btn"
+                class="btn light stop-btn stop-btn-icon"
                 title="ลบจุดแวะ"
+                aria-label="ลบจุดแวะ"
                 @click="removeStop(p.id, st.id)"
               >
                 🗑️
@@ -366,7 +367,7 @@ function checkinStop(stop) {
 }
 
 function multiStopDirectionsUrl(plan) {
-  const pinned = (plan.stops || []).filter((s) => Number.isFinite(Number(s.latitude)) && Number.isFinite(Number(s.longitude)));
+  const pinned = (plan.stops || []).filter((s) => s.latitude != null && s.longitude != null && s.latitude !== '' && s.longitude !== '' && Number.isFinite(Number(s.latitude)) && Number.isFinite(Number(s.longitude)) && Math.abs(Number(s.latitude)) <= 90 && Math.abs(Number(s.longitude)) <= 180);
   if (!pinned.length) return '';
   if (pinned.length === 1) {
     return `https://www.google.com/maps?q=${pinned[0].latitude},${pinned[0].longitude}`;
@@ -442,10 +443,15 @@ function multiStopDirectionsUrl(plan) {
 
 .plan-stop-left {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 11px;
   min-width: 0;
+  flex: 1 1 240px;
+}
+
+.plan-stop-info {
   flex: 1;
+  min-width: 0;
 }
 
 .plan-stop-num {
@@ -459,6 +465,7 @@ function multiStopDirectionsUrl(plan) {
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .plan-stop-actions {
@@ -469,13 +476,63 @@ function multiStopDirectionsUrl(plan) {
 }
 
 .stop-btn {
-  min-height: 34px;
-  padding: 5px 10px;
+  min-height: 36px;
+  padding: 6px 11px;
   font-size: 12.5px;
+}
+
+.stop-btn-icon {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: 6px 10px;
 }
 
 .plan-stops-empty {
   padding: 16px;
   text-align: center;
+}
+
+@media (max-width: 720px) {
+  .plan-card-head {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 13px 14px;
+  }
+
+  .plan-head-actions {
+    width: 100%;
+  }
+
+  .plan-head-actions > :is(.btn, a) {
+    flex: 1 1 140px;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .plan-stop-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 13px 14px;
+  }
+
+  .plan-stop-left {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .plan-stop-actions {
+    width: 100%;
+  }
+
+  .stop-btn {
+    flex: 1 1 110px;
+    min-height: 40px;
+    font-size: 13px;
+  }
+
+  .stop-btn-icon {
+    flex: 0 0 44px;
+  }
 }
 </style>

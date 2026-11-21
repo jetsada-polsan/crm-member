@@ -207,6 +207,29 @@ class FieldReportingAndLocalBridgeTest extends TestCase
         $this->assertTrue($status['bridge']['reachable']);
     }
 
+    public function test_customer_sync_hides_deactivated_existing_customers_and_skips_new_inactive_ones(): void
+    {
+        $this->actingAs($this->createUser('admin'), 'staff');
+        DB::table('erp_customers')->insert([
+            'source_system' => 'BPLUS', 'erp_customer_code' => 'AR-OLD',
+            'customer_name' => 'Existing shop', 'ar_enable' => 'Y',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        Http::fake(['http://host.docker.internal:18900/export/customers*' => Http::response([
+            'ok' => true, 'source' => 'BPLUS', 'records' => [
+                ['erp_customer_code' => 'AR-OLD', 'customer_name' => 'Existing shop', 'ar_enable' => 'N'],
+                ['erp_customer_code' => 'AR-NEW-OFF', 'customer_name' => 'Inactive shop', 'ar_enable' => 'N'],
+                ['erp_customer_code' => 'AR-NEW-ON', 'customer_name' => 'Active shop', 'ar_enable' => 'Y'],
+            ],
+        ], 200)]);
+        $this->postJson('/api/crm/sync-monitor/sync/customers')->assertOk()
+            ->assertJson(['fetched' => 3, 'updated' => 1, 'inserted' => 1, 'skipped' => 1]);
+        $this->assertDatabaseHas('erp_customers', ['erp_customer_code' => 'AR-OLD', 'ar_enable' => 'N']);
+        $this->assertDatabaseMissing('erp_customers', ['erp_customer_code' => 'AR-NEW-OFF']);
+        $this->getJson('/api/crm/customers')->assertOk()->assertJsonCount(1)
+            ->assertJsonPath('0.erp_customer_code', 'AR-NEW-ON');
+    }
+
     public function test_customer_sync_keeps_combined_phone_values_and_redacts_sql_bindings(): void
     {
         $admin = $this->createUser('admin');

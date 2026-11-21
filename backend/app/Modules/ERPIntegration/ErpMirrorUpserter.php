@@ -10,11 +10,11 @@ use Illuminate\Support\Facades\DB;
  */
 final class ErpMirrorUpserter
 {
-    public static function upsertCustomer(string $source, array $rec, mixed $now): bool
+    public static function upsertCustomer(string $source, array $rec, mixed $now): ?bool
     {
         $code = trim((string) ($rec['erp_customer_code'] ?? ''));
         if ($code === '') {
-            return false;
+            return null;
         }
 
         $exists = DB::table('erp_customers')
@@ -26,7 +26,7 @@ final class ErpMirrorUpserter
             isset($rec['ar_enable']) ? (string) $rec['ar_enable'] : null,
             isset($rec['customer_name']) ? (string) $rec['customer_name'] : null
         )) {
-            return false;
+            return null;
         }
 
         DB::table('erp_customers')->updateOrInsert(

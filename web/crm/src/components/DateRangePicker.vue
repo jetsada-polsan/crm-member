@@ -1,30 +1,39 @@
 <template>
-  <div class="range-picker">
-    <div class="range-heading">
-      <div class="range-title-wrap">
-        <span class="range-icon" aria-hidden="true">📅</span>
-        <div>
-          <strong>ช่วงวันที่ดูข้อมูล</strong>
-          <small>เลือกช่วงเวลาด่วน หรือกดปฏิทินเพื่อกำหนดวันเอง</small>
-        </div>
+  <div class="range-bar card">
+    <div class="range-bar-row">
+      <div class="range-presets" role="group" aria-label="เลือกช่วงวันที่">
+        <button
+          v-for="option in options"
+          :key="option.id"
+          type="button"
+          :class="['range-pill', { selected: active === option.id && !customOpen }]"
+          :aria-pressed="active === option.id && !customOpen"
+          @click="setPreset(option.id)"
+        >
+          {{ option.label }}
+        </button>
+        <button
+          type="button"
+          :class="['range-pill', { selected: customOpen || active === 'custom' }]"
+          :aria-expanded="String(customOpen)"
+          @click="customOpen = !customOpen"
+        >
+          📅 กำหนดเอง
+        </button>
       </div>
-      <span class="range-current">{{ displayRange }}</span>
-    </div>
 
-    <div class="range-presets" role="group" aria-label="เลือกช่วงวันที่อย่างรวดเร็ว">
       <button
-        v-for="option in options"
-        :key="option.id"
         type="button"
-        :class="{ selected: active === option.id }"
-        :aria-pressed="active === option.id"
-        @click="setPreset(option.id)"
+        class="range-summary-chip"
+        title="คลิกเพื่อเลือกช่วงวันที่เอง"
+        @click="customOpen = !customOpen"
       >
-        {{ option.label }}
+        <span>{{ displayRange }}</span>
+        <span class="range-caret" aria-hidden="true">{{ customOpen ? '▴' : '▾' }}</span>
       </button>
     </div>
 
-    <div class="range-inputs">
+    <div v-if="customOpen" class="range-inputs">
       <div class="range-field">
         <span class="range-field-label">ตั้งแต่วันที่</span>
         <NiceDateInput
@@ -51,7 +60,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import NiceDateInput from '../../../shared/components/NiceDateInput.vue';
 
 const props = defineProps({
@@ -61,9 +70,11 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:from', 'update:to']);
 
+const customOpen = ref(false);
+
 const options = computed(() => [
   { id: 'today', label: 'วันนี้' },
-  { id: '7d', label: '7 วันล่าสุด' },
+  { id: '7d', label: '7 วัน' },
   { id: 'month', label: 'เดือนนี้' },
   { id: 'previous', label: 'เดือนก่อน' },
   ...(props.allowYear ? [{ id: 'year', label: 'ปีนี้' }] : []),
@@ -111,6 +122,7 @@ function setPreset(id) {
   const [a, b] = rangeFor(id);
   emit('update:from', a);
   emit('update:to', b);
+  customOpen.value = false;
 }
 
 function change(which, value) {
@@ -119,108 +131,87 @@ function change(which, value) {
 </script>
 
 <style scoped>
-.range-picker {
-  padding: 18px 20px;
-  border: 1px solid #d8e6f4;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 70%);
-  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.05);
+.range-bar {
+  padding: 10px 14px;
 }
 
-.range-heading {
+.range-bar-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.range-title-wrap {
-  display: flex;
-  align-items: center;
   gap: 10px;
-}
-
-.range-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: #e0f2fe;
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.range-heading strong,
-.range-heading small {
-  display: block;
-}
-
-.range-heading strong {
-  font-size: 15px;
-  color: #0f172a;
-}
-
-.range-heading small {
-  font-size: 12.5px;
-  color: #64748b;
-  margin-top: 1px;
-}
-
-.range-current {
-  font-size: 13px;
-  color: #0369a1;
-  font-weight: 700;
-  background: #e0f2fe;
-  border: 1px solid #bae6fd;
-  padding: 6px 14px;
-  border-radius: 999px;
+  flex-wrap: wrap;
 }
 
 .range-presets {
   display: flex;
-  gap: 7px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin: 14px 0;
+  align-items: center;
 }
 
-.range-presets button {
-  border: 1px solid #d5e1ee;
+.range-pill {
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: #ffffff;
+  background: #f1f5f9;
   color: #475569;
   font: inherit;
   font-size: 13px;
   font-weight: 600;
-  padding: 7px 14px;
+  padding: 6px 13px;
+  min-height: 36px;
   cursor: pointer;
-  transition: all 0.14s ease;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 
-.range-presets button:hover {
-  border-color: #7dd3fc;
-  color: #0284c7;
-  background: #f0f9ff;
+.range-pill:hover {
+  background: #e0f2fe;
+  color: #0369a1;
 }
 
-.range-presets button.selected {
-  background: linear-gradient(135deg, #0284c7, #0ea5e9);
-  border-color: #0284c7;
+.range-pill.selected {
+  background: var(--blue);
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+.range-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #bae6fd;
+  background: #f0f9ff;
+  color: #0369a1;
+  border-radius: 999px;
+  padding: 6px 13px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.range-summary-chip:hover {
+  background: #e0f2fe;
+}
+
+.range-caret {
+  font-size: 11px;
+  opacity: 0.8;
 }
 
 .range-inputs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 .range-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .range-field-label {
@@ -235,9 +226,21 @@ function change(which, value) {
   margin: 8px 0 0;
 }
 
-@media (max-width: 560px) {
-  .range-picker {
-    padding: 14px;
+@media (max-width: 600px) {
+  .range-bar {
+    padding: 10px 12px;
+  }
+  .range-presets {
+    width: 100%;
+  }
+  .range-pill {
+    flex: 1 1 auto;
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+  .range-summary-chip {
+    width: 100%;
+    justify-content: center;
   }
   .range-inputs {
     grid-template-columns: 1fr;

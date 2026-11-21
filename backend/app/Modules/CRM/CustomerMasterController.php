@@ -160,9 +160,6 @@ final class CustomerMasterController
             }
         }
 
-        $invAgg = SalesRules::customerActualInvoiceSubquery();
-        $excAgg = SalesRules::customerExcludedItemsSubquery();
-
         $q = DB::table('crm_customer_masters as m')
             ->whereNull('m.merged_into_customer_master_id')
             ->leftJoin('erp_customers as ec', 'ec.id', '=', 'm.erp_customer_id')
@@ -171,15 +168,7 @@ final class CustomerMasterController
                 $join->on('ml.crm_customer_master_id', '=', 'm.id')
                     ->orOn('ml.erp_customer_id', '=', 'ec.id');
             })
-            ->leftJoin('member_accounts as ma', 'ma.id', '=', 'ml.member_account_id')
-            ->leftJoinSub($invAgg, 'inv', function ($join): void {
-                $join->on('inv.source_system', '=', 'ec.source_system')
-                    ->on('inv.erp_customer_code', '=', 'ec.erp_customer_code');
-            })
-            ->leftJoinSub($excAgg, 'exc', function ($join): void {
-                $join->on('exc.source_system', '=', 'ec.source_system')
-                    ->on('exc.erp_customer_code', '=', 'ec.erp_customer_code');
-            });
+            ->leftJoin('member_accounts as ma', 'ma.id', '=', 'ml.member_account_id');
 
         CustomerAccess::applyActiveCustomerFilter($q, 'ec', true);
 
@@ -234,6 +223,7 @@ final class CustomerMasterController
             DB::raw('COALESCE(NULLIF(ec.province, \'\'), m.province) as province'),
             'm.district',
             'm.created_source',
+            'ec.source_system as erp_source_system_join',
             'ec.erp_customer_code',
             'ec.customer_name as erp_customer_name',
             'ec.salesperson_code as erp_salesperson_code',
@@ -249,21 +239,44 @@ final class CustomerMasterController
             'ma.id as member_account_id',
             'ma.name as member_name',
             'ma.phone as member_phone',
-            DB::raw('COALESCE(inv.invoice_count, 0) as invoice_count'),
-            DB::raw('COALESCE(inv.sale_invoice_count, 0) as sale_invoice_count'),
-            DB::raw('COALESCE(inv.return_count, 0) as return_count'),
-            DB::raw('COALESCE(inv.gross_purchase_before_vat, 0) as gross_purchase_before_vat'),
-            DB::raw('ABS(COALESCE(inv.return_before_vat, 0)) as return_amount_before_vat'),
-            DB::raw('COALESCE(inv.actual_before_vat, 0) as net_purchase_before_vat'),
-            DB::raw('inv.last_purchase_at as last_purchase_at'),
-            DB::raw('COALESCE(inv.actual_before_vat, 0) as total_sales_net'),
-            DB::raw('COALESCE(inv.actual_before_vat, 0) - COALESCE(exc.excluded_before_vat, 0) as product_sales_kpi_before_vat'),
             DB::raw('(SELECT COALESCE(SUM(lpl.points_delta), 0) FROM loyalty_points_ledger lpl WHERE lpl.member_account_id = ma.id) as member_points_balance')
         )
             ->orderByDesc('m.id')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get();
+
+        // Aggregate invoices & excluded items ONLY for the <=perPage customers on this page
+        $codes = $rows->pluck('erp_customer_code')->filter(fn ($v) => $v !== null && $v !== '')->unique()->values()->all();
+        $invMap = [];
+        $excMap = [];
+        if ($codes !== []) {
+            foreach (SalesRules::customerActualInvoiceSubquery($codes)->get() as $ir) {
+                $invMap[$ir->source_system.'|'.$ir->erp_customer_code] = $ir;
+            }
+            foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
+                $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
+            }
+        }
+
+        $rows = $rows->map(static function ($row) use ($invMap, $excMap) {
+            $key = ($row->erp_source_system_join ?? '').'|'.($row->erp_customer_code ?? '');
+            $inv = $invMap[$key] ?? null;
+            $exc = $excMap[$key] ?? 0.0;
+            $actualBeforeVat = (float) ($inv->actual_before_vat ?? 0);
+            $row->invoice_count = (int) ($inv->invoice_count ?? 0);
+            $row->sale_invoice_count = (int) ($inv->sale_invoice_count ?? 0);
+            $row->return_count = (int) ($inv->return_count ?? 0);
+            $row->gross_purchase_before_vat = (float) ($inv->gross_purchase_before_vat ?? 0);
+            $row->return_amount_before_vat = abs((float) ($inv->return_before_vat ?? 0));
+            $row->net_purchase_before_vat = $actualBeforeVat;
+            $row->last_purchase_at = $inv->last_purchase_at ?? null;
+            $row->total_sales_net = $actualBeforeVat;
+            $row->product_sales_kpi_before_vat = $actualBeforeVat - $exc;
+            unset($row->erp_source_system_join);
+
+            return $row;
+        });
 
         return response()->json([
             'data' => $rows,

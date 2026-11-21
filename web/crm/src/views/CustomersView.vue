@@ -13,15 +13,15 @@
       </template>
     </PageHeader>
 
-    <div class="card panel-pad" style="margin-bottom:16px">
-      <div class="head-filter" style="margin-bottom:10px">
+    <div class="card panel-pad mb-md">
+      <div class="head-filter segmented-tabs mb-sm">
         <button
           type="button"
           class="btn"
           :class="{ primary: mode === 'master' }"
           @click="mode = 'master'; page = 1"
         >
-          Customer Master (แยกตัวตน)
+          ทั้งหมด (Master)
         </button>
         <button
           type="button"
@@ -29,7 +29,7 @@
           :class="{ primary: mode === 'erp' }"
           @click="mode = 'erp'; page = 1"
         >
-          ลูกค้า ERP (Bplus)
+          ลูกค้า ERP
         </button>
         <button
           type="button"
@@ -37,16 +37,27 @@
           :class="{ primary: mode === 'leads' }"
           @click="mode = 'leads'; page = 1"
         >
-          ลูกค้าใหม่ (CRM Leads)
+          ร้านใหม่ (Leads)
         </button>
       </div>
 
       <div class="head-filter" style="margin-bottom:0">
-        <input
-          v-model="searchRaw"
-          style="min-width:220px;flex:1"
-          placeholder="ค้นหาชื่อร้าน, รหัสภายใน, รหัส ERP, เบอร์โทร..."
-        />
+        <div class="search-input-wrap">
+          <input
+            v-model="searchRaw"
+            type="search"
+            placeholder="ค้นหาชื่อร้าน, รหัส, เบอร์โทร..."
+          />
+          <button
+            v-if="searchRaw"
+            type="button"
+            class="search-clear-btn"
+            aria-label="ล้างคำค้นหา"
+            @click="searchRaw = ''; search = ''; page = 1"
+          >
+            ✕
+          </button>
+        </div>
         <select v-if="mode === 'master'" v-model="masterFilter" @change="page = 1">
           <option value="all">ทุกสถานะเชื่อม</option>
           <option value="erp_linked">เชื่อม ERP แล้ว</option>
@@ -79,12 +90,12 @@
         <table class="table">
           <thead v-if="mode === 'master'">
             <tr>
-              <th>รหัสภายใน</th>
+              <th>รหัส</th>
               <th>ชื่อร้านค้า</th>
-              <th>รหัส ERP (Read-Only)</th>
-              <th>CRM Pipeline</th>
-              <th>Member Link</th>
-              <th>ยอดซื้อสุทธิก่อน VAT</th>
+              <th>รหัส ERP</th>
+              <th>สถานะ CRM</th>
+              <th>สมาชิก</th>
+              <th>ยอดซื้อก่อน VAT</th>
               <th></th>
             </tr>
           </thead>
@@ -147,7 +158,7 @@
                   >
                     360°
                   </RouterLink>
-                  <button type="button" class="btn" @click.stop="openDetailDrawer('master', r.customer_master_id)">ดูแยกตัวตน</button>
+                  <button type="button" class="btn" @click.stop="openDetailDrawer('master', r.customer_master_id)">รายละเอียด</button>
                   <button
                     v-if="r.crm_lead_id && !r.erp_customer_id && r.pipeline_stage !== 'erp_creation_requested'"
                     type="button"
@@ -205,41 +216,39 @@
       </div>
 
       <!-- Mobile Card List (<800px) -->
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards panel-pad">
         <div
           v-for="r in rows"
           :key="r.customer_master_id || r.id"
           class="card mob-card"
           @click="openMobileRow(r)"
         >
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-            <strong>{{ r.display_name || r.customer_name || r.shop_name }}</strong>
+          <div class="row-between-start">
+            <strong style="min-width:0;flex:1 1 170px">{{ r.display_name || r.customer_name || r.shop_name }}</strong>
             <span class="tag blue">{{ r.internal_customer_code || r.erp_customer_code || `LEAD-${r.id}` }}</span>
           </div>
-          <div class="small muted" style="margin:6px 0">
+          <div class="small muted mt-sm">
             โทร: {{ r.phone || '—' }} · {{ r.province || r.district || 'ไม่ระบุพื้นที่' }}
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <span v-if="r.total_sales_net != null" class="small">ยอดสุทธิ <b>{{ fmt(r.total_sales_net) }} ฿</b></span>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <RouterLink
-                v-if="mode === 'master'"
-                :to="`/customer-360/${r.customer_master_id}`"
-                class="btn"
-                style="padding:6px 10px"
-                @click.stop
-              >
-                360°
-              </RouterLink>
-              <button
-                type="button"
-                class="btn light"
-                style="padding:6px 10px"
-                @click.stop="openVisitWizard({ kind: mode === 'erp' || r.erp_customer_id ? 'erp' : 'lead', id: mode === 'master' ? (r.erp_customer_id || r.crm_lead_id) : r.id })"
-              >
-                📸 บันทึกเข้าพบ
-              </button>
-            </div>
+          <div v-if="r.total_sales_net != null" class="small mt-sm">
+            ยอดสุทธิ <b>{{ fmt(r.total_sales_net) }} ฿</b>
+          </div>
+          <div class="mob-card-actions">
+            <RouterLink
+              v-if="mode === 'master'"
+              :to="`/customer-360/${r.customer_master_id}`"
+              class="btn"
+              @click.stop
+            >
+              🔍 360°
+            </RouterLink>
+            <button
+              type="button"
+              class="btn light"
+              @click.stop="openVisitWizard({ kind: mode === 'erp' || r.erp_customer_id ? 'erp' : 'lead', id: mode === 'master' ? (r.erp_customer_id || r.crm_lead_id) : r.id })"
+            >
+              📸 บันทึกเข้าพบ
+            </button>
           </div>
         </div>
         <div v-if="!rows.length" class="placeholder">ไม่พบข้อมูลลูกค้า</div>
@@ -277,7 +286,7 @@
           </div>
           <div class="minirow"><span>ERP {{ item.source_system }} / {{ item.erp_customer_code }}</span><b>{{ item.erp_customer_name }}</b></div>
           <div class="small muted">โทรตรงกัน: {{ item.match_reasons?.phone_match ? 'ใช่' : 'ไม่ใช่' }} · จังหวัดตรงกัน: {{ item.match_reasons?.same_province ? 'ใช่' : 'ไม่ใช่' }}</div>
-          <div style="display:flex;gap:8px;margin-top:10px">
+          <div class="mob-card-actions">
             <button type="button" class="btn primary" @click="confirmMatch(item)">ยืนยันผูกบัญชีนี้</button>
             <button type="button" class="btn danger" @click="dismissMatch(item)">ไม่ใช่บัญชีเดียวกัน</button>
           </div>

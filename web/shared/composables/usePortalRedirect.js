@@ -49,12 +49,14 @@ export function getPortalUrl(targetPortal, path = '/') {
     return `${protocol}//${targetHost}${normalizedPath}`;
   }
 
-  let targetPort = port;
-  if (targetPortal === 'crm') {
-    targetPort = port === '5174' || port === '5173' ? '5173' : '18081';
-  } else {
-    targetPort = port === '5174' || port === '5173' ? '5174' : '18082';
-  }
+  const targetPort =
+    targetPortal === 'crm'
+      ? port === '5174' || port === '5173'
+        ? '5173'
+        : '18081'
+      : port === '5174' || port === '5173'
+        ? '5174'
+        : '18082';
   return `${protocol}//${hostname}:${targetPort}${normalizedPath}`;
 }
 

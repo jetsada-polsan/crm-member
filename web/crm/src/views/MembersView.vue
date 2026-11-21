@@ -2,34 +2,54 @@
   <div>
     <PageHeader
       title="ทะเบียนสมาชิก"
-      subtitle="ดูบัญชีสมาชิก ตรวจคำขอผูกร้าน และอนุญาตให้ดูบิลและแต้ม"
+      subtitle="จัดการสมาชิก ตรวจคำขอเชื่อม ERP และยืนยันสิทธิ์"
     >
       <template #secondary>
         <RouterLink to="/loyalty" class="btn light">💎 กติกาแต้ม</RouterLink>
+        <button type="button" class="btn light" @click="refetchAll">⟳ รีเฟรช</button>
       </template>
       <template #primary>
-        <button type="button" class="btn primary" @click="refetchAll">⟳ รีเฟรช</button>
+        <button type="button" class="btn primary" @click="openCreateMemberModal">➕ เพิ่มสมาชิก</button>
       </template>
     </PageHeader>
 
-    <div class="card panel-pad" style="margin-bottom:16px">
+    <div class="card panel-pad mb-md">
+      <div class="head-filter segmented-tabs mb-sm">
+        <button
+          type="button"
+          class="btn"
+          :class="memberTab === 'members' ? 'primary' : 'light'"
+          @click="memberTab = 'members'"
+        >
+          👥 สมาชิกทั้งหมด ({{ (members || []).length }})
+        </button>
+        <button
+          type="button"
+          class="btn"
+          :class="memberTab === 'verifications' ? 'primary' : 'light'"
+          @click="memberTab = 'verifications'"
+        >
+          📩 คำขอเชื่อม ({{ (verifications || []).length }})
+        </button>
+      </div>
       <div class="head-filter" style="margin-bottom:0">
         <input
+          v-if="memberTab === 'members'"
           v-model="search"
-          style="min-width:220px;flex:1"
-          placeholder="ค้นหาชื่อสมาชิก, เบอร์โทร, อีเมล, รหัสลูกค้า ERP..."
+          class="filter-search-input"
+          placeholder="ค้นหาชื่อ, เบอร์โทร, รหัส ERP..."
         />
-        <select v-model="verifyFilter">
-          <option value="pending">คำขอเชื่อมรอตรวจสอบ (Pending)</option>
-          <option value="approved">อนุมัติแล้ว (Approved)</option>
-          <option value="rejected">ปฏิเสธแล้ว (Rejected)</option>
-          <option value="all">คำขอทั้งหมด</option>
+        <select v-else v-model="verifyFilter">
+          <option value="pending">รอตรวจสอบ</option>
+          <option value="approved">อนุมัติแล้ว</option>
+          <option value="rejected">ปฏิเสธแล้ว</option>
+          <option value="all">ทั้งหมด</option>
         </select>
       </div>
     </div>
 
     <!-- Verification Requests Queue -->
-    <div class="card" style="margin-bottom:16px">
+    <div v-if="memberTab === 'verifications'" class="card mb-md">
       <div class="section-head" style="padding:16px 18px 0">
         <div>
           <h3>คำขอเชื่อมบัญชี Member → ERP ({{ (verifications || []).length }})</h3>
@@ -80,25 +100,26 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards panel-pad">
         <div v-for="v in verifications || []" :key="`vm-${v.id}`" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div class="row-between-start">
             <strong>{{ v.member_name }}</strong>
             <span class="tag" :class="v.status === 'approved' ? 'green' : v.status === 'rejected' ? 'red' : 'orange'">{{ v.status }}</span>
           </div>
-          <div class="small muted" style="margin:6px 0">
+          <div class="small muted mt-sm">
             รหัส ERP ที่ขอ: {{ v.requested_customer_code || '—' }} · โทร: {{ v.requested_phone || v.account_phone || '—' }}
           </div>
-          <div v-if="v.status === 'pending'" style="display:flex;gap:8px;flex-wrap:wrap">
+          <div v-if="v.status === 'pending'" class="mob-card-actions">
             <button type="button" class="btn primary" @click="openReviewModal(v)">ตรวจสอบ &amp; อนุมัติ</button>
             <button type="button" class="btn danger" @click="quickRejectVerification(v)">ปฏิเสธ</button>
           </div>
         </div>
+        <div v-if="!(verifications || []).length" class="placeholder">ไม่มีคำขอในสถานะ "{{ verifyFilter }}"</div>
       </div>
     </div>
 
     <!-- All Registered Member Accounts -->
-    <div class="card">
+    <div v-if="memberTab === 'members'" class="card">
       <div class="section-head" style="padding:16px 18px 0">
         <div>
           <h3>ทะเบียนบัญชีสมาชิกทั้งหมด ({{ (members || []).length }})</h3>
@@ -179,22 +200,31 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards panel-pad">
         <div v-for="m in members || []" :key="`mm-${m.id}`" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div class="row-between-start">
             <strong>{{ m.name }}</strong>
             <span class="tag" :class="m.verification_status === 'verified' ? 'green' : 'orange'">
               {{ m.verification_status || 'unverified' }}
             </span>
           </div>
-          <div class="small muted" style="margin:6px 0">
+          <div class="small muted mt-sm">
             {{ m.phone || m.email || '—' }} · ERP: {{ m.erp_customer_code || 'ยังไม่ผูก' }} · {{ fmt(m.points_balance) }} แต้ม
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="mob-card-actions">
             <RouterLink v-if="m.crm_customer_master_id" :to="`/customer-360/${m.crm_customer_master_id}`" class="btn light">360°</RouterLink>
-            <button v-if="!m.link_id" type="button" class="btn light" @click="openBindModal(m)">🔗 ผูก ERP / Master</button>
+            <button
+              v-if="m.link_id && m.verification_status !== 'verified'"
+              type="button"
+              class="btn primary"
+              @click="verifyExistingLink(m.link_id)"
+            >
+              ✓ Verify Link
+            </button>
+            <button v-else-if="!m.link_id" type="button" class="btn light" @click="openBindModal(m)">🔗 ผูก ERP / Master</button>
           </div>
         </div>
+        <div v-if="!(members || []).length" class="placeholder">ยังไม่มีสมาชิกในระบบ</div>
       </div>
     </div>
 
@@ -265,12 +295,110 @@
         </button>
       </template>
     </BaseModal>
+
+    <!-- Back-office Create Member Modal (คีย์สมาชิกที่หลังบ้าน) -->
+    <BaseModal :open="createModalOpen" title="➕ เพิ่มสมาชิกใหม่ (คีย์จากหลังบ้าน)" @close="closeCreateMemberModal">
+      <div v-if="createdCredentials" style="display:grid;gap:12px">
+        <div class="notice" style="margin-bottom:0;border-color:#86efac;background:#f0fdf4;color:#166534">
+          <b>สร้างบัญชีสมาชิกสำเร็จแล้ว!</b> สามารถคัดลอกข้อมูลด้านล่างส่งให้เจ้าของร้านเข้าใช้งาน Member Portal ได้ทันที (ไม่ต้องใช้ LINE OA)
+        </div>
+        <div class="minirow"><span>ลิงก์เข้าใช้งาน</span><b>{{ memberPortalUrl }}</b></div>
+        <div class="minirow"><span>ชื่อสมาชิก / ร้านค้า</span><b>{{ createdCredentials.name }}</b></div>
+        <div class="minirow"><span>ชื่อผู้ใช้ (เข้าสู่ระบบ)</span><b>{{ createdCredentials.phone || createdCredentials.email }}</b></div>
+        <div class="minirow"><span>รหัสผ่านชั่วคราว</span><b style="font-family:monospace;font-size:15px">{{ createdCredentials.password }}</b></div>
+        <div class="minirow">
+          <span>สถานะสิทธิ์</span>
+          <span class="tag" :class="createdCredentials.verification_status === 'verified' ? 'green' : 'orange'">
+            {{ createdCredentials.verification_status === 'verified' ? 'ยืนยันแล้ว (ดูบิลและแต้มได้ทันที)' : createdCredentials.verification_status }}
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <button type="button" class="btn primary" @click="copyCreatedCredentials">📋 คัดลอกข้อความส่งให้ร้านค้า</button>
+          <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn light">↗ เปิดหน้า Member Portal</a>
+        </div>
+      </div>
+
+      <div v-else style="display:grid;gap:10px">
+        <div class="notice" style="margin-bottom:0">
+          ทีมงานหลังบ้านสามารถคีย์สมัครสมาชิกและผูกกับลูกค้า Bplus ERP ได้ในขั้นตอนเดียว โดยไม่ต้องให้ร้านค้าสมัครเองหรือเชื่อม LINE OA ก่อน
+        </div>
+        <div class="field">
+          <label>1. ค้นหาลูกค้าจาก Bplus ERP (เพื่อดึงชื่อ-เบอร์โทร และผูกสิทธิ์ดูบิลอัตโนมัติ)</label>
+          <input v-model="erpSearch" placeholder="พิมพ์รหัสลูกค้า AR หรือชื่อร้านค้า..." />
+        </div>
+        <div class="field">
+          <label>เลือกร้านค้าจาก ERP (ไม่บังคับ หากยังไม่ผูก)</label>
+          <select v-model="createForm.erp_customer_id" @change="onSelectCreateErpCustomer">
+            <option value="">-- ยังไม่ผูก ERP (สร้างเฉพาะบัญชีสมาชิก) --</option>
+            <option v-for="c in erpOptions" :key="c.id" :value="c.id">
+              {{ c.erp_customer_code }} · {{ c.customer_name }} ({{ c.phone || 'ไม่มีเบอร์' }})
+            </option>
+          </select>
+        </div>
+        <div class="field">
+          <label>2. ชื่อสมาชิก / ชื่อร้านค้า *</label>
+          <input v-model="createForm.name" placeholder="เช่น ร้านสมชายการค้า" />
+        </div>
+        <div class="form-grid-2">
+          <div class="field">
+            <label>เบอร์โทร (ใช้ล็อกอิน) *</label>
+            <input v-model="createForm.phone" placeholder="08xxxxxxxx" />
+          </div>
+          <div class="field">
+            <label>อีเมล (ไม่บังคับหากใส่เบอร์)</label>
+            <input v-model="createForm.email" type="email" placeholder="shop@example.com" />
+          </div>
+        </div>
+        <div class="field">
+          <label>3. รหัสผ่านเข้า Member Portal (ขั้นต่ำ 12 ตัวอักษร) *</label>
+          <div class="input-action-row">
+            <input v-model="createForm.password" :type="showCreatePassword ? 'text' : 'password'" placeholder="อย่างน้อย 12 ตัวอักษร" />
+            <button type="button" class="btn light" @click="showCreatePassword = !showCreatePassword">
+              {{ showCreatePassword ? 'ซ่อน' : 'ดู' }}
+            </button>
+            <button type="button" class="btn light" @click="generateSafePassword">🎲 สุ่มรหัส</button>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="field">
+            <label>รหัสสมาชิก ERP (ถ้ามี)</label>
+            <input v-model="createForm.erp_member_code" placeholder="เช่น MEM001" />
+          </div>
+          <div class="field">
+            <label>หมายเหตุหลังบ้าน</label>
+            <input v-model="createForm.verification_note" placeholder="คีย์สมัครโดยแอดมินหลังบ้าน" />
+          </div>
+        </div>
+        <label v-if="createForm.erp_customer_id" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer;padding:6px 0">
+          <input v-model="createForm.auto_verify" type="checkbox" style="width:16px;height:16px" />
+          <span>ยืนยันสิทธิ์ทันที (member_verified) ให้ร้านค้าเห็นบิลขายและแต้มสะสมได้ทันที</span>
+        </label>
+      </div>
+
+      <template #footer="{ requestClose }">
+        <template v-if="createdCredentials">
+          <button type="button" class="btn light" @click="resetCreateForm">➕ คีย์สมาชิกคนถัดไป</button>
+          <button type="button" class="btn primary" @click="requestClose">เสร็จสิ้น</button>
+        </template>
+        <template v-else>
+          <button type="button" class="btn" @click="requestClose">ยกเลิก</button>
+          <button
+            type="button"
+            class="btn primary"
+            :disabled="busy || !createForm.name.trim() || (!createForm.phone.trim() && !createForm.email.trim()) || createForm.password.length < 12"
+            @click="submitCreateMember"
+          >
+            {{ busy ? 'กำลังบันทึก...' : '✓ บันทึกและสร้างบัญชีสมาชิก' }}
+          </button>
+        </template>
+      </template>
+    </BaseModal>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
@@ -278,6 +406,9 @@ import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, fmt } from '../composables/useCrmSession.js';
 
+const route = useRoute();
+const router = useRouter();
+const memberTab = ref('members');
 const search = ref('');
 const verifyFilter = ref('pending');
 const busy = ref(false);
@@ -288,6 +419,29 @@ const reviewForm = ref({ erp_customer_id: '', erp_member_code: '', review_note: 
 
 const bindTarget = ref(null);
 const bindForm = ref({ erp_customer_id: '', verification_note: '' });
+
+const createModalOpen = ref(false);
+const showCreatePassword = ref(true);
+const createdCredentials = ref(null);
+const createForm = ref({
+  erp_customer_id: '',
+  name: '',
+  phone: '',
+  email: '',
+  password: '',
+  erp_member_code: '',
+  auto_verify: true,
+  verification_note: 'สร้างบัญชีและยืนยันโดยทีมหลังบ้าน',
+});
+
+const memberPortalUrl = computed(() => {
+  if (typeof window === 'undefined') return 'http://member.popstar.localhost/';
+  const { protocol, hostname, port } = window.location;
+  if (hostname === 'popstar.localhost') return `${protocol}//member.popstar.localhost${port ? `:${port}` : ''}/`;
+  if (hostname.startsWith('crm.')) return `${protocol}//member.${hostname.slice(4)}${port ? `:${port}` : ''}/`;
+  if (port === '18081') return `${protocol}//${hostname}:18082/`;
+  return `${protocol}//member.${hostname}${port ? `:${port}` : ''}/`;
+});
 
 const { data: members, isLoading: membersLoading, refetch: refetchMembers } = useQuery({
   queryKey: computed(() => ['crm', 'members-registry', search.value]),
@@ -306,13 +460,110 @@ const { data: verifications, refetch: refetchVerifs } = useQuery({
 const { data: erpData } = useQuery({
   queryKey: computed(() => ['crm', 'member-erp-options', erpSearch.value]),
   queryFn: ({ signal }) => {
-    const p = new URLSearchParams({ paginate: '1', per_page: '20' });
+    const p = new URLSearchParams({ picker: '1', per_page: '25' });
     if (erpSearch.value.trim()) p.set('q', erpSearch.value.trim());
     return crmGet(`/customers?${p.toString()}`, { signal });
   },
-  enabled: computed(() => Boolean(reviewTarget.value || bindTarget.value)),
+  enabled: computed(() => Boolean(reviewTarget.value || bindTarget.value || createModalOpen.value)),
 });
 const erpOptions = computed(() => erpData.value?.data || []);
+
+function generateSafePassword() {
+  const digits = String(Math.floor(100000 + Math.random() * 900000));
+  createForm.value.password = `Popstar@${digits}`;
+  showCreatePassword.value = true;
+}
+
+function resetCreateForm() {
+  createdCredentials.value = null;
+  erpSearch.value = '';
+  createForm.value = {
+    erp_customer_id: '',
+    name: '',
+    phone: '',
+    email: '',
+    password: '',
+    erp_member_code: '',
+    auto_verify: true,
+    verification_note: 'สร้างบัญชีและยืนยันโดยทีมหลังบ้าน',
+  };
+  generateSafePassword();
+}
+
+function openCreateMemberModal() {
+  resetCreateForm();
+  createModalOpen.value = true;
+}
+
+function closeCreateMemberModal() {
+  createModalOpen.value = false;
+  if (route.query.create) {
+    router.replace({ path: '/members', query: {} });
+  }
+}
+
+function onSelectCreateErpCustomer() {
+  const picked = erpOptions.value.find((c) => String(c.id) === String(createForm.value.erp_customer_id));
+  if (!picked) return;
+  if (!createForm.value.name.trim()) createForm.value.name = picked.customer_name || '';
+  if (!createForm.value.phone.trim() && picked.phone) {
+    const firstPhone = String(picked.phone).split(/[,/\s]+/)[0]?.trim() || '';
+    if (firstPhone) createForm.value.phone = firstPhone;
+  }
+}
+
+async function submitCreateMember() {
+  busy.value = true;
+  try {
+    const payload = {
+      name: createForm.value.name.trim(),
+      phone: createForm.value.phone.trim() || null,
+      email: createForm.value.email.trim() || null,
+      password: createForm.value.password,
+      erp_customer_id: createForm.value.erp_customer_id ? Number(createForm.value.erp_customer_id) : null,
+      erp_member_code: createForm.value.erp_member_code.trim() || null,
+      auto_verify: Boolean(createForm.value.auto_verify),
+      verification_note: createForm.value.verification_note.trim() || 'สร้างบัญชีและยืนยันโดยทีมหลังบ้าน',
+    };
+    const res = await crmMutate('/members', 'POST', payload);
+    createdCredentials.value = {
+      name: payload.name,
+      phone: payload.phone,
+      email: payload.email,
+      password: payload.password,
+      verification_status: res?.verification_status || 'unverified',
+    };
+    toast.success('สร้างบัญชีสมาชิกจากหลังบ้านเรียบร้อยแล้ว');
+    refetchAll();
+  } catch (err) {
+    toast.error('สร้างบัญชีสมาชิกไม่สำเร็จ', err);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function copyCreatedCredentials() {
+  if (!createdCredentials.value) return;
+  const loginId = createdCredentials.value.phone || createdCredentials.value.email;
+  const text = [
+    `บัญชีสมาชิก POPSTAR สำหรับ ${createdCredentials.value.name}`,
+    `ลิงก์เข้าใช้งาน: ${memberPortalUrl.value}`,
+    `ชื่อผู้ใช้: ${loginId}`,
+    `รหัสผ่าน: ${createdCredentials.value.password}`,
+  ].join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success('คัดลอกข้อความสำหรับส่งให้ร้านค้าแล้ว');
+  } catch {
+    toast.info(text);
+  }
+}
+
+onMounted(() => {
+  if (route.query.create === '1') {
+    openCreateMemberModal();
+  }
+});
 
 function refetchAll() {
   refetchMembers();
@@ -387,6 +638,7 @@ async function submitBindMember() {
     });
     if (created?.id) {
       await crmMutate(`/member-links/${created.id}/verify`, 'POST', {
+        verification_status: 'verified',
         verification_note: bindForm.value.verification_note,
       });
     }
@@ -408,7 +660,10 @@ async function verifyExistingLink(linkId) {
   });
   if (!ok) return;
   try {
-    await crmMutate(`/member-links/${linkId}/verify`, 'POST', { verification_note: 'ยืนยันจาก Member Registry' });
+    await crmMutate(`/member-links/${linkId}/verify`, 'POST', {
+      verification_status: 'verified',
+      verification_note: 'ยืนยันจาก Member Registry',
+    });
     toast.success('ยืนยันบัญชีสมาชิกแล้ว');
     refetchAll();
   } catch (err) {

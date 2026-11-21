@@ -21,13 +21,13 @@
         @click="mobileSidebarOpen = false"
       ></div>
       <aside :class="['sidebar', { open: mobileSidebarOpen }]" aria-label="เมนูหลัก POPSTAR Connect">
-        <div class="logo">
-          <div class="logo-mark">P</div>
-          <div>
-            <h1>POPSTAR <span>Connect</span></h1>
+        <button type="button" class="logo logo-refresh" aria-label="รีเฟรชหน้าปัจจุบัน" title="รีเฟรชหน้าปัจจุบัน" @click="refreshCurrentPage">
+          <img class="logo-mark logo-image" src="/favicon.svg" alt="" />
+          <span class="logo-text">
+            <span class="logo-title">POPSTAR <span>Connect</span></span>
             <small>ทีมขาย &amp; ออกตลาด</small>
-          </div>
-        </div>
+          </span>
+        </button>
 
         <CrmSidebarNav
           :groups="visibleNavGroups"
@@ -66,6 +66,25 @@
       <div class="main">
         <header class="topbar">
           <button
+            v-if="showMobileBack"
+            type="button"
+            class="topbtn mobile-back-btn"
+            aria-label="ย้อนกลับ"
+            @click="handleMobileBack"
+          >
+            ←
+          </button>
+          <button
+            v-else-if="route.path === '/dashboard'"
+            type="button"
+            class="mobile-app-avatar"
+            aria-label="เปิดเมนูหลัก"
+            @click="mobileSidebarOpen = !mobileSidebarOpen"
+          >
+            {{ userInitial }}
+          </button>
+          <button
+            v-else
             type="button"
             class="topbtn mobile-menu-btn"
             aria-label="เปิดเมนูหลัก"
@@ -73,16 +92,11 @@
           >
             ☰
           </button>
-          <button
-            v-if="showMobileBack"
-            type="button"
-            class="topbtn mobile-back-btn"
-            aria-label="กลับหน้าเมนู"
-            @click="handleMobileBack"
-          >
-            ←
-          </button>
-          <h1 class="topbar-title">{{ pageTitle }}</h1>
+          <div v-if="route.path === '/dashboard'" class="mobile-app-greeting">
+            <small>{{ mobileGreetingSub }}</small>
+            <strong>{{ me?.name || 'POPSTAR Connect' }}</strong>
+          </div>
+          <h1 v-else class="topbar-title">{{ pageTitle }}</h1>
           <div class="breadcrumb">
             POPSTAR Connect
             <template v-if="activeNavMeta?.group?.title">
@@ -91,6 +105,18 @@
             / <strong>{{ pageTitle }}</strong>
           </div>
           <div class="grow"></div>
+
+          <select
+            v-model="fontPreset"
+            class="font-preset-select"
+            aria-label="เลือกแบบอักษร"
+            title="เปลี่ยนแบบอักษรให้อ่านง่ายตามถนัด"
+            @change="applyFontPreset"
+          >
+            <option value="prompt">Aa Prompt (สไตล์ PEAK)</option>
+            <option value="noto">Aa Noto Sans Thai</option>
+            <option value="sarabun">Aa Sarabun (มีหัวอ่านชัด)</option>
+          </select>
 
           <button
             type="button"
@@ -128,6 +154,7 @@
               ☁️
             </button>
             <button
+              v-if="!showMobileBack"
               type="button"
               class="topbtn"
               aria-label="ค้นหาเมนูทั้งหมด"
@@ -303,6 +330,7 @@ import QuickAddShopModal from './components/QuickAddShopModal.vue';
 import VisitEvidenceWizard from './components/VisitEvidenceWizard.vue';
 import CustomerDetailDrawer from './components/CustomerDetailDrawer.vue';
 import CrmSidebarNav from './components/CrmSidebarNav.vue';
+
 import {
   CRM_NAV_GROUPS,
   filterNavGroups,
@@ -328,11 +356,33 @@ import {
   userInitial,
 } from './composables/useCrmSession.js';
 
+function refreshCurrentPage() {
+  window.location.reload();
+}
+
 const route = useRoute();
 const router = useRouter();
 
 const mobileQuickOpen = ref(false);
 const mobileSidebarOpen = ref(false);
+
+const FONT_STORAGE_KEY = 'popstar_font_preset_v2';
+const fontPreset = ref((typeof localStorage !== 'undefined' && localStorage.getItem(FONT_STORAGE_KEY)) || 'prompt');
+
+function applyFontPreset() {
+  if (typeof document === 'undefined') return;
+  if (fontPreset.value && fontPreset.value !== 'prompt') {
+    document.documentElement.dataset.fontPreset = fontPreset.value;
+  } else {
+    delete document.documentElement.dataset.fontPreset;
+  }
+  try {
+    localStorage.setItem(FONT_STORAGE_KEY, fontPreset.value);
+  } catch {
+    // ignore storage errors
+  }
+}
+applyFontPreset();
 
 const visibleNavGroups = computed(() => filterNavGroups(CRM_NAV_GROUPS, isManager.value));
 
@@ -343,6 +393,14 @@ const roleLabel = computed(() => {
   return 'พนักงานขาย';
 });
 
+const mobileGreetingSub = computed(() => {
+  if (Array.isArray(me.value?.reservation_doc_types) && me.value.reservation_doc_types.length) {
+    return `POPSTAR · สาย ${me.value.reservation_doc_types.join(', ')}`;
+  }
+  if (me.value?.salesperson_code) return `POPSTAR · รหัส ${me.value.salesperson_code}`;
+  return `POPSTAR · ${roleLabel.value}`;
+});
+
 const activeNavMeta = computed(() =>
   findNavMetaByRouteName(visibleNavGroups.value, String(route.name || ''))
 );
@@ -351,8 +409,11 @@ const pageTitle = computed(
   () => activeNavMeta.value?.item?.label || route.meta?.label || 'POPSTAR Connect'
 );
 
+const PRIMARY_BOTTOM_TAB_PATHS = new Set(['/dashboard', '/customers', '/visits']);
+
 const isMoreSectionActive = computed(() => {
   if (route.path === '/more') return true;
+  if (PRIMARY_BOTTOM_TAB_PATHS.has(route.path)) return false;
   return Boolean(activeNavMeta.value?.group?.showInMore);
 });
 
@@ -486,8 +547,17 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.logo-refresh { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 10px; }
+.logo-refresh:hover { background: #f0f9ff; }
+.logo-refresh:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }
+.logo-image { display: block; padding: 0; object-fit: contain; }
+.logo-text { display: block; }
+.logo-title { display: block; color: #0f172a; font-size: 17px; line-height: 1.2; letter-spacing: .2px; font-weight: 700; white-space: nowrap; }
+.logo-title span { color: #0284c7; }
 .mobile-menu-btn,
 .mobile-back-btn,
+.mobile-app-avatar,
+.mobile-app-greeting,
 .mobile-top-quick {
   display: none;
 }
@@ -538,24 +608,79 @@ onUnmounted(() => {
   background: var(--blue-soft);
 }
 
+.font-preset-select {
+  min-height: 38px;
+  padding: 6px 34px 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background-color: #f8fafc;
+  color: #334155;
+  max-width: 195px;
+}
+
 @media (max-width: 1024px) {
+  .font-preset-select {
+    display: none;
+  }
+
   .mobile-menu-btn,
   .mobile-back-btn {
     display: grid;
-    width: 40px;
-    height: 40px;
-    border-radius: 11px;
-    font-size: 18px;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    font-size: 17px;
     font-weight: 700;
-    background: #f0f9ff;
-    border-color: #bae6fd;
+    background: #f1f5f9;
+    border-color: transparent;
     color: #0284c7;
+  }
+
+  .mobile-app-avatar {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+    border: 0;
+    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.28);
+  }
+
+  .mobile-app-greeting {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.2;
+  }
+
+  .mobile-app-greeting small {
+    font-size: 11.5px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-app-greeting strong {
+    font-size: 15.5px;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .mobile-top-quick {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .mobile-top-visit {

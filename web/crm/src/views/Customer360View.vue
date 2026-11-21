@@ -40,12 +40,12 @@
       <div class="head-filter" style="margin-bottom:0">
         <input
           v-model="pickerSearch"
-          style="min-width:240px;flex:1"
+          class="filter-search-input"
           placeholder="ค้นหา Customer Master เพื่อดู 360° (ชื่อร้าน, รหัส CRM, รหัส ERP, เบอร์โทร)..."
         />
         <select
           :value="selectedMasterId || ''"
-          style="min-width:260px;flex:1"
+          class="filter-search-input"
           @change="selectMaster($event.target.value)"
         >
           <option value="">-- เลือกลูกค้าจากรายการ --</option>
@@ -541,5 +541,9 @@ async function viewVisitPhotos(visitId) {
 </script>
 
 <style scoped>
-@media (max-width: 600px) { .customer-domains { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  .customer-domains {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

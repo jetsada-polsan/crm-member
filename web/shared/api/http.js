@@ -56,7 +56,7 @@ export async function ensureCsrfToken(csrfEndpoint = '/api/crm/csrf') {
 }
 
 function parseErrorPayload(text, status, retryAfter = null) {
-  let parsed = null;
+  let parsed;
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {

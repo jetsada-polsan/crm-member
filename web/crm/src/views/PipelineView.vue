@@ -39,11 +39,10 @@
               <option v-for="st in PIPELINE_STAGES" :key="st.id" :value="st.id">{{ st.label }}</option>
             </select>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px" @click.stop>
+          <div class="lead-actions" @click.stop>
             <button
               type="button"
-              class="btn light"
-              style="font-size:12.5px;padding:6px 8px;min-height:34px"
+              class="btn light lead-action-btn"
               @click="openQuotationModal(l)"
             >
               📄 ใบเสนอราคา
@@ -51,8 +50,7 @@
             <button
               v-if="!['converted', 'erp_creation_requested', 'erp_match_pending'].includes(l.pipeline_stage)"
               type="button"
-              class="btn light"
-              style="font-size:12.5px;padding:6px 8px;min-height:34px"
+              class="btn light lead-action-btn"
               @click="requestErp(l)"
             >
               📨 ขอเปิดรหัส ERP
@@ -95,14 +93,14 @@
           <label class="small muted" style="display:block;margin-bottom:4px">
             🔍 ค้นหาและดึงรายการสินค้าจาก Bplus ERP (4,208 รายการ)
           </label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="row-actions">
             <input
               v-model="productSearch"
               type="search"
+              class="filter-search-input"
               placeholder="พิมพ์ชื่อสินค้า หรือ รหัสสินค้า Bplus..."
-              style="flex:1;min-width:220px"
             />
-            <select v-model="selectedProductCode" style="flex:1.4;min-width:240px" @change="addSelectedErpProduct">
+            <select v-model="selectedProductCode" class="filter-search-input" @change="addSelectedErpProduct">
               <option value="">-- เลือกสินค้าจาก Bplus เพื่อเพิ่มลงตาราง --</option>
               <option v-for="p in (erpProducts || [])" :key="p.erp_product_code" :value="p.erp_product_code">
                 [{{ p.erp_product_code }}] {{ p.product_name }} ({{ p.unit || 'ชิ้น' }} · ฿{{ money(p.default_price || 0) }})
@@ -512,6 +510,20 @@ async function requestErp(lead) {
 </script>
 
 <style scoped>
+.lead-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.lead-action-btn {
+  flex: 1 1 115px;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  min-height: 36px;
+}
+
 .quote-meta-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

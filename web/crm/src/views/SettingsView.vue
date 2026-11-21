@@ -1,8 +1,8 @@
 <template>
   <div>
     <PageHeader
-      title="ตั้งค่าผู้ใช้งาน & รีเซ็ตรหัสผ่าน"
-      subtitle="ดูรายชื่อทุกคนในระบบ เปลี่ยนชื่อ ตั้งรหัสผ่านใหม่ เปลี่ยนสิทธิ์ และผูกสายใบจองได้ครบในหน้าเดียว"
+      title="ตั้งค่าผู้ใช้งาน & ระบบ"
+      subtitle="จัดการบัญชีผู้ใช้ สิทธิ์ สายใบจอง และ LINE OA"
     >
       <template #secondary>
         <button
@@ -12,85 +12,60 @@
           :disabled="syncingAuto"
           @click="triggerAutoSync"
         >
-          {{ syncingAuto ? 'กำลังซิงก์...' : '⚡ ซิงก์รายชื่อจาก Bplus อัตโนมัติ' }}
+          {{ syncingAuto ? 'กำลังซิงก์...' : '⚡ ซิงก์เซลล์จาก Bplus' }}
         </button>
       </template>
       <template #primary>
         <button v-if="!isExecutive" type="button" class="btn primary" @click="openCreateModal">
-          ＋ เพิ่มผู้ใช้งานใหม่
+          ＋ เพิ่มผู้ใช้งาน
         </button>
       </template>
     </PageHeader>
 
     <SkeletonBlock v-if="isLoading && !data" variant="cards" :rows="4" />
-    <div v-else-if="isError" class="error">{{ error?.message || 'โหลดการตั้งค่าและผู้ใช้งานไม่สำเร็จ' }}</div>
+    <div v-else-if="isError" class="error">{{ error?.message || 'โหลดการตั้งค่าไม่สำเร็จ' }}</div>
 
     <template v-else-if="data">
-      <!-- Role Summary KPIs (Clickable to filter) -->
-      <div class="kpis" style="margin-bottom:16px">
+      <!-- Clean 3-Tab Switcher -->
+      <div class="segmented-tabs mb-md">
         <button
           type="button"
-          :class="['card kpi kpi-filter-btn', { active: roleFilter === 'all' }]"
-          @click="roleFilter = 'all'"
+          class="btn"
+          :class="activeTab === 'users' ? 'primary' : 'light'"
+          @click="activeTab = 'users'"
         >
-          <div class="kpi-top">
-            <div class="kpi-icon">👥</div>
-            <span class="tag blue">ทั้งหมด</span>
-          </div>
-          <div class="kpi-label">ผู้ใช้งานทั้งหมดในระบบ</div>
-          <div class="kpi-value">{{ (data.staff_users || []).length }} <span class="kpi-unit">คน</span></div>
-          <div class="kpi-foot">กดเพื่อดูรายชื่อทุกคน</div>
+          👥 ผู้ใช้งาน ({{ (data.staff_users || []).length }})
         </button>
-
         <button
           type="button"
-          :class="['card kpi kpi-filter-btn', { active: roleFilter === 'admin' }]"
-          @click="roleFilter = 'admin'"
+          class="btn"
+          :class="activeTab === 'routes' ? 'primary' : 'light'"
+          @click="activeTab = 'routes'"
         >
-          <div class="kpi-top">
-            <div class="kpi-icon purple">👑</div>
-            <span class="tag purple">แก้ไขระบบได้</span>
-          </div>
-          <div class="kpi-label">แอดมินระบบ (Admin)</div>
-          <div class="kpi-value">{{ countByRole('admin') }} <span class="kpi-unit">คน</span></div>
-          <div class="kpi-foot">เห็นทั้งหมด + จัดการผู้ใช้/รหัสผ่าน</div>
+          📋 สายใบจอง ({{ (data.available_reservations || []).length }})
         </button>
-
         <button
           type="button"
-          :class="['card kpi kpi-filter-btn', { active: roleFilter === 'executive' }]"
-          @click="roleFilter = 'executive'"
+          class="btn"
+          :class="activeTab === 'line' ? 'primary' : 'light'"
+          @click="activeTab = 'line'"
         >
-          <div class="kpi-top">
-            <div class="kpi-icon orange">👔</div>
-            <span class="tag orange">ดูอย่างเดียว</span>
-          </div>
-          <div class="kpi-label">ผู้บริหาร / เสี่ย / เจ๊ / ผจก.</div>
-          <div class="kpi-value">{{ countByRole('executive') + countByRole('manager') }} <span class="kpi-unit">คน</span></div>
-          <div class="kpi-foot">เห็นข้อมูลทุกคน · แก้ไขระบบไม่ได้</div>
-        </button>
-
-        <button
-          type="button"
-          :class="['card kpi kpi-filter-btn', { active: roleFilter === 'sales' }]"
-          @click="roleFilter = 'sales'"
-        >
-          <div class="kpi-top">
-            <div class="kpi-icon green">🚀</div>
-            <span class="tag green">ผูกตามใบจอง</span>
-          </div>
-          <div class="kpi-label">พนักงานขาย / เซลล์ (Sales)</div>
-          <div class="kpi-value">{{ countByRole('sales') }} <span class="kpi-unit">คน</span></div>
-          <div class="kpi-foot">เห็นเฉพาะใบจองและลูกหนี้ของตัวเอง</div>
+          💬 LINE OA
+          <span
+            class="tag"
+            :class="data.line_settings?.secret_configured && data.line_settings?.access_token_configured ? 'green' : 'orange'"
+          >
+            {{ data.line_settings?.secret_configured && data.line_settings?.access_token_configured ? 'เชื่อมแล้ว' : 'รอตั้งค่า' }}
+          </span>
         </button>
       </div>
 
+      <template v-if="activeTab === 'users'">
       <!-- Main User Directory Card -->
-      <div class="card panel-pad" style="margin-bottom:16px">
+      <div class="card panel-pad mb-md">
         <div class="staff-head">
           <div>
-            <h3 style="margin:0">รายชื่อผู้ใช้งานทั้งหมด ({{ filteredUsers.length }} / {{ (data.staff_users || []).length }} คน)</h3>
-            <small class="muted">สามารถกด "✏️ เปลี่ยนชื่อ / แก้ไข" หรือ "🔑 รีเซ็ตรหัสผ่าน" รายคนได้ทันที</small>
+            <h3 style="margin:0">รายชื่อผู้ใช้งาน ({{ filteredUsers.length }})</h3>
           </div>
 
           <div class="staff-filter-bar">
@@ -109,7 +84,7 @@
               v-model="searchQuery"
               type="search"
               class="staff-search-input"
-              placeholder="ค้นหาชื่อ, B16, เสี่ย, อีเมล..."
+              placeholder="ค้นหาชื่อ, B16, อีเมล..."
             />
           </div>
         </div>
@@ -218,7 +193,7 @@
               </span>
             </div>
 
-            <div v-if="!isExecutive" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div v-if="!isExecutive" class="mob-card-actions">
               <button type="button" class="btn light" @click="openEditModal(u)">
                 ✏️ เปลี่ยนชื่อ / แก้ไข
               </button>
@@ -229,13 +204,14 @@
           </div>
         </div>
       </div>
+      </template>
 
       <!-- Available Reservation Routes Directory -->
-      <div class="card panel-pad" style="margin-bottom:16px">
+      <div v-if="activeTab === 'routes'" class="card panel-pad mb-md">
         <div class="staff-head">
           <div>
-            <h3 style="margin:0">สายใบจองในระบบ Bplus ({{ (data.available_reservations || []).length }} สาย)</h3>
-            <small class="muted">ระบบผูกใบจองกับเซลล์ให้อัตโนมัติแล้ว หรือกดที่การ์ดเพื่อปรับแต่งเพิ่มเติมได้</small>
+            <h3 style="margin:0">สายใบจองใน Bplus ({{ (data.available_reservations || []).length }} สาย)</h3>
+            <small class="muted">กดที่การ์ดเพื่อปรับการผูกสายใบจองกับเซลล์</small>
           </div>
         </div>
 
@@ -264,7 +240,7 @@
       </div>
 
       <!-- LINE Official Account (LINE OA) & Webhook Token Configuration -->
-      <div class="card panel-pad" style="margin-bottom:16px">
+      <div v-if="activeTab === 'line'" id="line-settings" ref="lineSettingsEl" class="card panel-pad" style="margin-bottom:16px">
         <div class="staff-head">
           <div>
             <h3 style="margin:0">💬 ตั้งค่าเชื่อมต่อ LINE Official Account (ผูก LINE สมาชิก &amp; โทเค็น)</h3>
@@ -521,12 +497,24 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, fmt, invalidateCrmData, isExecutive, refreshSession } from '../composables/useCrmSession.js';
+
+const route = useRoute();
+const lineSettingsEl = ref(null);
+const activeTab = ref(route.query.section === 'line' || route.hash === '#line-settings' ? 'line' : 'users');
+
+watch(
+  () => [route.query.section, route.hash],
+  ([sec, hash]) => {
+    activeTab.value = sec === 'line' || hash === '#line-settings' ? 'line' : 'users';
+  }
+);
 
 const { data, isLoading, isError, error, refetch } = useQuery({
   queryKey: ['crm', 'settings-overview'],
@@ -638,10 +626,10 @@ const filteredUsers = computed(() => {
 });
 
 function roleBadgeLabel(role) {
-  if (role === 'admin') return '👑 แอดมิน (แก้ไขระบบได้)';
-  if (role === 'executive') return '👔 ผู้บริหาร (ดูทุกคน · ห้ามแก้ไข)';
-  if (role === 'manager') return '📊 ผู้จัดการ (เห็นทั้งหมด)';
-  return '🚀 เซลล์ (เฉพาะสายตัวเอง)';
+  if (role === 'admin') return '👑 แอดมิน';
+  if (role === 'executive') return '👔 ผู้บริหาร';
+  if (role === 'manager') return '📊 ผู้จัดการ';
+  return '🚀 เซลล์';
 }
 
 function primaryLoginHint(u) {
@@ -890,6 +878,8 @@ async function saveStaff() {
 .login-code-pill {
   display: inline-block;
   width: fit-content;
+  max-width: 100%;
+  word-break: break-all;
   background: #eff6ff;
   color: #1d4ed8;
   border: 1px solid #bfdbfe;
@@ -932,7 +922,7 @@ async function saveStaff() {
 
 .res-route-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -976,7 +966,7 @@ async function saveStaff() {
 
 .doc-picker-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(145px, 100%), 1fr));
   gap: 8px;
 }
 
@@ -1014,7 +1004,11 @@ async function saveStaff() {
 
 @media (max-width: 760px) {
   .staff-search-input {
+    min-width: 0;
     width: 100%;
+  }
+  .res-route-top {
+    flex-wrap: wrap;
   }
 }
 </style>

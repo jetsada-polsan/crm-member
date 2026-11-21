@@ -95,7 +95,7 @@
           </template>
           <div v-if="!(matrix?.data || []).length" class="placeholder">ไม่พบยอดซื้อจริงในช่วงและตัวกรองนี้</div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:10px">
+        <div class="pager-btns mt-sm">
           <button type="button" class="btn light" :disabled="(matrix?.meta?.current_page || 1) <= 1" @click="page--">ก่อนหน้า</button>
           <span class="small muted">{{ matrix?.meta?.current_page || 1 }} / {{ matrix?.meta?.last_page || 1 }}</span>
           <button type="button" class="btn light" :disabled="(matrix?.meta?.current_page || 1) >= (matrix?.meta?.last_page || 1)" @click="page++">ถัดไป</button>

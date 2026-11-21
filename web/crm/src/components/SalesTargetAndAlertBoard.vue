@@ -7,9 +7,12 @@
           :class="['board-tab-btn', { active: activeTab === 'targets' }]"
           @click="activeTab = 'targets'"
         >
-          🎯 เป้ายอดขาย &amp; เป้าเข้าพบรายเซลล์
-          <span v-if="targetsData?.summary" class="tag blue" style="margin-left:6px">
+          🎯 เป้าขายรายเดือน
+          <span v-if="targetsData?.summary && targetsData.summary.overall_sales_pct != null" class="tag blue" style="margin-left:6px">
             {{ targetsData.summary.overall_sales_pct }}%
+          </span>
+          <span v-else-if="targetsData?.summary" class="tag orange" style="margin-left:6px">
+            รอตั้งเป้า
           </span>
         </button>
         <button
@@ -17,56 +20,93 @@
           :class="['board-tab-btn', { active: activeTab === 'inactive' }]"
           @click="activeTab = 'inactive'"
         >
-          ⚠️ ร้านค้าหยุดซื้อเกิน 30 วัน / ยังไม่เคยเข้าพบ
+          ⚠️ ร้านต้องดูแล
           <span v-if="inactiveData?.summary" class="tag orange" style="margin-left:6px">
-            {{ fmt(inactiveData.summary.unvisited_count) }} ร้าน
+            {{ fmt(inactiveData.summary.unvisited_count) }}
           </span>
         </button>
       </div>
 
       <div v-if="activeTab === 'targets' && canEditTargets" class="tab-header-actions">
         <button type="button" class="btn light" @click="openBulkTargetModal">
-          ⚡ ตั้งเป้ารวมให้เซลล์ทุกคน
+          ⚡ ตั้งเป้ารวมทุกคน
         </button>
       </div>
     </div>
 
     <!-- TAB 1: SALES & VISIT TARGETS BY SALESPERSON -->
     <div v-if="activeTab === 'targets'" class="board-body">
+      <div class="target-period-bar">
+        <p class="small muted" style="margin:0">
+          ยอดขายจริงทั้งเดือน <b>{{ targetsData?.month || selectedMonth }}</b> เทียบกับเป้ารายเดือน
+        </p>
+        <label class="target-month-picker">
+          <span class="small muted">เดือน:</span>
+          <input v-model="selectedMonth" type="month" class="month-input" />
+        </label>
+      </div>
+
+      <div
+        v-if="targetsData?.summary && Number(targetsData.summary.configured_staff_count || 0) === 0"
+        class="notice mb-md"
+      >
+        ยังไม่ได้ตั้งเป้ารายเดือนสำหรับ <b>{{ targetsData.month }}</b> — กด <b>"⚡ ตั้งเป้ารวมทุกคน"</b> เพื่อกำหนดเป้าหมายครับ
+      </div>
+
       <div v-if="targetsData?.summary" class="target-summary-strip">
         <div class="ts-item">
-          <span class="small muted">เป้ายอดขายรวม</span>
-          <strong>฿{{ money(targetsData.summary.total_target_amount) }}</strong>
+          <span class="small muted">เป้ายอดขายรวมรายเดือน</span>
+          <strong v-if="Number(targetsData.summary.total_target_amount || 0) > 0">
+            ฿{{ money(targetsData.summary.total_target_amount) }}
+          </strong>
+          <strong v-else class="muted">ยังไม่ตั้งเป้า</strong>
+          <span class="small muted">
+            ตั้งเป้าแล้ว {{ fmt(targetsData.summary.configured_staff_count || 0) }} / {{ fmt(targetsData.summary.staff_count || 0) }} คน
+          </span>
         </div>
         <div class="ts-item">
-          <span class="small muted">ยอดขายจริงสะสม</span>
+          <span class="small muted">ยอดขายจริงทั้งเดือน ({{ targetsData.month }})</span>
           <strong style="color:var(--green)">฿{{ money(targetsData.summary.total_actual_sales) }}</strong>
+          <span v-if="targetsData.days_elapsed > 0" class="small muted">
+            เฉลี่ย ฿{{ money(Number(targetsData.summary.total_actual_sales || 0) / targetsData.days_elapsed) }}/วัน (ผ่านไป {{ targetsData.days_elapsed }}/{{ targetsData.days_in_month }} วัน)
+          </span>
         </div>
         <div class="ts-item">
-          <span class="small muted">% ทะลุเป้ายอดขาย</span>
-          <strong style="color:var(--blue)">{{ targetsData.summary.overall_sales_pct }}%</strong>
+          <span class="small muted">% เทียบเป้ารายเดือน</span>
+          <strong v-if="targetsData.summary.overall_sales_pct != null" style="color:var(--blue)">
+            {{ targetsData.summary.overall_sales_pct }}%
+          </strong>
+          <strong v-else class="muted">รอตั้งเป้า</strong>
+          <span class="small muted">เทียบเฉพาะเซลล์ที่ตั้งเป้ารายเดือนแล้ว</span>
         </div>
         <div class="ts-item">
-          <span class="small muted">เข้าพบจริง / เป้าเข้าพบ</span>
-          <strong>{{ fmt(targetsData.summary.total_actual_visits) }} / {{ fmt(targetsData.summary.total_target_visits) }} ครั้ง</strong>
+          <span class="small muted">เข้าพบจริง / เป้าเข้าพบรายเดือน</span>
+          <strong v-if="Number(targetsData.summary.total_target_visits || 0) > 0">
+            {{ fmt(targetsData.summary.total_actual_visits) }} / {{ fmt(targetsData.summary.total_target_visits) }} ครั้ง
+          </strong>
+          <strong v-else>{{ fmt(targetsData.summary.total_actual_visits) }} ครั้ง</strong>
+          <span class="small muted">
+            {{ Number(targetsData.summary.total_target_visits || 0) > 0 ? `${targetsData.summary.overall_visit_pct ?? 0}% ของเป้ารายเดือน` : 'ยังไม่ตั้งเป้าเข้าพบรายเดือน' }}
+          </span>
         </div>
       </div>
 
-      <div class="table-wrap">
+      <!-- Desktop Table -->
+      <div class="table-wrap desktop-table-only">
         <table class="table">
           <thead>
             <tr>
               <th>พนักงานขาย &amp; สายใบจอง</th>
               <th>ยอดใบจอง (207)</th>
-              <th style="min-width:210px">ยอดขายจริง vs เป้ายอดขาย</th>
-              <th style="min-width:170px">เข้าพบร้านค้า vs เป้าเข้าพบ</th>
+              <th style="min-width:240px">ยอดขายจริงทั้งเดือน vs เป้ารายเดือน</th>
+              <th style="min-width:180px">เข้าพบเดือนนี้ vs เป้ารายเดือน</th>
               <th v-if="canEditTargets" style="text-align:right">ตั้งเป้า</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in targetsData?.rows || []" :key="row.staff_user_id">
               <td>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div class="row-actions">
                   <strong>{{ row.staff_name }}</strong>
                   <span v-if="row.salesperson_code" class="tag gray">รหัส {{ row.salesperson_code }}</span>
                   <span
@@ -83,31 +123,51 @@
                 <div class="small muted">{{ fmt(row.reservation_count) }} ใบจอง</div>
               </td>
               <td>
-                <div class="prog-head">
-                  <strong>฿{{ money(row.actual_sales) }}</strong>
-                  <span class="small muted">/ เป้า ฿{{ money(row.target_amount) }} ({{ row.sales_achievement_pct }}%)</span>
-                </div>
-                <div class="prog-track">
-                  <div
-                    class="prog-fill sales"
-                    :style="{ width: `${Math.min(100, Math.max(3, row.sales_achievement_pct || 0))}%` }"
-                  ></div>
-                </div>
+                <template v-if="row.target_amount > 0">
+                  <div class="prog-head">
+                    <strong>฿{{ money(row.actual_sales) }}</strong>
+                    <span class="small muted">/ เป้าเดือน ฿{{ money(row.target_amount) }} ({{ row.sales_achievement_pct }}%)</span>
+                  </div>
+                  <div class="prog-track">
+                    <div
+                      class="prog-fill sales"
+                      :style="{ width: `${Math.min(100, Math.max(3, row.sales_achievement_pct || 0))}%` }"
+                    ></div>
+                  </div>
+                  <div class="small muted" style="margin-top:3px">
+                    เฉลี่ย ฿{{ money(row.daily_actual_avg) }}/วัน · เป้าเฉลี่ย ฿{{ money(row.daily_target_avg) }}/วัน
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="prog-head">
+                    <strong>฿{{ money(row.actual_sales) }}</strong>
+                    <span class="tag orange">ยังไม่ตั้งเป้ารายเดือน</span>
+                  </div>
+                  <div class="small muted">
+                    เฉลี่ย ฿{{ money(row.daily_actual_avg) }}/วัน ({{ fmt(row.invoice_count) }} บิล)
+                  </div>
+                </template>
               </td>
               <td>
-                <div class="prog-head">
+                <template v-if="row.target_visits > 0">
+                  <div class="prog-head">
+                    <strong>{{ fmt(row.actual_visits) }} ครั้ง</strong>
+                    <span class="small muted">/ เป้า {{ fmt(row.target_visits) }} ครั้ง ({{ row.visit_achievement_pct }}%)</span>
+                  </div>
+                  <div class="prog-track">
+                    <div
+                      class="prog-fill visit"
+                      :style="{ width: `${Math.min(100, Math.max(3, row.visit_achievement_pct || 0))}%` }"
+                    ></div>
+                  </div>
+                </template>
+                <template v-else>
                   <strong>{{ fmt(row.actual_visits) }} ครั้ง</strong>
-                  <span class="small muted">/ เป้า {{ fmt(row.target_visits) }} ครั้ง ({{ row.visit_achievement_pct }}%)</span>
-                </div>
-                <div class="prog-track">
-                  <div
-                    class="prog-fill visit"
-                    :style="{ width: `${Math.min(100, Math.max(3, row.visit_achievement_pct || 0))}%` }"
-                  ></div>
-                </div>
+                  <div class="small muted">ยังไม่ตั้งเป้าเข้าพบ</div>
+                </template>
               </td>
               <td v-if="canEditTargets" style="text-align:right">
-                <button type="button" class="btn light" style="min-height:32px;padding:4px 10px;font-size:12.5px" @click="openEditTargetModal(row)">
+                <button type="button" class="btn light" style="min-height:36px;padding:6px 12px;font-size:13px" @click="openEditTargetModal(row)">
                   ⚙️ ตั้งเป้า
                 </button>
               </td>
@@ -117,6 +177,45 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Mobile Target Cards (<= 800px) -->
+      <div class="mob-cards">
+        <div v-for="row in targetsData?.rows || []" :key="`tm-${row.staff_user_id}`" class="card mob-card">
+          <div class="row-between-start">
+            <div style="min-width:0;flex:1 1 170px">
+              <strong>{{ row.staff_name }}</strong>
+              <div class="row-actions" style="margin-top:4px">
+                <span v-if="row.salesperson_code" class="tag gray">รหัส {{ row.salesperson_code }}</span>
+                <span v-for="dt in row.reservation_doc_types || []" :key="dt" class="tag blue">{{ dt }}</span>
+              </div>
+            </div>
+            <button v-if="canEditTargets" type="button" class="btn light" style="min-height:36px;padding:6px 10px;font-size:12.5px" @click="openEditTargetModal(row)">
+              ⚙️ ตั้งเป้า
+            </button>
+          </div>
+
+          <div class="mob-target-metrics">
+            <div class="minirow">
+              <span class="muted">ยอดขายจริงเดือนนี้</span>
+              <strong style="color:var(--green)">฿{{ money(row.actual_sales) }}</strong>
+            </div>
+            <div class="minirow">
+              <span class="muted">เป้ายอดขายรายเดือน</span>
+              <strong v-if="row.target_amount > 0">฿{{ money(row.target_amount) }} ({{ row.sales_achievement_pct }}%)</strong>
+              <span v-else class="tag orange">ยังไม่ตั้งเป้ารายเดือน</span>
+            </div>
+            <div v-if="row.target_amount > 0" class="prog-track" style="margin:4px 0 6px">
+              <div class="prog-fill sales" :style="{ width: `${Math.min(100, Math.max(3, row.sales_achievement_pct || 0))}%` }"></div>
+            </div>
+            <div class="small muted">
+              เฉลี่ย ฿{{ money(row.daily_actual_avg) }}/วัน
+              <template v-if="row.target_amount > 0"> · เป้าเฉลี่ย ฿{{ money(row.daily_target_avg) }}/วัน</template>
+              · ใบจอง ฿{{ money(row.reservation_amount) }} · เข้าพบ {{ fmt(row.actual_visits) }} ครั้ง
+            </div>
+          </div>
+        </div>
+        <div v-if="!(targetsData?.rows || []).length" class="placeholder">ยังไม่มีข้อมูลเป้าหมายพนักงานขาย</div>
       </div>
     </div>
 
@@ -144,7 +243,7 @@
         />
       </div>
 
-      <div class="table-wrap">
+      <div class="table-wrap desktop-table-only">
         <table class="table">
           <thead>
             <tr>
@@ -174,7 +273,7 @@
                 <div class="small muted">{{ fmt(c.sale_invoice_count) }} บิล</div>
               </td>
               <td>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <div class="row-actions">
                   <span v-if="Number(c.visit_count || 0) === 0" class="tag orange">ยังไม่เคยเข้าพบ</span>
                   <span v-else class="tag green">เข้าพบ {{ c.visit_count }} ครั้ง</span>
 
@@ -186,14 +285,14 @@
                 </div>
               </td>
               <td style="text-align:right">
-                <div style="display:inline-flex;gap:6px">
-                  <RouterLink :to="`/customer-360/${c.id}`" class="btn light" style="min-height:32px;padding:4px 9px;font-size:12.5px">
+                <div class="row-actions" style="justify-content:flex-end">
+                  <RouterLink :to="`/customer-360/${c.id}`" class="btn light" style="min-height:36px;padding:6px 10px;font-size:12.5px">
                     🔍 360°
                   </RouterLink>
                   <button
                     type="button"
                     class="btn primary"
-                    style="min-height:32px;padding:4px 10px;font-size:12.5px"
+                    style="min-height:36px;padding:6px 10px;font-size:12.5px"
                     @click="openVisitWizard({ kind: 'erp', id: Number(c.id) })"
                   >
                     📸 เช็คอิน
@@ -207,6 +306,36 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Mobile Alert Cards (<= 800px) -->
+      <div class="mob-cards">
+        <div v-for="c in inactiveData?.rows || []" :key="`im-${c.id}`" class="card mob-card">
+          <div class="row-between-start">
+            <strong style="min-width:0;flex:1 1 170px">{{ c.customer_name }}</strong>
+            <span class="tag gray">{{ c.erp_customer_code }}</span>
+          </div>
+          <div class="small muted mt-sm">
+            {{ c.province || '—' }} · โทร {{ c.phone || 'ไม่มีเบอร์' }} · {{ c.salesperson_name || c.salesperson_code || 'ส่วนกลาง' }}
+          </div>
+          <div class="row-actions mt-sm">
+            <span v-if="Number(c.visit_count || 0) === 0" class="tag orange">ยังไม่เคยเข้าพบ</span>
+            <span v-else class="tag green">เข้าพบ {{ c.visit_count }} ครั้ง</span>
+            <span v-if="c.days_since_purchase != null && c.days_since_purchase >= 30" class="tag red">
+              ขาดซื้อ {{ c.days_since_purchase }} วัน
+            </span>
+            <span v-else-if="!c.last_purchase_at" class="tag gray">ยังไม่มีบิลขาย</span>
+            <span v-if="!c.has_pin" class="tag gray">📍 รอปักหมุด</span>
+          </div>
+          <div class="small mt-sm">ยอดซื้อสะสม <b>฿{{ money(c.total_sales_net) }}</b> ({{ fmt(c.sale_invoice_count) }} บิล)</div>
+          <div class="mob-card-actions">
+            <RouterLink :to="`/customer-360/${c.id}`" class="btn light">🔍 360°</RouterLink>
+            <button type="button" class="btn primary" @click="openVisitWizard({ kind: 'erp', id: Number(c.id) })">
+              📸 เช็คอิน
+            </button>
+          </div>
+        </div>
+        <div v-if="!(inactiveData?.rows || []).length" class="placeholder">ไม่พบร้านค้าในเงื่อนไขนี้</div>
+      </div>
     </div>
 
     <!-- Modal: Edit Sales & Visit Target -->
@@ -217,8 +346,12 @@
     >
       <form id="targetEditForm" class="form" @submit.prevent="submitTarget">
         <div class="field span2">
-          <label>เป้ายอดขายสุทธิต่อเดือน (บาท) *</label>
-          <input v-model.number="targetForm.target_amount" type="number" min="0" step="1000" required />
+          <label>เป้ายอดขายสุทธิต่อเดือน — เดือน {{ selectedMonth }} (บาท) *</label>
+          <input v-model.number="targetForm.target_amount" type="number" min="0" step="10000" required />
+          <small class="muted">
+            เฉลี่ยประมาณ ฿{{ money((Number(targetForm.target_amount || 0)) / (targetsData?.days_in_month || 30)) }}/วัน
+            (กรอกยอดเป้าหมายรวมทั้งเดือน)
+          </small>
         </div>
         <div class="field span2">
           <label>เป้าเข้าพบร้านค้าต่อเดือน (ครั้ง) *</label>
@@ -246,12 +379,14 @@ import { crmGet, crmMutate, fmt, me, money, openVisitWizard } from '../composabl
 const activeTab = ref('targets');
 const alertMode = ref('all_alerts');
 const alertSearch = ref('');
+const nowDate = new Date();
+const selectedMonth = ref(`${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}`);
 
 const canEditTargets = computed(() => ['admin', 'manager'].includes(me.value?.role || ''));
 
 const { data: targetsData, refetch: refetchTargets } = useQuery({
-  queryKey: ['crm', 'sales-targets'],
-  queryFn: ({ signal }) => crmGet('/targets', { signal }),
+  queryKey: computed(() => ['crm', 'sales-targets', selectedMonth.value]),
+  queryFn: ({ signal }) => crmGet(`/targets?month=${encodeURIComponent(selectedMonth.value)}`, { signal }),
 });
 
 const { data: inactiveData } = useQuery({
@@ -276,7 +411,7 @@ const targetForm = ref({
   staff_user_id: null,
   staff_name: '',
   apply_to_all: false,
-  target_amount: 150000,
+  target_amount: 2000000,
   target_visits: 30,
 });
 
@@ -285,8 +420,8 @@ function openEditTargetModal(row) {
     staff_user_id: row.staff_user_id,
     staff_name: row.staff_name,
     apply_to_all: false,
-    target_amount: Number(row.target_amount || 150000),
-    target_visits: Number(row.target_visits || 30),
+    target_amount: Number(row.target_amount > 0 ? row.target_amount : 2000000),
+    target_visits: Number(row.target_visits > 0 ? row.target_visits : 30),
   };
   targetModalOpen.value = true;
 }
@@ -296,7 +431,7 @@ function openBulkTargetModal() {
     staff_user_id: null,
     staff_name: 'เซลล์ทุกคน',
     apply_to_all: true,
-    target_amount: 150000,
+    target_amount: 2000000,
     target_visits: 30,
   };
   targetModalOpen.value = true;
@@ -306,13 +441,14 @@ async function submitTarget() {
   savingTarget.value = true;
   try {
     await crmMutate('/targets', 'POST', {
+      month: selectedMonth.value,
       staff_user_id: targetForm.value.staff_user_id,
       apply_to_all: targetForm.value.apply_to_all,
       target_amount: targetForm.value.target_amount,
       target_visits: targetForm.value.target_visits,
     });
     targetModalOpen.value = false;
-    toast.success('บันทึกเป้าหมายเรียบร้อย');
+    toast.success('บันทึกเป้าหมายรายเดือนเรียบร้อย');
     await refetchTargets();
   } catch (err) {
     toast.error('บันทึกเป้าหมายไม่สำเร็จ', err);
@@ -367,6 +503,34 @@ async function submitTarget() {
 
 .board-body {
   padding: 14px 16px 16px;
+}
+
+.target-period-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.target-month-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.month-input {
+  min-height: 38px;
+  padding: 6px 12px;
+  font-size: 13.5px;
+}
+
+.mob-target-metrics {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #edf1f6;
 }
 
 .target-summary-strip {
@@ -459,12 +623,23 @@ async function submitTarget() {
   border-radius: 10px;
   padding: 7px 12px;
   font-size: 13.5px;
-  min-width: 240px;
+  min-width: 0;
+  flex: 1 1 220px;
+  width: 100%;
 }
 
 @media (max-width: 820px) {
   .target-summary-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .alert-search-input {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .target-summary-strip {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -3,6 +3,7 @@
 namespace App\Modules\ERPIntegration;
 
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -16,6 +17,46 @@ final class SalesRules
     public const RETURN_PROPERTIES = [308];
     public const RESERVATION_PROPERTIES = [207];
     public const ACTUAL_DOCUMENT_PROPERTIES = [302, 307, 308, 337];
+
+    private static ?string $requestErpVersion = null;
+
+    /**
+     * Fast (<0.2ms) cache version key derived from PK max IDs + explicit invalidation counter.
+     * Automatically detects external PostgreSQL inserts (e.g. CLI sync scripts) on the next request.
+     */
+    public static function erpCacheVersion(): string
+    {
+        if (self::$requestErpVersion !== null) {
+            return self::$requestErpVersion;
+        }
+        $bump = (int) Cache::get('popstar:erp_cache_ver', 1);
+        $maxInv = (int) (DB::table('erp_sales_invoices')->max('id') ?? 0);
+        $maxCust = (int) (DB::table('erp_customers')->max('id') ?? 0);
+
+        return self::$requestErpVersion = "{$bump}:{$maxInv}:{$maxCust}";
+    }
+
+    public static function invalidateCache(): void
+    {
+        self::$requestErpVersion = null;
+        if (! app()->runningUnitTests()) {
+            $next = ((int) Cache::get('popstar:erp_cache_ver', 1)) + 1;
+            Cache::forever('popstar:erp_cache_ver', $next);
+        }
+    }
+
+    /**
+     * Cache heavy read-only ERP mirror aggregations (automatically bypassed during unit tests).
+     */
+    public static function cacheRemember(string $key, int $ttlSeconds, callable $compute): mixed
+    {
+        if (app()->runningUnitTests()) {
+            return $compute();
+        }
+        $fullKey = 'popstar:v4:'.self::erpCacheVersion().':'.$key;
+
+        return Cache::remember($fullKey, $ttlSeconds, $compute);
+    }
 
     /**
      * Determine whether an ICCAT category belongs to non-core service/packaging items.
@@ -137,8 +178,10 @@ final class SalesRules
 
     /**
      * Aggregated actual-sales header metrics per (source_system, erp_customer_code).
+     *
+     * @param  list<string>|null  $customerCodes  Optional subset of erp_customer_code values to avoid full-table grouping.
      */
-    public static function customerActualInvoiceSubquery(): Builder
+    public static function customerActualInvoiceSubquery(?array $customerCodes = null): Builder
     {
         $q = DB::table('erp_sales_invoices as inv')
             ->groupBy('inv.source_system', 'inv.erp_customer_code')
@@ -157,13 +200,23 @@ final class SalesRules
                 DB::raw("MAX(CASE WHEN inv.doc_category = 'sale' THEN inv.sold_at ELSE NULL END) as last_purchase_at")
             );
 
+        if ($customerCodes !== null) {
+            if ($customerCodes === []) {
+                $q->whereRaw('1 = 0');
+            } else {
+                $q->whereIn('inv.erp_customer_code', $customerCodes);
+            }
+        }
+
         return self::applyActualSalesScope($q, 'inv');
     }
 
     /**
      * Aggregated excluded service/packaging item amounts (CC, CO, AS, PK) per customer on actual invoices.
+     *
+     * @param  list<string>|null  $customerCodes  Optional subset of erp_customer_code values to avoid full-table grouping.
      */
-    public static function customerExcludedItemsSubquery(): Builder
+    public static function customerExcludedItemsSubquery(?array $customerCodes = null): Builder
     {
         $q = DB::table('erp_sales_items as it')
             ->join('erp_sales_invoices as inv', function ($join): void {
@@ -180,6 +233,14 @@ final class SalesRules
                 DB::raw('COALESCE(SUM(COALESCE(it.before_vat_amount, it.net_amount)), 0) as excluded_before_vat')
             );
 
+        if ($customerCodes !== null) {
+            if ($customerCodes === []) {
+                $q->whereRaw('1 = 0');
+            } else {
+                $q->whereIn('inv.erp_customer_code', $customerCodes);
+            }
+        }
+
         return self::applyActualSalesScope($q, 'inv');
     }
 
@@ -192,33 +253,33 @@ final class SalesRules
      */
     public static function summarizeInvoices(?callable $filterCallback = null): array
     {
-        $actualQuery = self::applyActualSalesScope(DB::table('erp_sales_invoices as inv'), 'inv');
-        if ($filterCallback) {
-            $filterCallback($actualQuery, 'inv');
-        }
+        $propsList = implode(', ', self::ACTUAL_DOCUMENT_PROPERTIES);
+        $actualCond = "inv.sold_at >= '2026-01-01 00:00:00' AND inv.doc_category IN ('sale', 'return') AND inv.status IN ('posted', 'returned') AND inv.dt_properties IN ({$propsList})";
+        $returnCond = "inv.doc_category = 'return' AND inv.status = 'returned'";
+        $resCond = "(inv.doc_category = 'reservation' OR inv.dt_properties = 207) AND inv.status = 'reserved'";
 
-        $actualHeader = $actualQuery->selectRaw('
-            COUNT(*) as invoice_count,
-            COALESCE(SUM(CASE WHEN inv.doc_category = \'sale\' THEN 1 ELSE 0 END), 0) as sale_invoice_count,
-            COALESCE(SUM(CASE WHEN inv.doc_category = \'sale\' THEN COALESCE(inv.before_vat_amount, inv.net_amount) ELSE 0 END), 0) as gross_purchase_before_vat,
-            COALESCE(SUM(CASE WHEN inv.doc_category = \'sale\' THEN COALESCE(inv.gross_amount, inv.net_amount) ELSE 0 END), 0) as gross_purchase_gross,
-            COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as total_before_vat,
-            COALESCE(SUM(COALESCE(inv.vat_amount, 0)), 0) as total_vat,
-            COALESCE(SUM(COALESCE(inv.gross_amount, inv.net_amount)), 0) as total_gross,
-            MAX(CASE WHEN inv.doc_category = \'sale\' THEN inv.sold_at ELSE NULL END) as last_purchase_at
-        ')->first();
-
-        $returnsQuery = DB::table('erp_sales_invoices as inv')
-            ->where('inv.doc_category', 'return')
-            ->where('inv.status', 'returned');
+        // Single-pass conditional aggregation over erp_sales_invoices (replaces 4 separate full-table scans)
+        $headerQuery = DB::table('erp_sales_invoices as inv');
         if ($filterCallback) {
-            $filterCallback($returnsQuery, 'inv');
+            $filterCallback($headerQuery, 'inv');
         }
-        $returnsRow = $returnsQuery->selectRaw('
-            COUNT(*) as return_count,
-            COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as return_before_vat,
-            COALESCE(SUM(COALESCE(inv.gross_amount, inv.net_amount)), 0) as return_gross
-        ')->first();
+        $agg = $headerQuery->selectRaw("
+            COALESCE(SUM(CASE WHEN {$actualCond} THEN 1 ELSE 0 END), 0) as invoice_count,
+            COALESCE(SUM(CASE WHEN {$actualCond} AND inv.doc_category = 'sale' THEN 1 ELSE 0 END), 0) as sale_invoice_count,
+            COALESCE(SUM(CASE WHEN {$actualCond} AND inv.doc_category = 'sale' THEN COALESCE(inv.before_vat_amount, inv.net_amount) ELSE 0 END), 0) as gross_purchase_before_vat,
+            COALESCE(SUM(CASE WHEN {$actualCond} AND inv.doc_category = 'sale' THEN COALESCE(inv.gross_amount, inv.net_amount) ELSE 0 END), 0) as gross_purchase_gross,
+            COALESCE(SUM(CASE WHEN {$actualCond} THEN COALESCE(inv.before_vat_amount, inv.net_amount) ELSE 0 END), 0) as total_before_vat,
+            COALESCE(SUM(CASE WHEN {$actualCond} THEN COALESCE(inv.vat_amount, 0) ELSE 0 END), 0) as total_vat,
+            COALESCE(SUM(CASE WHEN {$actualCond} THEN COALESCE(inv.gross_amount, inv.net_amount) ELSE 0 END), 0) as total_gross,
+            MAX(CASE WHEN {$actualCond} AND inv.doc_category = 'sale' THEN inv.sold_at ELSE NULL END) as last_purchase_at,
+            COALESCE(SUM(CASE WHEN {$returnCond} THEN 1 ELSE 0 END), 0) as return_count,
+            COALESCE(SUM(CASE WHEN {$returnCond} THEN COALESCE(inv.before_vat_amount, inv.net_amount) ELSE 0 END), 0) as return_before_vat,
+            COALESCE(SUM(CASE WHEN {$returnCond} THEN COALESCE(inv.gross_amount, inv.net_amount) ELSE 0 END), 0) as return_gross,
+            COALESCE(SUM(CASE WHEN {$resCond} THEN 1 ELSE 0 END), 0) as reservation_count,
+            COALESCE(SUM(CASE WHEN {$resCond} THEN COALESCE(inv.before_vat_amount, inv.net_amount) ELSE 0 END), 0) as reservation_before_vat,
+            COALESCE(SUM(CASE WHEN {$resCond} THEN COALESCE(inv.gross_amount, inv.net_amount) ELSE 0 END), 0) as reservation_gross,
+            COALESCE(SUM(CASE WHEN inv.status = 'cancelled' THEN 1 ELSE 0 END), 0) as cancelled_count
+        ")->first();
 
         $excludedQuery = DB::table('erp_sales_items as it')
             ->join('erp_sales_invoices as inv', function ($join): void {
@@ -238,63 +299,42 @@ final class SalesRules
             COALESCE(SUM(COALESCE(it.gross_amount, it.net_amount)), 0) as excluded_gross
         ')->first();
 
-        $reservationQuery = DB::table('erp_sales_invoices as inv')
-            ->where(function (Builder $q): void {
-                $q->where('inv.doc_category', 'reservation')
-                    ->orWhere('inv.dt_properties', 207);
-            })
-            ->where('inv.status', 'reserved');
-        if ($filterCallback) {
-            $filterCallback($reservationQuery, 'inv');
-        }
-        $reservationRow = $reservationQuery->selectRaw('
-            COUNT(*) as reservation_count,
-            COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as reservation_before_vat,
-            COALESCE(SUM(COALESCE(inv.gross_amount, inv.net_amount)), 0) as reservation_gross
-        ')->first();
-
-        $cancelledQuery = DB::table('erp_sales_invoices as inv')->where('inv.status', 'cancelled');
-        if ($filterCallback) {
-            $filterCallback($cancelledQuery, 'inv');
-        }
-        $cancelledCount = (int) $cancelledQuery->count();
-
-        $totalBeforeVat = round((float) ($actualHeader->total_before_vat ?? 0), 2);
-        $totalVat = round((float) ($actualHeader->total_vat ?? 0), 2);
-        $totalGross = round((float) ($actualHeader->total_gross ?? 0), 2);
+        $totalBeforeVat = round((float) ($agg->total_before_vat ?? 0), 2);
+        $totalVat = round((float) ($agg->total_vat ?? 0), 2);
+        $totalGross = round((float) ($agg->total_gross ?? 0), 2);
         $excludedBeforeVat = round((float) ($excludedRow->excluded_before_vat ?? 0), 2);
         $productKpiBeforeVat = round($totalBeforeVat - $excludedBeforeVat, 2);
 
         return [
-            'invoice_count' => (int) ($actualHeader->invoice_count ?? 0),
-            'sale_invoice_count' => (int) ($actualHeader->sale_invoice_count ?? 0),
-            'posted_sales_count' => (int) ($actualHeader->sale_invoice_count ?? 0),
+            'invoice_count' => (int) ($agg->invoice_count ?? 0),
+            'sale_invoice_count' => (int) ($agg->sale_invoice_count ?? 0),
+            'posted_sales_count' => (int) ($agg->sale_invoice_count ?? 0),
             'primary_sales_before_vat' => $productKpiBeforeVat,
-            'gross_purchase_before_vat' => round((float) ($actualHeader->gross_purchase_before_vat ?? 0), 2),
-            'return_amount_before_vat' => round(abs((float) ($returnsRow->return_before_vat ?? 0)), 2),
+            'gross_purchase_before_vat' => round((float) ($agg->gross_purchase_before_vat ?? 0), 2),
+            'return_amount_before_vat' => round(abs((float) ($agg->return_before_vat ?? 0)), 2),
             'net_purchase_before_vat' => $totalBeforeVat,
             // Stable aliases consumed by dashboard/reconciliation views.
             // These are actual sales minus active returns, including all item categories.
             'net_sales_before_vat' => $totalBeforeVat,
-            'gross_purchase_gross' => round((float) ($actualHeader->gross_purchase_gross ?? 0), 2),
-            'return_amount_gross' => round(abs((float) ($returnsRow->return_gross ?? 0)), 2),
+            'gross_purchase_gross' => round((float) ($agg->gross_purchase_gross ?? 0), 2),
+            'return_amount_gross' => round(abs((float) ($agg->return_gross ?? 0)), 2),
             'net_purchase_gross' => $totalGross,
             'vat_amount' => $totalVat,
             'gross_amount' => $totalGross,
-            'last_purchase_at' => $actualHeader->last_purchase_at ?? null,
+            'last_purchase_at' => $agg->last_purchase_at ?? null,
             'actual_all_before_vat' => $totalBeforeVat,
             'excluded_service_before_vat' => $excludedBeforeVat,
             'vat_total' => $totalVat,
             'gross_total' => $totalGross,
-            'return_count' => (int) ($returnsRow->return_count ?? 0),
-            'return_before_vat' => round((float) ($returnsRow->return_before_vat ?? 0), 2),
-            'return_308_before_vat' => round(abs((float) ($returnsRow->return_before_vat ?? 0)), 2),
-            'reservation_count' => (int) ($reservationRow->reservation_count ?? 0),
-            'reservation_before_vat' => round((float) ($reservationRow->reservation_before_vat ?? 0), 2),
-            'reservation_gross' => round((float) ($reservationRow->reservation_gross ?? 0), 2),
-            'reservation_207_count' => (int) ($reservationRow->reservation_count ?? 0),
-            'reservation_207_before_vat' => round((float) ($reservationRow->reservation_before_vat ?? 0), 2),
-            'cancelled_count' => $cancelledCount,
+            'return_count' => (int) ($agg->return_count ?? 0),
+            'return_before_vat' => round((float) ($agg->return_before_vat ?? 0), 2),
+            'return_308_before_vat' => round(abs((float) ($agg->return_before_vat ?? 0)), 2),
+            'reservation_count' => (int) ($agg->reservation_count ?? 0),
+            'reservation_before_vat' => round((float) ($agg->reservation_before_vat ?? 0), 2),
+            'reservation_gross' => round((float) ($agg->reservation_gross ?? 0), 2),
+            'reservation_207_count' => (int) ($agg->reservation_count ?? 0),
+            'reservation_207_before_vat' => round((float) ($agg->reservation_before_vat ?? 0), 2),
+            'cancelled_count' => (int) ($agg->cancelled_count ?? 0),
         ];
     }
 
@@ -309,13 +349,16 @@ final class SalesRules
         if ($filterCallback) {
             $filterCallback($invQ, 'inv');
         }
-        $invoices = $invQ->select(
-            'inv.sold_at',
-            'inv.doc_category',
-            DB::raw('COALESCE(inv.before_vat_amount, inv.net_amount) as before_vat'),
-            DB::raw('COALESCE(inv.vat_amount, 0) as vat'),
-            DB::raw('COALESCE(inv.gross_amount, inv.net_amount) as gross')
-        )->orderBy('inv.sold_at')->get();
+        $monthExpr = 'SUBSTR(CAST(inv.sold_at AS TEXT), 1, 7)';
+        $invoices = $invQ->selectRaw("{$monthExpr} as month")
+            ->selectRaw('COUNT(*) as invoice_count')
+            ->selectRaw("SUM(CASE WHEN inv.doc_category = 'sale' THEN 1 ELSE 0 END) as sale_invoice_count")
+            ->selectRaw("SUM(CASE WHEN inv.doc_category = 'return' THEN 1 ELSE 0 END) as return_count")
+            ->selectRaw('COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as before_vat')
+            ->selectRaw('COALESCE(SUM(COALESCE(inv.vat_amount, 0)), 0) as vat')
+            ->selectRaw('COALESCE(SUM(COALESCE(inv.gross_amount, inv.net_amount)), 0) as gross')
+            ->selectRaw("COALESCE(SUM(CASE WHEN inv.doc_category = 'return' THEN COALESCE(inv.before_vat_amount, inv.net_amount) ELSE 0 END), 0) as return_before_vat")
+            ->groupByRaw($monthExpr)->orderBy('month')->get();
 
         $excQ = DB::table('erp_sales_items as it')
             ->join('erp_sales_invoices as inv', function ($join): void {
@@ -329,14 +372,13 @@ final class SalesRules
         if ($filterCallback) {
             $filterCallback($excQ, 'inv');
         }
-        $excludedItems = $excQ->select(
-            'inv.sold_at',
-            DB::raw('COALESCE(it.before_vat_amount, it.net_amount) as before_vat')
-        )->get();
+        $excludedItems = $excQ->selectRaw("{$monthExpr} as month")
+            ->selectRaw('COALESCE(SUM(COALESCE(it.before_vat_amount, it.net_amount)), 0) as before_vat')
+            ->groupByRaw($monthExpr)->get();
 
         $buckets = [];
         foreach ($invoices as $row) {
-            $month = substr((string) $row->sold_at, 0, 7);
+            $month = (string) $row->month;
             if ($month === '') {
                 continue;
             }
@@ -353,21 +395,18 @@ final class SalesRules
                 'return_before_vat' => 0.0,
             ];
             $before = (float) $row->before_vat;
-            $buckets[$month]['invoice_count']++;
+            $buckets[$month]['invoice_count'] += (int) $row->invoice_count;
             $buckets[$month]['net_sales_before_vat'] += $before;
             $buckets[$month]['primary_sales_before_vat'] += $before;
             $buckets[$month]['vat_total'] += (float) $row->vat;
             $buckets[$month]['gross_total'] += (float) $row->gross;
-            if ($row->doc_category === 'return') {
-                $buckets[$month]['return_count']++;
-                $buckets[$month]['return_before_vat'] += $before;
-            } else {
-                $buckets[$month]['sale_invoice_count']++;
-            }
+            $buckets[$month]['return_count'] += (int) $row->return_count;
+            $buckets[$month]['sale_invoice_count'] += (int) $row->sale_invoice_count;
+            $buckets[$month]['return_before_vat'] += (float) $row->return_before_vat;
         }
 
         foreach ($excludedItems as $ex) {
-            $month = substr((string) $ex->sold_at, 0, 7);
+            $month = (string) $ex->month;
             if ($month === '' || ! isset($buckets[$month])) {
                 continue;
             }

@@ -1,0 +1,19 @@
+# Draft only. Do not expose publicly until HTTPS and staff credentials are secured
+# and the upstream WAN permits inbound forwarding. Include this file from Apache
+# only after reviewing those requirements.
+Listen 8006
+<VirtualHost *:8006>
+    DocumentRoot "D:/xampp/htdocs/popstar-business-platform-v4/web/crm/dist"
+    <Directory "D:/xampp/htdocs/popstar-business-platform-v4/web/crm/dist">
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+        FallbackResource /index.html
+    </Directory>
+    ProxyPreserveHost On
+    ProxyPass /api/ http://127.0.0.1:18090/api/
+    ProxyPassReverse /api/ http://127.0.0.1:18090/api/
+    RequestHeader set X-Forwarded-Proto "http"
+    ErrorLog "logs/popstar-external-crm-error.log"
+    CustomLog "logs/popstar-external-crm-access.log" common
+</VirtualHost>

@@ -4,6 +4,7 @@ import { crmGet, crmQueryClient } from './composables/useCrmSession.js';
 const viewLoaders = {
   dashboard: () => import('./views/DashboardView.vue'),
   customers: () => import('./views/CustomersView.vue'),
+  products: () => import('./views/ProductsView.vue'),
   pipeline: () => import('./views/PipelineView.vue'),
   'customer-360': () => import('./views/Customer360View.vue'),
   map: () => import('./views/MapView.vue'),
@@ -17,6 +18,7 @@ const viewLoaders = {
   'erp-customers': () => import('./views/ErpCustomersView.vue'),
   sync: () => import('./views/SyncMonitorView.vue'),
   members: () => import('./views/MembersView.vue'),
+  'line-inbox': () => import('./views/LineInboxView.vue'),
   'member-registration': () => import('./views/MemberPortalHandoffView.vue'),
   'member-portal': () => import('./views/MemberPortalHandoffView.vue'),
   loyalty: () => import('./views/LoyaltyView.vue'),
@@ -24,6 +26,7 @@ const viewLoaders = {
   member: () => import('./views/MemberLoyaltyView.vue'),
   reports: () => import('./views/ReportsView.vue'),
   settings: () => import('./views/SettingsView.vue'),
+  'health-check': () => import('./views/SystemHealthView.vue'),
   more: () => import('./views/MoreView.vue'),
 };
 
@@ -31,6 +34,7 @@ export const CRM_ROUTES = [
   { path: '/', redirect: '/dashboard' },
   { path: '/dashboard', name: 'dashboard', component: viewLoaders.dashboard, meta: { label: 'วันนี้' } },
   { path: '/customers', name: 'customers', component: viewLoaders.customers, meta: { label: 'ลูกค้า' } },
+  { path: '/products', name: 'products', component: viewLoaders.products, meta: { label: 'สินค้าและราคา' } },
   { path: '/pipeline', name: 'pipeline', component: viewLoaders.pipeline, meta: { label: 'โอกาสการขาย' } },
   {
     path: '/customer-360/:id?',
@@ -49,6 +53,7 @@ export const CRM_ROUTES = [
   { path: '/erp-customers', name: 'erp-customers', component: viewLoaders['erp-customers'], meta: { label: 'ลูกค้าใน ERP' } },
   { path: '/sync', name: 'sync', component: viewLoaders.sync, meta: { label: 'สถานะดึงข้อมูล ERP', adminOnly: true } },
   { path: '/members', name: 'members', component: viewLoaders.members, meta: { label: 'ทะเบียนสมาชิก', adminOnly: true } },
+  { path: '/line-inbox', name: 'line-inbox', component: viewLoaders['line-inbox'], meta: { label: 'แชทลูกค้า LINE OA' } },
   {
     path: '/member-registration',
     name: 'member-registration',
@@ -67,6 +72,7 @@ export const CRM_ROUTES = [
   { path: '/reports', name: 'reports', component: viewLoaders.reports, meta: { label: 'รายงานยอดขาย' } },
   { path: '/presentation/visits', name: 'visit-presentation', component: () => import('./views/VisitPresentationView.vue'), meta: { label: 'นำเสนอออกตลาด', presentation: true, hiddenInNav: true } },
   { path: '/settings', name: 'settings', component: viewLoaders.settings, meta: { label: 'ตั้งค่า & ผู้ใช้งาน', adminOnly: true } },
+  { path: '/health-check', alias: ['/api-status', '/health'], name: 'health-check', component: viewLoaders['health-check'], meta: { label: 'สถานะระบบ & API', adminOnly: true } },
   { path: '/more', name: 'more', component: viewLoaders.more, meta: { label: 'เพิ่มเติม', hiddenInNav: true } },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ];

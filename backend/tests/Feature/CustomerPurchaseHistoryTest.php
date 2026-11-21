@@ -14,6 +14,28 @@ class CustomerPurchaseHistoryTest extends TestCase
 
     private int $nextInvoiceNo = 1;
 
+    public function test_product_catalog_requires_staff_and_does_not_claim_a_price(): void
+    {
+        DB::table('erp_products')->insert(['source_system' => 'BPLUS', 'erp_product_code' => 'FG-EXAMPLE', 'product_name' => 'Example product', 'unit' => 'box', 'created_at' => now(), 'updated_at' => now()]);
+        $this->getJson('/api/crm/product-catalog')->assertUnauthorized();
+        $this->actingAs($this->createStaff('sales', 'SL01'), 'staff');
+        $this->getJson('/api/crm/product-catalog?q=FG-EXAMPLE')->assertOk()
+            ->assertJsonPath('products.0.erp_product_code', 'FG-EXAMPLE')
+            ->assertJsonPath('price_status', 'pending_price_book_sync')
+            ->assertJsonMissingPath('products.0.default_price');
+    }
+
+    public function test_product_catalog_returns_each_price_unit_from_published_snapshot(): void
+    {
+        DB::table('erp_price_snapshots')->insert(['source_system' => 'BPLUS', 'price_book_code' => '0', 'synced_at' => '2026-11-19 10:00:00', 'row_count' => 2]);
+        foreach ([['1', 'single', 35], ['2', 'case', 575]] as [$key, $unit, $price]) {
+            DB::table('erp_product_prices')->insert(['source_system' => 'BPLUS', 'price_book_code' => '0', 'erp_price_key' => $key, 'erp_product_code' => 'FG-1', 'goods_code' => $key, 'product_name' => 'Product', 'unit' => $unit, 'price' => $price]);
+        }
+        $this->actingAs($this->createStaff('sales', 'SL01'), 'staff');
+        $this->getJson('/api/crm/product-catalog?q=FG-1')->assertOk()->assertJsonCount(2, 'products')
+            ->assertJsonPath('price_status', 'available')->assertJsonPath('products.0.price', 35);
+    }
+
     public function test_purchase_history_requires_staff_login(): void
     {
         $customerId = $this->createCustomer('AR-OWN', 'SL01');

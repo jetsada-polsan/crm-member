@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Local Read-Only Windows ERP Bridge for Popstar Business Platform V4 (Phase 1).
@@ -356,6 +356,51 @@ try {
             $cfg = Load-ConfigEnv -Path $ConfigFile
             $SqlConnStr = Get-ConfiguredSqlConnectionString -Config $cfg
             if ($env:ERP_SOURCE_SYSTEM) { $SourceSystem = $env:ERP_SOURCE_SYSTEM } elseif ($cfg["ERP_SOURCE_SYSTEM"]) { $SourceSystem = $cfg["ERP_SOURCE_SYSTEM"] }
+
+            if ($path -eq "/" -and $req.HttpMethod -eq "GET") {
+                $driverMode = if (-not $SqlConnStr) { "unconfigured" } elseif (Test-IsOdbcConnectionString -ConnStr $SqlConnStr) { "ODBC ({SQL Server})" } else { ".NET SqlClient" }
+                $sqlReady = [bool]$SqlConnStr
+                $badgeBg = if ($sqlReady) { "#dcfce7" } else { "#fef3c7" }
+                $badgeFg = if ($sqlReady) { "#166534" } else { "#92400e" }
+                $badgeTxt = if ($sqlReady) { "ONLINE · พร้อมเชื่อมต่อ Bplus SQL (Read-Only)" } else { "ONLINE · รอตั้งค่า SQL" }
+                $nowStr = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+                $html = @"
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POPSTAR Local ERP Bridge (Port $Port)</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f1f5f9;font-family:'Prompt',system-ui,sans-serif;color:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;box-sizing:border-box}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:20px;max-width:560px;width:100%;padding:28px;box-shadow:0 12px 32px rgba(15,23,42,.08)}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;background:$badgeBg;color:$badgeFg;margin-bottom:14px}
+.dot{width:10px;height:10px;border-radius:50%;background:$badgeFg}
+h1{margin:0 0 6px;font-size:22px} p.sub{margin:0 0 18px;color:#64748b;font-size:14px}
+.row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px}
+.row:last-of-type{border-bottom:0}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+a.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;text-decoration:none;font-size:14px;font-weight:600;border:1px solid #cbd5e1;color:#0f172a;background:#fff}
+a.btn.primary{background:#0284c7;border-color:#0284c7;color:#fff}
+</style></head><body><div class="card">
+<div class="badge"><span class="dot"></span>$badgeTxt</div>
+<h1>POPSTAR Local ERP Bridge</h1>
+<p class="sub">ตัวเชื่อมข้อมูล Bplus ERP (SELECT-Only) แยกอิสระสำหรับระบบ POPSTAR CRM v4</p>
+<div class="row"><span>Bridge Endpoint</span><b>http://127.0.0.1:$Port</b></div>
+<div class="row"><span>Source System</span><b>$SourceSystem</b></div>
+<div class="row"><span>SQL Driver Mode</span><b>$driverMode</b></div>
+<div class="row"><span>เวลาตรวจสอบ</span><b>$nowStr</b></div>
+<div class="btns">
+<a class="btn primary" href="http://popstar.localhost/health-check">🩺 เปิดหน้าตรวจสถานะระบบครบชุด</a>
+<a class="btn" href="http://popstar.localhost/sync">🔄 หน้าซิงก์ข้อมูล ERP</a>
+<a class="btn" href="/health">JSON /health</a>
+</div></div></body></html>
+"@
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes($html)
+                $res.StatusCode = 200
+                $res.ContentType = "text/html; charset=utf-8"
+                $res.ContentLength64 = $bytes.Length
+                $res.OutputStream.Write($bytes, 0, $bytes.Length)
+                $res.OutputStream.Close()
+                continue
+            }
 
             if ($path -eq "/health") {
                 $driverMode = if (-not $SqlConnStr) { "unconfigured" } elseif (Test-IsOdbcConnectionString -ConnStr $SqlConnStr) { "ODBC ({SQL Server})" } else { ".NET SqlClient" }

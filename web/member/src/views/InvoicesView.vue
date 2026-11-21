@@ -18,7 +18,7 @@
 
     <template v-else>
       <div class="head-filter">
-        <input v-model.trim="q" type="search" placeholder="ค้นหาเลขที่บิล หรือสาขา..." style="min-width:240px" />
+        <input v-model.trim="q" type="search" class="filter-search-input" placeholder="ค้นหาเลขที่บิล หรือสาขา..." />
         <select v-model="typeFilter">
           <option value="all">ทุกประเภทเอกสาร</option>
           <option value="sale">ใบขาย / บิลปกติ</option>

@@ -340,7 +340,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown));
 .nd-popover {
   position: fixed;
   z-index: 200;
-  width: 310px;
+  width: min(310px, calc(100vw - 24px));
   background: #ffffff;
   border: 1px solid #dbe5f0;
   border-radius: 20px;
@@ -396,14 +396,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown));
 }
 
 .nd-mini-select {
-  border: 1px solid #e2e8f0 !important;
-  border-radius: 10px !important;
-  background-color: #f8fafc !important;
-  padding: 4px 24px 4px 8px !important;
-  font-size: 12.5px !important;
-  font-weight: 700 !important;
-  min-height: 32px !important;
-  color: #0f172a !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background-color: #f8fafc;
+  padding: 4px 26px 4px 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  min-height: 34px;
+  color: #0f172a;
 }
 
 .nd-weekdays {

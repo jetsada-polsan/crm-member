@@ -191,6 +191,13 @@ final class SyncController
             ]);
         }, 3);
 
+        // A replay does not change data; a committed batch can update existing
+        // rows without changing their IDs, so cached analytics must be expired.
+        if (! $already) {
+            SalesRules::invalidateCache();
+            \App\Modules\CRM\CustomerAccess::clearCache();
+        }
+
         $staffSync = null;
         if (! $already && $afterCommit !== null) {
             $afterCommit();

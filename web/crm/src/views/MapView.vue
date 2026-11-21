@@ -38,16 +38,16 @@
         <div class="sub">รวมรูปหลักฐาน {{ fmt(totalPhotosCount) }} รูป</div>
       </div>
       <div class="card kpi map-kpi-card" @click="switchToPinMode('unpinned')">
-        <div class="label">⚠️ ร้านที่ยังไม่มีหมุด GPS</div>
+        <div class="label">⚠️ ร้านที่ยังไม่มีหมุด GPS ในรายการที่โหลด</div>
         <div class="value" :style="{ color: unpinnedTotalCount > 0 ? 'var(--orange)' : 'var(--green)' }">
           {{ fmt(unpinnedTotalCount) }}
         </div>
-        <div class="sub">ERP รอปัก {{ fmt(unpinnedErpCount) }} · Lead รอปัก {{ fmt(unpinnedLeadCount) }}</div>
+        <div class="sub">ERP {{ fmt(unpinnedErpCount) }} · Lead {{ fmt(unpinnedLeadCount) }} · รายการ ERP แสดงได้สูงสุด 250 ร้าน</div>
       </div>
       <div class="card kpi map-kpi-card" @click="getGpsAndSwitchToPin">
         <div class="label">🛰️ พิกัด GPS ของคุณ</div>
         <div class="value" style="font-size:16px">
-          {{ gpsLoc ? `${gpsLoc.latitude.toFixed(4)}, ${gpsLoc.longitude.toFixed(4)}` : 'กดเพื่อรับพิกัด' }}
+          {{ gpsLoading ? 'กำลังค้นหาพิกัด…' : gpsLoc ? `${gpsLoc.latitude.toFixed(4)}, ${gpsLoc.longitude.toFixed(4)}` : 'กดเพื่อรับพิกัด' }}
         </div>
         <div class="sub">
           {{ gpsLoc ? `ความแม่นยำ ±${gpsLoc.accuracy_m || 0} เมตร` : 'แตะเพื่อดึงตำแหน่งปัจจุบันทันที' }}
@@ -71,6 +71,10 @@
         </div>
 
         <div class="map-toolbar-inputs">
+          <select v-if="isManager" v-model="mapStaffId" class="map-select" aria-label="กรองพนักงานขาย">
+            <option value="">พนักงานขายทุกคน</option>
+            <option v-for="person in mapStaff || []" :key="person.id" :value="String(person.id)">{{ person.name }}</option>
+          </select>
           <select v-model="selectedProvince" class="map-select" aria-label="กรองจังหวัด">
             <option value="">ทุกจังหวัด ({{ provinces.length }})</option>
             <option v-for="prov in provinces" :key="prov" :value="prov">{{ prov }}</option>
@@ -88,6 +92,8 @@
         </div>
       </div>
     </div>
+
+    <p v-if="isManager" class="small muted">ตัวกรองพนักงานใช้กับหมุดบนแผนที่ตามสิทธิ์ลูกค้าของพนักงาน ส่วนรายการปักหมุดและยอดร้านรอปักเป็นภาพรวม</p>
 
     <!-- Main Workbench Grid: Left Map Canvas, Right Context Panel -->
     <div class="map-workbench">
@@ -295,8 +301,8 @@
             </div>
 
             <div class="pin-coord-buttons">
-              <button type="button" class="btn primary" style="width:100%" @click="getGps">
-                📍 ดึงพิกัด GPS ปัจจุบันของฉัน
+              <button type="button" class="btn primary" style="width:100%" :disabled="gpsLoading" @click="getGps">
+                📍 {{ gpsLoading ? 'กำลังค้นหาพิกัด…' : 'ดึงพิกัด GPS ปัจจุบันของฉัน' }}
               </button>
             </div>
 
@@ -367,13 +373,13 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import CustomerMap from '../CustomerMap.vue';
 import PinDetailModal from '../components/PinDetailModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
-import { crmGet, crmMutate, fmt, invalidateCrmData, openLightbox, openVisitWizard } from '../composables/useCrmSession.js';
+import { crmGet, crmMutate, fmt, invalidateCrmData, isManager, openLightbox, openVisitWizard } from '../composables/useCrmSession.js';
 import {
   formatThaiDateTime,
   googleMapsUrl,
@@ -389,6 +395,7 @@ const activeMode = ref('explore'); // 'explore' | 'pin'
 const filterKind = ref('all');
 const selectedProvince = ref('');
 const searchQuery = ref('');
+const mapStaffId = ref('');
 
 const subjectKind = ref('erp');
 const subjectId = ref('');
@@ -397,13 +404,27 @@ const onlyUnpinned = ref(false);
 const coordInputText = ref('');
 
 const gpsLoc = ref(null);
+const gpsLoading = ref(false);
+let gpsRequestId = 0;
 const manualLoc = ref(null);
 const selectedPin = ref(null);
+watch(mapStaffId, () => { selectedPin.value = null; });
 const saving = ref(false);
 
 const { data: pins, refetch: refetchPins } = useQuery({
-  queryKey: ['crm', 'pins'],
+  queryKey: computed(() => ['crm', 'pins', mapStaffId.value]),
+  queryFn: ({ signal }) => crmGet(`/pins${mapStaffId.value ? `?staff_id=${encodeURIComponent(mapStaffId.value)}` : ''}`, { signal }),
+});
+
+const { data: mapStaff } = useQuery({
+  queryKey: ['crm', 'map-staff'],
+  queryFn: ({ signal }) => crmGet('/map-staff', { signal }),
+  enabled: isManager,
+});
+const { data: allManagerPins } = useQuery({
+  queryKey: ['crm', 'pins', ''],
   queryFn: ({ signal }) => crmGet('/pins', { signal }),
+  enabled: computed(() => isManager.value && Boolean(mapStaffId.value)),
 });
 
 const { data: leads } = useQuery({
@@ -422,8 +443,9 @@ const leadPinCount = computed(() => allPins.value.filter((p) => !p.erp_customer_
 const pinsWithPhotosCount = computed(() => allPins.value.filter((p) => Number(p.photo_count || 0) > 0).length);
 const totalPhotosCount = computed(() => allPins.value.reduce((acc, p) => acc + Number(p.photo_count || 0), 0));
 
-const pinnedErpIds = computed(() => new Set(allPins.value.filter((p) => p.erp_customer_id).map((p) => Number(p.erp_customer_id))));
-const pinnedLeadIds = computed(() => new Set(allPins.value.filter((p) => p.crm_lead_id).map((p) => Number(p.crm_lead_id))));
+const pinningOverview = computed(() => mapStaffId.value ? (allManagerPins.value || []) : allPins.value);
+const pinnedErpIds = computed(() => new Set(pinningOverview.value.filter((p) => p.erp_customer_id).map((p) => Number(p.erp_customer_id))));
+const pinnedLeadIds = computed(() => new Set(pinningOverview.value.filter((p) => p.crm_lead_id).map((p) => Number(p.crm_lead_id))));
 
 const unpinnedErpCount = computed(() => (customers.value || []).filter((c) => !pinnedErpIds.value.has(Number(c.id))).length);
 const unpinnedLeadCount = computed(() => (leads.value || []).filter((l) => !pinnedLeadIds.value.has(Number(l.id))).length);
@@ -605,6 +627,7 @@ function startVisitFromPin(pin) {
 function applyCoordText() {
   const parts = coordInputText.value
     .split(/[,\s]+/)
+    .filter((s) => s.trim() !== '')
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n));
   if (parts.length < 2 || Math.abs(parts[0]) > 90 || Math.abs(parts[1]) > 180) {
@@ -619,18 +642,25 @@ function applyCoordText() {
 }
 
 function clearPickedLoc() {
+  gpsRequestId++;
+  gpsLoading.value = false;
   manualLoc.value = null;
   gpsLoc.value = null;
   coordInputText.value = '';
 }
 
 function getGps() {
+  if (gpsLoading.value) return;
   if (!navigator.geolocation) {
     toast.warning('เบราว์เซอร์ไม่รองรับ GPS');
     return;
   }
+  gpsLoading.value = true;
+  const requestId = ++gpsRequestId;
   navigator.geolocation.getCurrentPosition(
     (p) => {
+      if (requestId !== gpsRequestId) return;
+      gpsLoading.value = false;
       manualLoc.value = null;
       gpsLoc.value = {
         latitude: Number(p.coords.latitude.toFixed(7)),
@@ -640,8 +670,12 @@ function getGps() {
       coordInputText.value = `${gpsLoc.value.latitude}, ${gpsLoc.value.longitude}`;
       toast.success('รับพิกัด GPS ปัจจุบันแล้ว');
     },
-    (err) => toast.error('ไม่สามารถรับพิกัด GPS', err.message),
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    (err) => {
+      if (requestId !== gpsRequestId) return;
+      gpsLoading.value = false;
+      toast.error('ไม่สามารถรับพิกัด GPS', err.message);
+    },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 15000 }
   );
 }
 
@@ -763,9 +797,10 @@ async function savePin() {
 
 .map-search-wrap {
   position: relative;
-  min-width: 250px;
-  flex: 1;
+  min-width: 0;
+  flex: 1 1 220px;
   max-width: 340px;
+  width: 100%;
 }
 
 .map-search-input {
@@ -1138,6 +1173,25 @@ async function savePin() {
 
 @media (max-width: 1100px) {
   .map-workbench {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .map-toolbar-inputs {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .map-select,
+  .map-search-wrap {
+    max-width: none;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .map-store-title-row {
+    flex-wrap: wrap;
+  }
+  .pin-kind-toggle {
     grid-template-columns: 1fr;
   }
 }

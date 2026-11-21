@@ -56,9 +56,10 @@ const esc = (s) =>
 function extractValidPins(pins) {
   const valid = [];
   for (const p of pins) {
+    if (p.latitude == null || p.longitude == null || p.latitude === '' || p.longitude === '') continue;
     const lat = Number(p.latitude);
     const lng = Number(p.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
     valid.push({ pin: p, lat, lng });
   }
   return valid;
@@ -272,9 +273,10 @@ function redrawPicked() {
     map.removeLayer(pickedMarker);
     pickedMarker = null;
   }
+  if (props.pickedLocation?.latitude == null || props.pickedLocation?.longitude == null || props.pickedLocation.latitude === '' || props.pickedLocation.longitude === '') return;
   const lat = Number(props.pickedLocation?.latitude);
   const lng = Number(props.pickedLocation?.longitude);
-  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
     const pickedIcon = L.divIcon({
       className: 'cm-picked-wrap',
       html: `<div class="cm-picked-pulse"></div><div class="cm-picked-pin">📍</div>`,
@@ -428,21 +430,37 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 12px;
   right: 12px;
+  left: 56px;
   z-index: 500;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  pointer-events: none;
+}
+
+.cm-floating-toolbar > * {
+  pointer-events: auto;
 }
 
 .cm-tile-pills {
   display: flex;
+  align-items: center;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(203, 213, 225, 0.85);
   border-radius: 999px;
   padding: 3px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.cm-tile-pills::-webkit-scrollbar {
+  display: none;
 }
 
 .cm-tool-btn {
@@ -456,8 +474,28 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   cursor: pointer;
   min-height: 30px;
+  flex-shrink: 0;
   transition: all 0.15s ease;
   white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .cm-floating-toolbar {
+    top: 10px;
+    right: 10px;
+    left: 54px;
+    gap: 6px;
+  }
+
+  .cm-tool-btn {
+    font-size: 11.5px;
+    padding: 5px 10px;
+    min-height: 28px;
+  }
+
+  .cm-fit-btn {
+    padding: 5px 10px;
+  }
 }
 
 .cm-tool-btn:hover {

@@ -2,6 +2,7 @@
 
 namespace App\Modules\CRM;
 
+use App\Modules\ERPIntegration\SalesRules;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,13 @@ use Illuminate\Support\Facades\Hash;
  */
 final class CustomerAccess
 {
+    private static ?array $reservationMapMemo = null;
+
+    public static function clearCache(): void
+    {
+        self::$reservationMapMemo = null;
+    }
+
     public const DEFAULT_EXECUTIVES = [
         ['slug' => 'sia', 'email' => 'sia@popstar.local', 'name' => 'เสี่ย (ผู้บริหารสูงสุด)', 'aliases' => ['เสี่ย', 'sia']],
         ['slug' => 'jae', 'email' => 'jae@popstar.local', 'name' => 'เจ๊ (ผู้บริหารสูงสุด)', 'aliases' => ['เจ๊', 'jae']],
@@ -51,57 +59,78 @@ final class CustomerAccess
      */
     public static function discoverReservationSalespersonMap(): array
     {
-        $rows = DB::table('erp_sales_invoices')
-            ->where('dt_properties', 207)
-            ->where('status', '!=', 'cancelled')
-            ->whereNotNull('doc_type')
-            ->where('doc_type', '!=', '')
-            ->whereNotNull('salesperson_code')
-            ->where('salesperson_code', '!=', '')
-            ->where('salesperson_code', '!=', '0')
-            ->groupBy('doc_type', 'salesperson_code')
-            ->select(
-                'doc_type',
-                'salesperson_code',
-                DB::raw('MAX(salesperson_name) as salesperson_name'),
-                DB::raw('COUNT(*) as doc_count')
-            )
-            ->orderBy('doc_type')
-            ->orderByDesc('doc_count')
-            ->get();
-
-        $docToSp = [];
-        $docToName = [];
-        $spToDocs = [];
-        $candidates = [];
-
-        foreach ($rows as $row) {
-            $doc = strtoupper(trim((string) $row->doc_type));
-            $sp = trim((string) $row->salesperson_code);
-            if ($doc === '' || $sp === '') {
-                continue;
-            }
-            $candidates[$doc][$sp] = trim((string) ($row->salesperson_name ?? ''));
-        }
-        $ambiguousDocs = [];
-        foreach ($candidates as $doc => $salespeople) {
-            if (count($salespeople) !== 1) {
-                $ambiguousDocs[] = $doc;
-
-                continue;
-            }
-            $sp = (string) array_key_first($salespeople);
-            $docToSp[$doc] = $sp;
-            $docToName[$doc] = $salespeople[$sp];
-            $spToDocs[$sp][] = $doc;
+        if (! app()->runningUnitTests() && self::$reservationMapMemo !== null) {
+            return self::$reservationMapMemo;
         }
 
-        return [
-            'doc_to_sp' => $docToSp,
-            'sp_to_docs' => $spToDocs,
-            'doc_to_name' => $docToName,
-            'ambiguous_docs' => $ambiguousDocs,
-        ];
+        $compute = static function (): array {
+            $rows = DB::table('erp_sales_invoices')
+                ->where('dt_properties', 207)
+                ->where('status', '!=', 'cancelled')
+                ->whereNotNull('doc_type')
+                ->where('doc_type', '!=', '')
+                ->whereNotNull('salesperson_code')
+                ->where('salesperson_code', '!=', '')
+                ->where('salesperson_code', '!=', '0')
+                ->groupBy('doc_type', 'salesperson_code')
+                ->select(
+                    'doc_type',
+                    'salesperson_code',
+                    DB::raw('MAX(salesperson_name) as salesperson_name'),
+                    DB::raw('COUNT(*) as doc_count')
+                )
+                ->orderBy('doc_type')
+                ->orderByDesc('doc_count')
+                ->get();
+
+            $docToSp = [];
+            $docToName = [];
+            $spToDocs = [];
+            $candidates = [];
+
+            foreach ($rows as $row) {
+                $doc = strtoupper(trim((string) $row->doc_type));
+                $sp = trim((string) $row->salesperson_code);
+                if ($doc === '' || $sp === '') {
+                    continue;
+                }
+                $candidates[$doc][$sp] = [
+                    'name' => trim((string) ($row->salesperson_name ?? '')),
+                    'count' => (int) ($row->doc_count ?? 0),
+                ];
+            }
+            $ambiguousDocs = [];
+            foreach ($candidates as $doc => $salespeople) {
+                $totalDocs = array_sum(array_column($salespeople, 'count'));
+                $topSp = (string) array_key_first($salespeople);
+                $topCount = (int) ($salespeople[$topSp]['count'] ?? 0);
+                // A reservation doc_type belongs to a single salesperson when they own at least 80% of its bills
+                // (tolerating rare 1-2 stray cross-keyed bills while rejecting genuinely shared doc types).
+                $isClearOwner = count($salespeople) === 1 || ($totalDocs > 0 && ($topCount / $totalDocs) >= 0.80);
+                if (! $isClearOwner) {
+                    $ambiguousDocs[] = $doc;
+
+                    continue;
+                }
+                $docToSp[$doc] = $topSp;
+                $docToName[$doc] = $salespeople[$topSp]['name'];
+                $spToDocs[$topSp][] = $doc;
+            }
+
+            return [
+                'doc_to_sp' => $docToSp,
+                'sp_to_docs' => $spToDocs,
+                'doc_to_name' => $docToName,
+                'ambiguous_docs' => $ambiguousDocs,
+            ];
+        };
+
+        $map = SalesRules::cacheRemember('reservation_sp_map', 120, $compute);
+        if (! app()->runningUnitTests()) {
+            self::$reservationMapMemo = $map;
+        }
+
+        return $map;
     }
 
     public static function salespersonCode(?object $user = null): ?string
@@ -216,12 +245,16 @@ final class CustomerAccess
         }
 
         // 1. Auto-update any existing sales staff missing reservation_doc_types or salesperson_code
+        $ambiguousDocs = $map['ambiguous_docs'] ?? [];
         foreach ($staffRows as $s) {
             if ($s->role !== 'sales') {
                 continue;
             }
             $sp = trim((string) ($s->salesperson_code ?? ''));
-            $docs = self::parseDocTypes($s->reservation_doc_types ?? null);
+            $docs = array_values(array_filter(
+                self::parseDocTypes($s->reservation_doc_types ?? null),
+                static fn (string $d): bool => ! in_array($d, $ambiguousDocs, true)
+            ));
 
             if ($sp === '' && $docs !== []) {
                 foreach ($docs as $d) {
@@ -366,12 +399,12 @@ final class CustomerAccess
      */
     public static function applyActiveCustomerFilter(Builder $query, string $alias = 'erp_customers', bool $allowNull = false): Builder
     {
-        $likeOp = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+        // All CLOSED_CUSTOMER_KEYWORDS are Thai characters (caseless), so LIKE is identical to ILIKE and ~10x faster on PostgreSQL.
         $colEnable = "{$alias}.ar_enable";
         $colName = "{$alias}.customer_name";
         $colId = "{$alias}.id";
 
-        $applyChecks = static function (Builder $w) use ($colEnable, $colName, $likeOp): void {
+        $applyChecks = static function (Builder $w) use ($colEnable, $colName): void {
             $w->where(function (Builder $en) use ($colEnable): void {
                 $en->whereNull($colEnable)
                     ->orWhereRaw("UPPER(TRIM({$colEnable})) = 'Y'")
@@ -379,9 +412,9 @@ final class CustomerAccess
             });
 
             foreach (self::CLOSED_CUSTOMER_KEYWORDS as $kw) {
-                $w->where(function (Builder $nw) use ($colName, $likeOp, $kw): void {
+                $w->where(function (Builder $nw) use ($colName, $kw): void {
                     $nw->whereNull($colName)
-                        ->orWhere($colName, 'not '.$likeOp, '%'.$kw.'%');
+                        ->orWhere($colName, 'not like', '%'.$kw.'%');
                 });
             }
         };

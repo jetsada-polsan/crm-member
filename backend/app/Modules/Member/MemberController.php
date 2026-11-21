@@ -175,15 +175,31 @@ final class MemberController
             ->limit(100)
             ->get();
 
-          foreach ($rows as $invoice) {
-              $invoice->items = DB::table('erp_sales_items')
-                  ->where('source_system', $invoice->source_system)
-                  ->where('branch_code', $invoice->branch_code)
-                  ->where('doc_type', $invoice->doc_type)
-                  ->where('invoice_no', $invoice->invoice_no)
-                  ->select('line_no', 'erp_product_code', 'product_name', 'qty', 'unit_name')
-                  ->orderBy('line_no')->get();
-          }
+        $invoiceNos = $rows->pluck('invoice_no')->unique()->values()->all();
+        $itemsByInv = [];
+        if ($invoiceNos !== []) {
+            $sources = $rows->pluck('source_system')->unique()->values()->all();
+            $allItems = DB::table('erp_sales_items')
+                ->whereIn('source_system', $sources)
+                ->whereIn('invoice_no', $invoiceNos)
+                ->select('source_system', 'branch_code', 'doc_type', 'invoice_no', 'line_no', 'erp_product_code', 'product_name', 'qty', 'unit_name')
+                ->orderBy('line_no')
+                ->get();
+            foreach ($allItems as $it) {
+                $k = $it->source_system.'|'.$it->branch_code.'|'.$it->doc_type.'|'.$it->invoice_no;
+                $itemsByInv[$k][] = (object) [
+                    'line_no' => $it->line_no,
+                    'erp_product_code' => $it->erp_product_code,
+                    'product_name' => $it->product_name,
+                    'qty' => $it->qty,
+                    'unit_name' => $it->unit_name,
+                ];
+            }
+        }
+        foreach ($rows as $invoice) {
+            $k = $invoice->source_system.'|'.$invoice->branch_code.'|'.$invoice->doc_type.'|'.$invoice->invoice_no;
+            $invoice->items = $itemsByInv[$k] ?? [];
+        }
 
         return response()->json($rows);
     }

@@ -5,6 +5,7 @@ namespace App\Modules\CRM;
 use App\Modules\ERPIntegration\SalesRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -43,21 +44,22 @@ final class FieldController
     private function leadAllowed(int $id): bool
     {
         $q = DB::table('crm_leads')->where('id', $id);
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $q->where('owner_staff_id', $this->user()->id);
         }
+
         return $q->exists();
     }
 
     private function checkSubject(array $d): void
     {
-        if (((int) !empty($d['erp_customer_id']) + (int) !empty($d['crm_lead_id'])) !== 1) {
+        if (((int) ! empty($d['erp_customer_id']) + (int) ! empty($d['crm_lead_id'])) !== 1) {
             throw ValidationException::withMessages(['customer' => 'Specify exactly one ERP customer or CRM lead']);
         }
-        if (!empty($d['erp_customer_id']) && !$this->customerAllowed((int) $d['erp_customer_id'])) {
+        if (! empty($d['erp_customer_id']) && ! $this->customerAllowed((int) $d['erp_customer_id'])) {
             abort(403);
         }
-        if (!empty($d['crm_lead_id']) && !$this->leadAllowed((int) $d['crm_lead_id'])) {
+        if (! empty($d['crm_lead_id']) && ! $this->leadAllowed((int) $d['crm_lead_id'])) {
             abort(403);
         }
     }
@@ -66,8 +68,9 @@ final class FieldController
     {
         $digits = preg_replace('/\D+/', '', (string) $phone);
         if (str_starts_with($digits, '66') && strlen($digits) >= 10) {
-            $digits = '0' . substr($digits, 2);
+            $digits = '0'.substr($digits, 2);
         }
+
         return $digits;
     }
 
@@ -82,6 +85,7 @@ final class FieldController
         $dLat = deg2rad($lat2 - $lat1);
         $dLon = deg2rad($lon2 - $lon1);
         $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
+
         return (int) round(2 * $earthRadius * asin(min(1.0, sqrt($a))));
     }
 
@@ -142,7 +146,7 @@ final class FieldController
                 $matches[] = [
                     'source' => 'lead',
                     'id' => $row->id,
-                    'code' => 'LEAD-' . $row->id,
+                    'code' => 'LEAD-'.$row->id,
                     'name' => $row->shop_name,
                     'phone' => $row->phone,
                     'district' => $row->district,
@@ -258,7 +262,7 @@ final class FieldController
                     ->on('exc.erp_customer_code', '=', 'ec.erp_customer_code');
             });
 
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $q->where('l.owner_staff_id', $this->user()->id);
         }
 
@@ -279,7 +283,7 @@ final class FieldController
         }
         if ($search = trim((string) $r->query('q', ''))) {
             $likeOp = SalesRules::likeOperator();
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
             $q->where(function ($w) use ($likeOp, $like) {
                 $w->where('l.shop_name', $likeOp, $like)
                     ->orWhere('l.phone', $likeOp, $like)
@@ -414,7 +418,7 @@ final class FieldController
         ]);
 
         $force = $r->boolean('force_create');
-        if (!$force) {
+        if (! $force) {
             $duplicates = $this->findPotentialDuplicates(
                 $d['shop_name'],
                 $d['phone'] ?? null,
@@ -516,7 +520,7 @@ final class FieldController
         }
 
         $force = filter_var($r->input('force_create', false), FILTER_VALIDATE_BOOLEAN);
-        if (!$force) {
+        if (! $force) {
             $duplicates = $this->findPotentialDuplicates(
                 $d['shop_name'],
                 $d['phone'],
@@ -589,7 +593,7 @@ final class FieldController
             }
 
             if ($storedPath !== null && $photoMeta !== null) {
-                $finalPath = "leads/{$leadId}/" . basename($storedPath);
+                $finalPath = "leads/{$leadId}/".basename($storedPath);
                 Storage::disk('local')->move($storedPath, $finalPath);
                 $storedPath = $finalPath;
                 DB::table('crm_lead_photos')->insert([
@@ -611,11 +615,11 @@ final class FieldController
                 ]);
             }
 
-            if (!empty($d['follow_up_action']) || !empty($d['next_follow_up_date'])) {
+            if (! empty($d['follow_up_action']) || ! empty($d['next_follow_up_date'])) {
                 DB::table('crm_follow_up_tasks')->insert([
                     'crm_lead_id' => $leadId,
                     'assigned_to' => $userId,
-                    'title' => $d['follow_up_action'] ?? ('ติดตามร้านค้าใหม่: ' . trim($d['shop_name'])),
+                    'title' => $d['follow_up_action'] ?? ('ติดตามร้านค้าใหม่: '.trim($d['shop_name'])),
                     'due_date' => $d['next_follow_up_date'] ?? null,
                     'status' => 'open',
                     'created_at' => $now,
@@ -720,7 +724,7 @@ final class FieldController
                 'updated_at' => now(),
             ]);
 
-            if (!empty($d['follow_up_action'])) {
+            if (! empty($d['follow_up_action'])) {
                 DB::table('crm_follow_up_tasks')->insert([
                     'crm_lead_id' => $id,
                     'assigned_to' => $lead->owner_staff_id,
@@ -743,7 +747,7 @@ final class FieldController
 
     public function reviewLead(Request $r, int $id): JsonResponse
     {
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             abort(403, 'เฉพาะผู้จัดการหรือผู้ดูแลระบบเท่านั้นที่อนุมัติได้');
         }
         $lead = DB::table('crm_leads')->where('id', $id)->first();
@@ -819,7 +823,7 @@ final class FieldController
         }
         $hasLat = isset($d['latitude']) && isset($d['longitude']);
         $file = $r->file('photo');
-        $path = $file->store('leads/' . $id, 'local');
+        $path = $file->store('leads/'.$id, 'local');
         $photoId = DB::table('crm_lead_photos')->insertGetId([
             'crm_lead_id' => $id,
             'storage_path' => $path,
@@ -838,6 +842,7 @@ final class FieldController
             'updated_at' => now(),
         ]);
         $this->recordAudit('crm_lead', $id, 'photo_uploaded', ['photo_id' => $photoId, 'category' => $cat]);
+
         return response()->json(['id' => $photoId, 'category' => $cat], 201);
     }
 
@@ -852,6 +857,7 @@ final class FieldController
                 'Cache-Control' => 'private, max-age=300',
             ]);
         }
+
         return Storage::disk('local')->download($p->storage_path);
     }
 
@@ -876,13 +882,14 @@ final class FieldController
         ]);
 
         $this->recordAudit('crm_lead', $id, 'task_added', ['task_id' => $taskId, 'title' => $d['title']]);
+
         return response()->json(['id' => $taskId], 201);
     }
 
     public function importTemplate()
     {
-        $csv = "\xEF\xBB\xBF" . "shop_name,phone,shop_type,district,address,line_contact,notes\n"
-            . "ร้านตัวอย่าง (ลบแถวนี้ก่อนนำเข้า),0812345678,ร้านขายของชำ,เมือง,123 ถ.ตัวอย่าง,@sample,หมายเหตุ\n";
+        $csv = "\xEF\xBB\xBF"."shop_name,phone,shop_type,district,address,line_contact,notes\n"
+            ."ร้านตัวอย่าง (ลบแถวนี้ก่อนนำเข้า),0812345678,ร้านขายของชำ,เมือง,123 ถ.ตัวอย่าง,@sample,หมายเหตุ\n";
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -904,7 +911,7 @@ final class FieldController
         // Handle UTF-8 BOM or Thai Windows-874/TIS-620 encoding
         if (str_starts_with($raw, "\xEF\xBB\xBF")) {
             $raw = substr($raw, 3);
-        } elseif (!mb_check_encoding($raw, 'UTF-8')) {
+        } elseif (! mb_check_encoding($raw, 'UTF-8')) {
             $raw = mb_convert_encoding($raw, 'UTF-8', 'TIS-620,Windows-874,ISO-8859-1');
         }
 
@@ -931,6 +938,7 @@ final class FieldController
                     return (int) $idx;
                 }
             }
+
             return null;
         };
 
@@ -979,6 +987,7 @@ final class FieldController
                         'shop_name' => $shopName,
                         'reason' => implode(', ', $dups[0]['match_reasons']),
                     ];
+
                     continue;
                 }
 
@@ -1067,13 +1076,30 @@ final class FieldController
         }
     }
 
-    public function pins(): JsonResponse
+    public function mapStaff(): JsonResponse
+    {
+        abort_unless($this->manager(), 403);
+
+        return response()->json(DB::table('staff_users')->where('role', 'sales')->where('is_active', true)
+            ->orderBy('name')->get(['id', 'name']));
+    }
+
+    public function pins(Request $request): JsonResponse
     {
         $isManager = $this->manager();
         $user = $this->user();
-        $applyScope = function ($q) use ($user): void {
+        $filters = $request->validate(['staff_id' => ['nullable', 'integer', 'exists:staff_users,id']]);
+        $scopeUser = $user;
+        if (! empty($filters['staff_id'])) {
+            abort_unless($isManager || (int) $filters['staff_id'] === (int) $user->id, 403);
+            if ($isManager) {
+                $scopeUser = DB::table('staff_users')->where('id', $filters['staff_id'])->where('role', 'sales')->where('is_active', true)->first();
+                abort_unless($scopeUser, 422, 'เลือกพนักงานขายที่ใช้งานอยู่');
+            }
+        }
+        $applyScope = function ($q) use ($scopeUser): void {
             CustomerAccess::applyActiveCustomerFilter($q, 'c', true);
-            CustomerAccess::applyCustomerAndLeadScope($q, 'c', 'd', $user);
+            CustomerAccess::applyCustomerAndLeadScope($q, 'c', 'd', $scopeUser);
         };
 
         $pinnedQuery = DB::table('crm_customer_locations as l')
@@ -1173,7 +1199,7 @@ final class FieldController
             }
         }
 
-        return response()->json($this->enrichPinsWithVisitsAndPhotos($pins, $isManager, (int) $this->user()->id));
+        return response()->json($this->enrichPinsWithVisitsAndPhotos($pins, CustomerAccess::isManager($scopeUser), (int) $scopeUser->id));
     }
 
     private function enrichPinsWithVisitsAndPhotos(array $pins, bool $isManager, int $userId): array
@@ -1392,13 +1418,14 @@ final class FieldController
             $this->user()->id,
             $d['address'] ?? null
         );
-        if (!empty($d['crm_lead_id'])) {
+        if (! empty($d['crm_lead_id'])) {
             $this->recordAudit('crm_lead', (int) $d['crm_lead_id'], 'pin_updated', [
                 'latitude' => $d['latitude'],
                 'longitude' => $d['longitude'],
                 'source' => $d['source'],
             ]);
         }
+
         return response()->json(['ok' => true]);
     }
 
@@ -1406,7 +1433,7 @@ final class FieldController
     {
         $q = DB::table('crm_visit_plans as p')
             ->leftJoin('staff_users as s', 's.id', '=', 'p.assigned_to');
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $q->where('p.assigned_to', $this->user()->id);
         }
 
@@ -1478,7 +1505,7 @@ final class FieldController
         ]);
 
         $assignedTo = (int) ($d['assigned_to'] ?? $this->user()->id);
-        if (!$this->manager() && $assignedTo !== (int) $this->user()->id) {
+        if (! $this->manager() && $assignedTo !== (int) $this->user()->id) {
             abort(403);
         }
 
@@ -1506,7 +1533,7 @@ final class FieldController
     {
         $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
         abort_unless($p, 404);
-        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
 
@@ -1568,7 +1595,7 @@ final class FieldController
             $q->whereRaw('COALESCE(v_agg.visit_count, 0) = 0');
         } elseif ($mode === 'inactive') {
             $latestErpDateRaw = DB::table('erp_sales_invoices')->max('sold_at');
-            $refDate = $latestErpDateRaw ? \Illuminate\Support\Carbon::parse($latestErpDateRaw) : now();
+            $refDate = $latestErpDateRaw ? Carbon::parse($latestErpDateRaw) : now();
             $cutoff = $refDate->copy()->subDays(30)->toDateTimeString();
             $q->where(function ($w) use ($cutoff): void {
                 $w->whereNull('inv_agg.last_purchase_at')
@@ -1606,7 +1633,7 @@ final class FieldController
     {
         $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
         abort_unless($p, 404);
-        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
         $d = $r->validate([
@@ -1628,6 +1655,7 @@ final class FieldController
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
         return response()->json(['id' => $id, 'stop_order' => $nextOrder], 201);
     }
 
@@ -1635,7 +1663,7 @@ final class FieldController
     {
         $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
         abort_unless($p, 404);
-        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
         $d = $r->validate([
@@ -1648,6 +1676,7 @@ final class FieldController
                 'status' => $d['status'],
                 'updated_at' => now(),
             ]);
+
         return response()->json(['ok' => true]);
     }
 
@@ -1655,13 +1684,14 @@ final class FieldController
     {
         $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
         abort_unless($p, 404);
-        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
         DB::table('crm_visit_plan_stops')
             ->where('id', $stopId)
             ->where('plan_id', $planId)
             ->delete();
+
         return response()->json(['ok' => true]);
     }
 
@@ -1704,6 +1734,7 @@ final class FieldController
                 if ((int) $existing->staff_user_id !== (int) $this->user()->id) {
                     return response()->json(['error' => 'Draft ID conflict'], 409);
                 }
+
                 return response()->json([
                     'ok' => true,
                     'id' => $existing->id,
@@ -1714,13 +1745,13 @@ final class FieldController
             }
         }
 
-        if (!empty($d['plan_stop_id'])) {
+        if (! empty($d['plan_stop_id'])) {
             $stop = DB::table('crm_visit_plan_stops as s')
                 ->join('crm_visit_plans as p', 'p.id', '=', 's.plan_id')
                 ->where('s.id', $d['plan_stop_id'])
                 ->first();
             abort_unless($stop, 404);
-            if (!$this->manager() && (int) $stop->assigned_to !== (int) $this->user()->id) {
+            if (! $this->manager() && (int) $stop->assigned_to !== (int) $this->user()->id) {
                 abort(403);
             }
             if ((int) $stop->erp_customer_id !== (int) ($d['erp_customer_id'] ?? 0) || (int) $stop->crm_lead_id !== (int) ($d['crm_lead_id'] ?? 0)) {
@@ -1730,9 +1761,9 @@ final class FieldController
 
         $serverRecordedAt = now();
         $masterId = null;
-        if (!empty($d['crm_lead_id'])) {
+        if (! empty($d['crm_lead_id'])) {
             $masterId = DB::table('crm_customer_masters')->where('crm_lead_id', $d['crm_lead_id'])->value('id');
-        } elseif (!empty($d['erp_customer_id'])) {
+        } elseif (! empty($d['erp_customer_id'])) {
             $masterId = DB::table('crm_customer_masters')->where('erp_customer_id', $d['erp_customer_id'])->value('id');
         }
 
@@ -1768,7 +1799,7 @@ final class FieldController
                     preserveManualPin: true
                 );
             }
-            if (!empty($d['follow_up_action'])) {
+            if (! empty($d['follow_up_action'])) {
                 DB::table('crm_follow_up_tasks')->insert([
                     'visit_id' => $id,
                     'crm_lead_id' => $d['crm_lead_id'] ?? null,
@@ -1779,7 +1810,7 @@ final class FieldController
                     'updated_at' => $serverRecordedAt,
                 ]);
             }
-            if (!empty($d['plan_stop_id'])) {
+            if (! empty($d['plan_stop_id'])) {
                 DB::table('crm_visit_plan_stops')->where('id', $d['plan_stop_id'])->update([
                     'status' => 'visited',
                     'updated_at' => $serverRecordedAt,
@@ -1791,6 +1822,7 @@ final class FieldController
                 'gps_permission_status' => $d['gps_permission_status'] ?? null,
                 'client_draft_id' => $draftId,
             ]);
+
             return $id;
         });
 
@@ -1809,9 +1841,10 @@ final class FieldController
             ->leftJoin('erp_customers as c', 'c.id', '=', 'v.erp_customer_id')
             ->leftJoin('crm_leads as l', 'l.id', '=', 'v.crm_lead_id')
             ->where('v.id', $id);
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $v->where('v.staff_user_id', $this->user()->id);
         }
+
         return $v->exists();
     }
 
@@ -1853,7 +1886,7 @@ final class FieldController
         $file = $r->file('photo');
         $mimeType = $file->getMimeType();
         $sizeBytes = $file->getSize();
-        $path = $file->store('visits/' . $visitId, 'local');
+        $path = $file->store('visits/'.$visitId, 'local');
 
         $id = DB::table('crm_visit_photos')->insertGetId([
             'visit_id' => $visitId,
@@ -1896,6 +1929,7 @@ final class FieldController
                 'Cache-Control' => 'private, max-age=300',
             ]);
         }
+
         return Storage::disk('local')->download($p->storage_path);
     }
 
@@ -1904,9 +1938,10 @@ final class FieldController
         $q = DB::table('crm_follow_up_tasks as t')
             ->leftJoin('crm_leads as l', 'l.id', '=', 't.crm_lead_id')
             ->select('t.*', 'l.shop_name as lead_shop_name');
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $q->where('t.assigned_to', $this->user()->id);
         }
+
         return response()->json($q->orderBy('t.due_date')->limit(200)->get());
     }
 
@@ -1915,10 +1950,11 @@ final class FieldController
         $q = DB::table('crm_follow_up_tasks')->where('id', $taskId);
         $task = $q->first();
         abort_unless($task, 404);
-        if (!$this->manager() && (int) $task->assigned_to !== (int) $this->user()->id) {
+        if (! $this->manager() && (int) $task->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
         $q->update(['status' => 'done', 'updated_at' => now()]);
+
         return response()->json(['ok' => true]);
     }
 
@@ -1980,7 +2016,7 @@ final class FieldController
             $csvSafe = static function ($value): string {
                 $str = (string) ($value ?? '');
                 if ($str !== '' && in_array($str[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
-                    $str = "'" . $str;
+                    $str = "'".$str;
                 }
 
                 return $str;
@@ -2032,25 +2068,25 @@ final class FieldController
             $trs = '';
             foreach ($rows as $row) {
                 $trs .= '<tr>'
-                    . '<td>' . $esc($row->visited_at) . '</td>'
-                    . '<td>' . $esc($row->staff_name) . '</td>'
-                    . '<td>' . $esc($row->shop_name) . '</td>'
-                    . '<td>' . $esc($row->result) . '</td>'
-                    . '<td>' . $esc($row->supplier_name) . '</td>'
-                    . '<td>' . $esc($row->product_types) . '</td>'
-                    . '<td>' . $esc($row->customer_issues) . '</td>'
-                    . '<td>' . $esc($row->customer_feedback) . '</td>'
-                    . '<td>' . $esc($row->follow_up_action) . '</td>'
-                    . '<td>' . (int) $row->photo_count . '</td>'
-                    . '</tr>';
+                    .'<td>'.$esc($row->visited_at).'</td>'
+                    .'<td>'.$esc($row->staff_name).'</td>'
+                    .'<td>'.$esc($row->shop_name).'</td>'
+                    .'<td>'.$esc($row->result).'</td>'
+                    .'<td>'.$esc($row->supplier_name).'</td>'
+                    .'<td>'.$esc($row->product_types).'</td>'
+                    .'<td>'.$esc($row->customer_issues).'</td>'
+                    .'<td>'.$esc($row->customer_feedback).'</td>'
+                    .'<td>'.$esc($row->follow_up_action).'</td>'
+                    .'<td>'.(int) $row->photo_count.'</td>'
+                    .'</tr>';
             }
             $html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Field Visit Report</title>'
-                . '<style>body{font-family:sans-serif;font-size:12px;margin:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left;vertical-align:top}th{background:#f1f5f9}</style></head><body>'
-                . '<h2>Popstar Field Visit Report (6 Questions)</h2>'
-                . '<p>Generated: ' . $esc(now()->toDateTimeString()) . ' | Total Visits: ' . count($rows) . '</p>'
-                . '<table><thead><tr><th>Visited At</th><th>Sales Rep</th><th>Shop</th><th>Result</th><th>Supplier</th><th>Products</th><th>Issues</th><th>Feedback</th><th>Follow Up</th><th>Photos</th></tr></thead><tbody>'
-                . $trs
-                . '</tbody></table></body></html>';
+                .'<style>body{font-family:sans-serif;font-size:12px;margin:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left;vertical-align:top}th{background:#f1f5f9}</style></head><body>'
+                .'<h2>Popstar Field Visit Report (6 Questions)</h2>'
+                .'<p>Generated: '.$esc(now()->toDateTimeString()).' | Total Visits: '.count($rows).'</p>'
+                .'<table><thead><tr><th>Visited At</th><th>Sales Rep</th><th>Shop</th><th>Result</th><th>Supplier</th><th>Products</th><th>Issues</th><th>Feedback</th><th>Follow Up</th><th>Photos</th></tr></thead><tbody>'
+                .$trs
+                .'</tbody></table></body></html>';
 
             return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
         }

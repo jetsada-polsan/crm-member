@@ -65,14 +65,6 @@ OUTER APPLY (
 LEFT JOIN SALESMAN
   ON ARFILE.AR_SLMNCODE = SALESMAN.SLMN_CODE
 WHERE ARFILE.AR_KEY > ?
-  AND UPPER(LTRIM(RTRIM(COALESCE(ARFILE.AR_ENABLE, 'Y')))) = 'Y'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%ยกเลิก%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%ปิดกิจการ%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%เลิกกิจการ%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%ห้ามเปิดบิล%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%ห้ามขาย%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%ไม่ใช้งาน%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%ไม่ใช้แล้ว%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%เปลี่ยนใช้รหัส%'
-  AND COALESCE(ARFILE.AR_NAME, N'') NOT LIKE N'%เปลี่ยนรหัสใหม่%'
+-- Include inactive rows so the mirror can update existing customers' status.
+-- The CRM hides inactive customers and does not import new inactive records.
 ORDER BY ARFILE.AR_KEY ASC;

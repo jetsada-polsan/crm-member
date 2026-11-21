@@ -32,7 +32,7 @@
       <DateRangePicker v-model:from="from" v-model:to="to" />
       <p class="small muted">แสดงบันทึกตามวันที่เข้าพบ · เมื่อเลือกสายจะแสดงเฉพาะร้านที่เชื่อมสาย ERP แล้ว</p>
       <div class="head-filter" style="margin-bottom:0">
-        <input v-model="searchRaw" style="flex:1;min-width:200px" placeholder="ค้นหาชื่อร้าน, แหล่งซื้อ, หมายเหตุ..." />
+        <input v-model="searchRaw" class="filter-search-input" placeholder="ค้นหาชื่อร้าน, แหล่งซื้อ, หมายเหตุ..." />
         <select v-model="routeCode" aria-label="สายการขาย"><option value="">ทุกสายที่มีสิทธิ์</option><option v-for="r in dimensions?.routes || []" :key="r.route_code" :value="r.route_code">[{{ r.route_code }}] {{ r.route_name || 'ไม่ระบุชื่อ' }}</option></select>
         <select v-model="resultFilter" @change="page = 1">
           <option value="">ทุกผลการเข้าพบ</option>
@@ -101,10 +101,10 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards panel-pad">
         <div v-for="v in rows" :key="v.id" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;gap:8px">
-            <strong>{{ v.customer_name || v.shop_name || 'ร้านค้า' }}</strong>
+          <div class="row-between-start">
+            <strong style="min-width:0;flex:1 1 180px">{{ v.customer_name || v.shop_name || 'ร้านค้า' }}</strong>
             <span class="tag blue">{{ v.result }}</span>
           </div>
           <div class="small muted" style="margin-top:4px">

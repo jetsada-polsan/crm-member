@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\StaffUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Testing\File;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -14,17 +16,18 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function fakePng(string $name = 'photo.png'): \Illuminate\Http\Testing\File
+    private function fakePng(string $name = 'photo.png'): File
     {
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+
         return UploadedFile::fake()->createWithContent($name, $png);
     }
 
     private function createStaff(string $role, ?string $salesCode = null): StaffUser
     {
         $id = DB::table('staff_users')->insertGetId([
-            'name' => ucfirst($role) . ' User',
-            'email' => $role . uniqid() . '@popstar.local',
+            'name' => ucfirst($role).' User',
+            'email' => $role.uniqid().'@popstar.local',
             'password' => Hash::make('Secret123!'),
             'role' => $role,
             'salesperson_code' => $salesCode,
@@ -64,7 +67,7 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->assertSame(15, $page1['meta']['total']);
         $this->assertSame(2, $page1['meta']['last_page']);
 
-        $bkk = $this->getJson('/api/crm/customers?paginate=1&province=' . urlencode('กรุงเทพมหานคร'))->assertOk()->json();
+        $bkk = $this->getJson('/api/crm/customers?paginate=1&province='.urlencode('กรุงเทพมหานคร'))->assertOk()->json();
         $this->assertSame(5, $bkk['meta']['total']);
     }
 
@@ -287,6 +290,8 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
 
         // Own rep still sees only their own scoped pin, while manual pin is preserved against subsequent GPS check-in
         $this->assertCount(1, $this->getJson('/api/crm/pins')->assertOk()->json());
+        $this->getJson('/api/crm/pins?staff_id='.$otherRep->id)->assertForbidden();
+        $this->getJson('/api/crm/map-staff')->assertForbidden();
         $this->postJson('/api/crm/pins', [
             'erp_customer_id' => $erpId,
             'latitude' => 15.2287,
@@ -308,6 +313,9 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->actingAs($mgr, 'staff');
         $mgrPins = $this->getJson('/api/crm/pins')->assertOk()->json();
         $this->assertCount(2, $mgrPins);
+        $this->getJson('/api/crm/map-staff')->assertOk()->assertJsonCount(2);
+        $this->getJson('/api/crm/pins?staff_id='.$rep->id)->assertOk()->assertJsonCount(1)->assertJsonPath('0.erp_customer_id', $erpId);
+        $this->getJson('/api/crm/pins?staff_id='.$otherRep->id)->assertOk()->assertJsonCount(1)->assertJsonPath('0.erp_customer_id', $otherErpId);
         $erpPin = collect($mgrPins)->firstWhere('erp_customer_id', $erpId);
         $this->assertSame(1, (int) $erpPin['photo_count']);
         $this->get($erpPin['photos'][0]['url'])->assertOk();
@@ -433,6 +441,13 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->assertSame(2, (int) $adminDash['customers']);
         $this->assertSame(13000.0, (float) $adminDash['sales_kpis']['net_sales_before_vat']);
         $this->assertCount(2, $adminDash['reservation_by_doc_type']);
+        $adminPicker = $this->getJson('/api/crm/customers?picker=1&status=purchasing&q=B33')->assertOk()->json();
+        $this->assertSame(1, $adminPicker['meta']['total']);
+        $this->assertSame('32000-B33', $adminPicker['data'][0]['erp_customer_code']);
+        $adminDay = $this->getJson('/api/crm/dashboard?from=2026-06-11&to=2026-06-11')->assertOk()->json();
+        $this->assertSame(13000.0, (float) $adminDay['sales_kpis']['net_sales_before_vat']);
+        $this->assertCount(0, $adminDay['reservation_by_doc_type']);
+        $this->getJson('/api/crm/dashboard?from=2026-06-12&to=2026-06-11')->assertStatus(422);
 
         // Salesperson bound to B16 logs in and sees ONLY B16's debtor & 5,000 sales
         $repB16 = StaffUser::findOrFail($createRes['id']);
@@ -457,6 +472,15 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->assertSame(5000.0, (float) $repDash['sales_kpis']['net_sales_before_vat']);
         $this->assertCount(1, $repDash['reservation_by_doc_type']);
         $this->assertSame('B16', $repDash['reservation_by_doc_type'][0]['doc_type']);
+        $this->getJson('/api/crm/customers?picker=1&status=purchasing&q=B33')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/crm/customers?picker=1&status=purchasing&q=B16')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.erp_customer_code', '34000-B16');
+        $repDay = $this->getJson('/api/crm/dashboard?from=2026-06-11&to=2026-06-11')->assertOk()->json();
+        $this->assertSame(5000.0, (float) $repDay['sales_kpis']['net_sales_before_vat']);
+        $this->assertCount(0, $repDay['reservation_by_doc_type']);
+        $repEarlier = $this->getJson('/api/crm/dashboard?from=2026-06-10&to=2026-06-10')->assertOk()->json();
+        $this->assertSame(0.0, (float) $repEarlier['sales_kpis']['net_sales_before_vat']);
+        $this->assertCount(1, $repEarlier['reservation_by_doc_type']);
 
         // Salesperson cannot access settings staff endpoint
         $this->patchJson("/api/crm/settings/staff/{$repB16->id}", ['role' => 'admin'])->assertStatus(403);
@@ -476,25 +500,30 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $this->assertGreaterThanOrEqual(1, (int) $syncRes['created']);
 
         // Auto-provisioned salesperson 16 can log in directly using reservation code "B33" and sees ONLY B33 (8,000)
-        \Illuminate\Support\Facades\Auth::guard('staff')->logout();
+        Auth::guard('staff')->logout();
         $this->postJson('/api/crm/login', [
             'email' => 'B33',
             'password' => 'Popstar2026!',
         ])->assertOk()
-          ->assertJsonPath('salesperson_code', '16')
-          ->assertJsonPath('reservation_doc_types', ['B33']);
+            ->assertJsonPath('salesperson_code', '16')
+            ->assertJsonPath('reservation_doc_types', ['B33']);
 
         $b33Dash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
         $this->assertSame(1, (int) $b33Dash['customers']);
         $this->assertSame(8000.0, (float) $b33Dash['sales_kpis']['net_sales_before_vat']);
+        $juneTarget = $this->getJson('/api/crm/targets?month=2026-06')->assertOk()->json();
+        $this->assertCount(1, $juneTarget['rows']);
+        $this->assertSame(8000.0, (float) $juneTarget['summary']['total_actual_sales']);
+        $julyTarget = $this->getJson('/api/crm/targets?month=2026-07')->assertOk()->json();
+        $this->assertSame(0.0, (float) $julyTarget['summary']['total_actual_sales']);
 
         // Executive account (เสี่ย) logs in by alias "เสี่ย", sees ALL 2 customers & 13,000 sales, but CANNOT modify system or data
-        \Illuminate\Support\Facades\Auth::guard('staff')->logout();
+        Auth::guard('staff')->logout();
         $this->postJson('/api/crm/login', [
             'email' => 'เสี่ย',
             'password' => 'Popstar2026!',
         ])->assertOk()
-          ->assertJsonPath('role', 'executive');
+            ->assertJsonPath('role', 'executive');
 
         $execDash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
         $this->assertSame(2, (int) $execDash['customers']);

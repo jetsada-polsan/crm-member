@@ -4,6 +4,11 @@
       :title="isRegisterMode ? 'วิธีสมัครสมาชิก' : 'เปิดหน้าสมาชิก'"
       subtitle="หน้าสำหรับร้านค้าสมัครสมาชิก ดูบิล และแลกของรางวัล (แยกบัญชีจากทีมขาย)"
     >
+      <template #secondary>
+        <RouterLink v-if="isManager" to="/members?create=1" class="btn light">
+          ➕ คีย์สมัครสมาชิกให้ร้านค้า (หลังบ้าน)
+        </RouterLink>
+      </template>
       <template #primary>
         <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn primary">
           ↗ เปิดหน้าสมาชิก
@@ -12,7 +17,7 @@
     </PageHeader>
 
     <div class="notice">
-      เพื่อความปลอดภัย: ระบบ CRM พนักงาน (Staff Guard) และ Member Portal (Member Guard) แยก Cookie, Session และ CSRF อิสระต่อกัน ลูกค้าสามารถสมัครด้วยเบอร์โทรศัพท์หรืออีเมล (รหัสผ่าน 12+ ตัวอักษร) แล้วรอทีมงานยืนยันกับบัญชี ERP ก่อนจึงจะเห็นบิลขายและคะแนน
+      ใช้งานได้ทันทีโดย <b>ไม่ต้องมี LINE OA ก่อน</b>: ร้านค้าสามารถสมัครเองผ่าน Member Portal ด้วยเบอร์โทร/อีเมล หรือทีมงานหลังบ้านสามารถ <b>คีย์สร้างบัญชีสมาชิกและผูก ERP ให้ร้านค้าโดยตรง</b> ในเมนูทะเบียนสมาชิก แล้วส่งลิงก์พร้อมรหัสผ่านให้ร้านค้าเข้าใช้งานได้ทันที (หากเชื่อมต่อ LINE OA ภายหลังจะรองรับการแจ้งเตือนและแลกของรางวัลผ่านแชทเพิ่มได้)
     </div>
 
     <div v-if="isManager" class="kpis" style="margin-bottom:16px">
@@ -95,8 +100,18 @@ const route = useRoute();
 const isRegisterMode = computed(() => route.meta?.mode === 'register');
 
 const memberPortalUrl = computed(() => {
-  if (typeof window === 'undefined') return 'http://localhost:18082/';
-  return `${window.location.protocol}//${window.location.hostname}:18082/`;
+  if (typeof window === 'undefined') return 'http://member.popstar.localhost/';
+  const { protocol, hostname, port } = window.location;
+  if (hostname === 'popstar.localhost') {
+    return `${protocol}//member.popstar.localhost${port ? `:${port}` : ''}/`;
+  }
+  if (hostname.startsWith('crm.')) {
+    return `${protocol}//member.${hostname.slice(4)}${port ? `:${port}` : ''}/`;
+  }
+  if (port === '18081') {
+    return `${protocol}//${hostname}:18082/`;
+  }
+  return `${protocol}//member.${hostname}${port ? `:${port}` : ''}/`;
 });
 
 const { data: members } = useQuery({
