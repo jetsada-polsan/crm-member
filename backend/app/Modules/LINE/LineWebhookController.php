@@ -46,12 +46,10 @@ final class LineWebhookController
             }
 
             $replyText = null;
-            $isLinkCommand = false;
 
             if ($eventType === 'message' && ($event['message']['type'] ?? '') === 'text' && $lineUserId) {
                 $text = trim((string) ($event['message']['text'] ?? ''));
-                if (preg_match('/^LINK[:\-\s]+([A-Za-z0-9\-]+)$/i', $text, $m)) {
-                    $isLinkCommand = true;
+                if (preg_match('/^LINK[:\\-\\s]+([A-Za-z0-9\\-]+)$/i', $text, $m)) {
                     $rawCode = strtoupper(trim($m[1]));
                     $bound = $this->consumeLinkCode($rawCode, $lineUserId);
                     if ($bound) {
@@ -60,9 +58,10 @@ final class LineWebhookController
                     } else {
                         $replyText = 'รหัสเชื่อมบัญชีไม่ถูกต้องหรือหมดอายุ กรุณาสร้างรหัสใหม่จากหน้าสมาชิก';
                     }
+                } else {
+                    $replyText = $this->customerReply($text, $lineUserId);
                 }
             }
-
             DB::table('line_webhook_events')->insert([
                 'webhook_event_id' => $eventId ?: null,
                 'event_type' => $eventType,
@@ -78,20 +77,41 @@ final class LineWebhookController
                 $isFirstThreadMessage = $this->recordIncomingChat($lineUserId, $event, $accessToken);
             }
 
-            if ($eventType !== 'message' || ($event['message']['type'] ?? '') !== 'text') {
+            if ($eventType !== 'message') {
                 continue;
+            }
+
+            if (($event['message']['type'] ?? '') !== 'text' && $lineUserId) {
+                $replyText = 'ได้รับข้อความแล้วครับ ทีมงาน POPSTAR จะตอบกลับในแชทนี้';
             }
 
             if ($replyText === null && $isFirstThreadMessage) {
                 $replyText = LineConfig::welcomeMessage();
             }
 
+            if ($replyText === null) {
+                $replyText = 'พิมพ์ “เช็คแต้ม” เพื่อดูคะแนนและของรางวัล หรือพิมพ์ “ติดต่อเรา” เพื่อฝากข้อความถึงทีมงาน';
+            }
+
             $replyToken = $event['replyToken'] ?? null;
             if ($replyToken && $replyText !== null && $accessToken !== '') {
-                Http::withToken($accessToken)->acceptJson()->post('https://api.line.me/v2/bot/message/reply', [
-                    'replyToken' => $replyToken,
-                    'messages' => [['type' => 'text', 'text' => $replyText]],
-                ]);
+                $deliveryStatus = 'failed';
+                $deliveryError = null;
+
+                try {
+                    $response = Http::withToken($accessToken)->acceptJson()->timeout(8)
+                        ->post('https://api.line.me/v2/bot/message/reply', [
+                            'replyToken' => $replyToken,
+                            'messages' => [['type' => 'text', 'text' => $replyText]],
+                        ]);
+                    $deliveryStatus = $response->successful() ? 'sent' : 'failed';
+                    if (! $response->successful()) {
+                        $deliveryError = 'LINE reply failed with HTTP '.$response->status();
+                    }
+                } catch (Throwable $e) {
+                    $deliveryError = 'LINE reply request failed: '.mb_substr($e->getMessage(), 0, 160);
+                }
+
                 if ($lineUserId && Schema::hasTable('line_chat_threads')) {
                     $thread = DB::table('line_chat_threads')->where('line_user_id', $lineUserId)->first();
                     if ($thread) {
@@ -100,7 +120,8 @@ final class LineWebhookController
                             'direction' => 'outgoing',
                             'message_type' => 'text',
                             'body' => $replyText,
-                            'delivery_status' => 'sent',
+                            'delivery_status' => $deliveryStatus,
+                            'delivery_error' => $deliveryError,
                             'created_at' => now(),
                         ]);
                     }
@@ -109,6 +130,110 @@ final class LineWebhookController
         }
 
         return response()->json(['ok' => true, 'bound' => $boundCount]);
+    }
+
+    private function customerReply(string $text, string $lineUserId): string
+    {
+        $normalized = mb_strtolower(preg_replace('/[\\s\\p{P}\\p{S}]+/u', '', trim($text)) ?? trim($text));
+
+        if (in_array($normalized, ['แต้ม', 'คะแนน', 'เช็คแต้ม', 'เช็กแต้ม', 'เช็คคะแนน', 'เช็กคะแนน', 'คะแนนสะสม'], true)) {
+            return $this->memberPointsReply($lineUserId);
+        }
+
+        if (in_array($normalized, ['ของรางวัล', 'ของขวัญ', 'รางวัล', 'โปรโมชั่น', 'โปรโมชัน'], true)) {
+            return $this->activeRewardsReply();
+        }
+
+        if (in_array($normalized, ['ติดต่อ', 'ติดต่อเรา', 'แอดมิน', 'เจ้าหน้าที่', 'คุยกับเจ้าหน้าที่'], true)) {
+            return 'รับข้อความแล้วครับ ทีมงาน POPSTAR จะตอบกลับในแชทนี้';
+        }
+
+        if (in_array($normalized, ['ผูกสมาชิก', 'ผูกบัญชี', 'สมัครสมาชิก'], true)) {
+            return 'กรุณาเข้าสู่ระบบสมาชิกเพื่อผูกบัญชีร้านค้าและ LINE ก่อนตรวจสอบคะแนน: https://crm.popstarmember.com/member-portal';
+        }
+
+        if (in_array($normalized, ['วิธีใช้', 'ช่วยเหลือ', 'help', 'start', 'เมนู'], true)) {
+            return 'พิมพ์ “เช็คแต้ม” เพื่อดูคะแนนและของรางวัล พิมพ์ “ของรางวัล” เพื่อดูรายการ หรือ “ติดต่อเรา” เพื่อฝากข้อความถึงทีมงาน';
+        }
+
+        return 'ขออภัย ยังไม่เข้าใจข้อความนี้ครับ พิมพ์ “เช็คแต้ม”, “ของรางวัล”, “วิธีใช้” หรือ “ติดต่อเรา” ได้เลย';
+    }
+
+    private function memberPointsReply(string $lineUserId): string
+    {
+        $lineAccount = DB::table('member_line_accounts')
+            ->where('line_user_id', $lineUserId)
+            ->where('binding_status', 'verified')
+            ->whereNull('revoked_at')
+            ->first();
+
+        if (! $lineAccount || ! $lineAccount->member_account_id) {
+            return 'ยังไม่ได้ผูก LINE กับบัญชีสมาชิกที่ยืนยันแล้วครับ พิมพ์ “ผูกสมาชิก” เพื่อเริ่มเชื่อมบัญชี';
+        }
+
+        $erpLink = DB::table('member_erp_links as l')
+            ->join('erp_customers as c', 'c.id', '=', 'l.erp_customer_id')
+            ->leftJoin('erp_members as em', function ($join): void {
+                $join->on('em.source_system', '=', 'c.source_system')
+                    ->on('em.member_code', '=', 'l.erp_member_code');
+            })
+            ->where('l.member_account_id', $lineAccount->member_account_id)
+            ->where('l.verification_status', 'verified')
+            ->whereNotNull('l.verified_at')
+            ->whereNotNull('l.erp_customer_id')
+            ->select('em.erp_point_balance')
+            ->first();
+
+        if (! $erpLink) {
+            return 'บัญชีสมาชิกเชื่อม LINE แล้ว แต่ร้านค้ายังรอการยืนยันจากทีมงาน จึงยังแสดงคะแนนไม่ได้ครับ';
+        }
+
+        $crmBalance = (int) DB::table('loyalty_points_ledger')
+            ->where('member_account_id', $lineAccount->member_account_id)
+            ->sum('points_delta');
+        $reply = 'แต้มสะสม POPSTAR: '.number_format($crmBalance).' คะแนน';
+
+        if ($erpLink->erp_point_balance !== null) {
+            $reply .= "\\nแต้มใน Bplus: ".number_format((int) $erpLink->erp_point_balance).' คะแนน';
+        }
+
+        return $reply."\\n\\n".$this->activeRewardsReply();
+    }
+
+    private function activeRewardsReply(): string
+    {
+        $now = now();
+        $rewards = DB::table('loyalty_rewards')
+            ->where('is_active', true)
+            ->where(function ($q) use ($now): void {
+                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($q) use ($now): void {
+                $q->whereNull('valid_until')->orWhere('valid_until', '>=', $now);
+            })
+            ->select('title', 'points_cost', 'stock_qty')
+            ->orderBy('points_cost')
+            ->limit(6)
+            ->get();
+
+        if ($rewards->isEmpty()) {
+            return 'ตอนนี้ยังไม่มีรายการของรางวัลที่เปิดให้แลกครับ';
+        }
+
+        $lines = ['ของรางวัลที่เปิดให้แลก:'];
+        foreach ($rewards as $reward) {
+            $line = '• '.$reward->title.' — '.number_format((int) $reward->points_cost).' คะแนน';
+            if ($reward->stock_qty !== null) {
+                $line .= ' (คงเหลือ '.number_format((int) $reward->stock_qty).')';
+            }
+            $lines[] = $line;
+        }
+
+        if ($rewards->count() === 6) {
+            $lines[] = 'ดูรายการทั้งหมดได้ในหน้าสมาชิก';
+        }
+
+        return implode("\\n", $lines);
     }
 
     private function recordIncomingChat(string $lineUserId, array $event, string $accessToken): bool
