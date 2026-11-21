@@ -1,6 +1,7 @@
 <template>
   <div>
     <PageHeader
+      class="desktop-only"
       title="ซิงก์ข้อมูล Bplus ERP"
       subtitle="รับข้อมูลผ่าน HTTPS Push API อัตโนมัติ (ไม่ใช้ VPN)"
     >
@@ -31,6 +32,69 @@
     <SkeletonBlock v-else-if="isLoading && !status" variant="kpis" />
 
     <template v-else-if="status">
+      <!-- Mobile Native App Sync Screen (<= 800px — Matches Mockup) -->
+      <div class="mob-only mob-sync-shell">
+        <div :class="['mob-sync-card', officeConnected ? 'ok' : 'warn']">
+          <div class="mob-sync-title">
+            <span>{{ officeConnected ? '🟢' : '🟠' }}</span>
+            <strong>{{ officeConnected ? 'รับข้อมูลจากออฟฟิศแล้ว' : 'รอเครื่องออฟฟิศยิง Push API' }}</strong>
+          </div>
+          <p class="small" style="margin:4px 0 12px;line-height:1.5">
+            <template v-if="officeConnected">
+              รับล่าสุด {{ formatTime(status.push_api?.last_received_at) }} · {{ fmt(status.push_api?.total_batches) }} ชุดผ่าน Push API
+            </template>
+            <template v-else>
+              ฝั่งเว็บพร้อมรับแล้ว ({{ pushBaseUrl.replace(/^https?:\/\//, '') }} · ไม่ใช้ VPN)
+            </template>
+          </p>
+          <button
+            type="button"
+            class="btn primary w-full"
+            :disabled="busy"
+            @click="runAction('/sync-monitor/test-push-api', 'ทดสอบ Push API')"
+          >
+            {{ busy ? 'กำลังทดสอบ...' : '🚀 ทดสอบ Push API ทันที' }}
+          </button>
+        </div>
+
+        <div class="app-group-list">
+          <div v-for="ep in PUSH_ENDPOINTS" :key="`ms-${ep.kind}`" class="app-list-row">
+            <span class="app-icon-box slate">{{ ep.icon }}</span>
+            <div class="app-list-body">
+              <strong class="app-list-title">{{ ep.label }}</strong>
+              <span class="app-list-sub">{{ fmt(countForKind(ep.kind)) }} รายการ · {{ formatTime(freshFor(ep.kind).last_updated_at) }}</span>
+            </div>
+            <span :class="['tag', stateMeta(ep.kind).tag]">{{ stateMeta(ep.kind).label }}</span>
+          </div>
+        </div>
+
+        <div class="mob-card-actions" style="margin-top:0">
+          <button type="button" class="btn light" :disabled="busy" @click="runAction('/settings/staff/auto-sync', 'ผูกพนักงานขายกับสายใบจอง')">
+            🔗 ผูกเซลล์อัตโนมัติ
+          </button>
+          <button type="button" class="btn" @click="copyBaseUrl">📋 คัดลอก URL</button>
+        </div>
+
+        <details class="card panel-pad">
+          <summary style="cursor:pointer;font-weight:700;font-size:13.5px">
+            📜 ประวัติการซิงก์ล่าสุด ({{ (status.runs || []).length }})
+          </summary>
+          <div class="mt-sm stack-sm">
+            <div v-for="run in (status.runs || []).slice(0, 6)" :key="`mrh-${run.id}`" class="minirow">
+              <div>
+                <strong>{{ kindLabel(run.kind) }}</strong>
+                <div class="small muted">{{ formatTime(run.started_at) }}</div>
+              </div>
+              <span :class="['tag', run.status === 'success' ? 'green' : run.status === 'running' ? 'blue' : 'red']">
+                {{ run.status === 'success' ? 'สำเร็จ' : run.status === 'running' ? 'กำลังทำงาน' : 'ไม่สำเร็จ' }}
+              </span>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Desktop Sync Monitor (> 800px) -->
+      <div class="desktop-only">
       <!-- Clear Sync Status Banner -->
       <div :class="['card', 'sync-status-banner', officeConnected ? 'ok' : 'warn']">
         <div class="ssb-dot" aria-hidden="true"></div>
@@ -369,6 +433,7 @@
           </div>
         </div>
       </template>
+      </div>
     </template>
   </div>
 </template>
@@ -556,6 +621,39 @@ async function runSync(kind, { fullReconcile = false } = {}) {
 </script>
 
 <style scoped>
+.mob-sync-shell {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .mob-sync-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+}
+
+.mob-sync-card {
+  border-radius: 22px;
+  padding: 16px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.mob-sync-card.ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.mob-sync-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
 .sync-status-banner {
   display: flex;
   align-items: flex-start;

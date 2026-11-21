@@ -1,5 +1,132 @@
 <template>
   <div>
+    <!-- Mobile Native App Customers Screen (<= 800px — Matches Mockup) -->
+    <div class="mob-only mob-cust-shell">
+      <div class="app-search-pill">
+        <span class="app-search-ico" aria-hidden="true">🔍</span>
+        <input
+          v-model="searchRaw"
+          type="search"
+          placeholder="ค้นหาชื่อร้าน, รหัส, เบอร์โทร..."
+        />
+        <button
+          v-if="searchRaw"
+          type="button"
+          class="search-clear-btn"
+          aria-label="ล้างคำค้นหา"
+          @click="searchRaw = ''; search = ''; page = 1"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="segmented-tabs" role="tablist" aria-label="ประเภทลูกค้า">
+        <button type="button" class="btn" :class="{ primary: mode === 'master' }" @click="mode = 'master'; page = 1">ทั้งหมด</button>
+        <button type="button" class="btn" :class="{ primary: mode === 'erp' }" @click="mode = 'erp'; page = 1">ลูกค้า ERP</button>
+        <button type="button" class="btn" :class="{ primary: mode === 'leads' }" @click="mode = 'leads'; page = 1">ร้านใหม่</button>
+      </div>
+
+      <SkeletonBlock v-if="isLoading && !rows.length" variant="list" :rows="6" />
+      <div v-else-if="isError" class="error">{{ error?.message || 'โหลดทะเบียนลูกค้าไม่สำเร็จ' }}</div>
+      <div v-else class="app-group-list">
+        <button
+          v-for="r in rows"
+          :key="`mg-${r.customer_master_id || r.id}`"
+          type="button"
+          class="app-list-row"
+          @click="mobSheetCustomer = r"
+        >
+          <span :class="['app-icon-box', isErpRow(r) ? '' : 'amber']">
+            {{ isErpRow(r) ? '🏢' : '🌱' }}
+          </span>
+          <div class="app-list-body">
+            <div class="mob-cust-top">
+              <strong class="app-list-title">{{ r.display_name || r.customer_name || r.shop_name }}</strong>
+              <span class="mob-cust-amt">
+                {{ r.total_sales_net != null && Number(r.total_sales_net) > 0 ? `฿${fmt(r.total_sales_net)}` : (isErpRow(r) ? 'ERP' : 'Lead') }}
+              </span>
+            </div>
+            <span class="app-list-sub">
+              {{ r.erp_customer_code || r.internal_customer_code || `LEAD-${r.id}` }} · {{ r.province || r.district || r.phone || 'ไม่ระบุพื้นที่' }}
+            </span>
+          </div>
+          <span class="app-chevron" aria-hidden="true">›</span>
+        </button>
+        <div v-if="!rows.length" class="placeholder" style="padding:28px 16px">ไม่พบร้านค้าที่ค้นหา</div>
+      </div>
+
+      <div v-if="meta.last_page > 1" class="pager" style="border-top:0;padding:4px 0">
+        <span class="small muted">หน้า {{ meta.current_page }} / {{ meta.last_page }} ({{ fmt(meta.total) }} ร้าน)</span>
+        <div class="pager-btns">
+          <button type="button" class="btn" :disabled="page <= 1" @click="page--">← ก่อนหน้า</button>
+          <button type="button" class="btn" :disabled="page >= meta.last_page" @click="page++">ถัดไป →</button>
+        </div>
+      </div>
+
+      <!-- Native Slide-Up Customer Quick 360 Sheet -->
+      <MobileBottomSheet
+        :open="Boolean(mobSheetCustomer)"
+        :title="mobSheetCustomer?.display_name || mobSheetCustomer?.customer_name || mobSheetCustomer?.shop_name || 'ข้อมูลร้านค้า'"
+        @close="mobSheetCustomer = null"
+      >
+        <div v-if="mobSheetCustomer" class="stack-sm">
+          <div class="row-actions">
+            <span class="tag blue">{{ mobSheetCustomer.erp_customer_code || mobSheetCustomer.internal_customer_code || `LEAD-${mobSheetCustomer.id}` }}</span>
+            <span class="small muted">📍 {{ mobSheetCustomer.province || mobSheetCustomer.district || 'ไม่ระบุพื้นที่' }}</span>
+          </div>
+          <div class="form-grid-2">
+            <div class="card panel-pad" style="padding:11px 12px;background:#f8fafc;box-shadow:none">
+              <div class="small muted">ยอดซื้อสุทธิ</div>
+              <strong style="color:var(--green);font-size:16px">฿{{ fmt(mobSheetCustomer.total_sales_net || 0) }}</strong>
+            </div>
+            <div class="card panel-pad" style="padding:11px 12px;background:#f8fafc;box-shadow:none">
+              <div class="small muted">เบอร์โทร</div>
+              <strong style="font-size:14px">{{ mobSheetCustomer.phone || 'ไม่มีเบอร์' }}</strong>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px">
+            <a
+              v-if="mobSheetCustomer.phone"
+              :href="`tel:${cleanPhone(mobSheetCustomer.phone)}`"
+              class="btn"
+              style="background:#f0fdf4;border-color:#bbf7d0;color:#15803d;padding:10px 6px;font-size:13px"
+            >
+              📞 โทร
+            </a>
+            <button v-else type="button" class="btn" disabled style="padding:10px 6px;font-size:13px">📞 ไม่มีเบอร์</button>
+            <button
+              type="button"
+              class="btn primary"
+              style="padding:10px 6px;font-size:13px"
+              @click="triggerMobVisit(mobSheetCustomer)"
+            >
+              📸 เช็คอิน
+            </button>
+            <RouterLink
+              v-if="mode === 'master' && mobSheetCustomer.customer_master_id"
+              :to="`/customer-360/${mobSheetCustomer.customer_master_id}`"
+              class="btn light"
+              style="padding:10px 6px;font-size:13px"
+              @click="mobSheetCustomer = null"
+            >
+              🔍 360°
+            </RouterLink>
+            <button
+              v-else
+              type="button"
+              class="btn light"
+              style="padding:10px 6px;font-size:13px"
+              @click="openFullDetailFromSheet(mobSheetCustomer)"
+            >
+              🔍 ดูข้อมูล
+            </button>
+          </div>
+        </div>
+      </MobileBottomSheet>
+    </div>
+
+    <!-- Desktop Customers Workspace (> 800px) -->
+    <div class="desktop-only">
     <PageHeader
       title="ลูกค้า"
       subtitle="ค้นหาร้านค้าทั้งหมด ทั้งลูกค้าใน ERP ร้านใหม่ และสมาชิก"
@@ -262,6 +389,7 @@
         </div>
       </div>
     </div>
+    </div>
 
     <BaseModal :open="workflowPanel !== ''" :title="workflowPanel === 'requests' ? 'คำขอเปิดรหัสลูกหนี้ Bplus' : 'คิวจับคู่ ERP และตรวจรายการซ้ำ'" @close="workflowPanel = ''">
       <div v-if="workflowBusy" class="small muted">กำลังโหลดคิว...</div>
@@ -322,6 +450,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { keepPreviousData, useQuery } from '@tanstack/vue-query';
 import BaseModal from '../../../shared/components/BaseModal.vue';
+import MobileBottomSheet from '../../../shared/components/MobileBottomSheet.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
@@ -341,6 +470,7 @@ import {
 } from '../composables/useCrmSession.js';
 
 const mode = ref('master');
+const mobSheetCustomer = ref(null);
 const searchRaw = ref('');
 const search = ref('');
 const masterFilter = ref('all');
@@ -411,6 +541,26 @@ function openMobileRow(r) {
   if (mode.value === 'master') openDetailDrawer('master', r.customer_master_id);
   else if (mode.value === 'erp') openDetailDrawer('erp', r.id);
   else openDetailDrawer('lead', r.id);
+}
+
+function isErpRow(r) {
+  return mode.value === 'erp' || Boolean(r?.erp_customer_id || r?.erp_customer_code);
+}
+
+function cleanPhone(raw) {
+  return String(raw || '').split(/[,/\s]+/)[0]?.replace(/[^0-9+]/g, '') || '';
+}
+
+function triggerMobVisit(r) {
+  const kind = mode.value === 'erp' || r.erp_customer_id ? 'erp' : 'lead';
+  const id = mode.value === 'master' ? (r.erp_customer_id || r.crm_lead_id) : r.id;
+  mobSheetCustomer.value = null;
+  openVisitWizard({ kind, id });
+}
+
+function openFullDetailFromSheet(r) {
+  mobSheetCustomer.value = null;
+  openMobileRow(r);
 }
 
 async function requestErpFromMaster(row) {
@@ -505,3 +655,32 @@ async function runCsvImport() {
   }
 }
 </script>
+
+<style scoped>
+.mob-cust-shell {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .mob-cust-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+.mob-cust-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mob-cust-amt {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--green);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+</style>

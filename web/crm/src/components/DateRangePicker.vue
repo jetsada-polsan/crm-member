@@ -1,5 +1,5 @@
 <template>
-  <div class="range-bar card">
+  <div :class="['range-bar', inline ? 'is-inline' : 'card']">
     <div class="range-bar-row">
       <div class="range-presets" role="group" aria-label="เลือกช่วงวันที่">
         <button
@@ -12,22 +12,16 @@
         >
           {{ option.label }}
         </button>
-        <button
-          type="button"
-          :class="['range-pill', { selected: customOpen || active === 'custom' }]"
-          :aria-expanded="String(customOpen)"
-          @click="customOpen = !customOpen"
-        >
-          📅 กำหนดเอง
-        </button>
       </div>
 
       <button
         type="button"
-        class="range-summary-chip"
+        :class="['range-summary-chip', { open: customOpen || active === 'custom' }]"
         title="คลิกเพื่อเลือกช่วงวันที่เอง"
+        :aria-expanded="String(customOpen)"
         @click="customOpen = !customOpen"
       >
+        <span aria-hidden="true">📅</span>
         <span>{{ displayRange }}</span>
         <span class="range-caret" aria-hidden="true">{{ customOpen ? '▴' : '▾' }}</span>
       </button>
@@ -67,6 +61,7 @@ const props = defineProps({
   from: { type: String, default: '' },
   to: { type: String, default: '' },
   allowYear: { type: Boolean, default: true },
+  inline: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:from', 'update:to']);
 
@@ -132,66 +127,80 @@ function change(which, value) {
 
 <style scoped>
 .range-bar {
-  padding: 10px 14px;
+  padding: 8px 12px;
+}
+
+.range-bar.is-inline {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .range-bar-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .range-presets {
-  display: flex;
-  gap: 6px;
+  display: inline-flex;
+  gap: 2px;
   flex-wrap: wrap;
   align-items: center;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
 }
 
 .range-pill {
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: #f1f5f9;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: #475569;
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  padding: 6px 13px;
-  min-height: 36px;
+  padding: 5px 10px;
+  min-height: 30px;
   cursor: pointer;
-  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  transition: background-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
 }
 
 .range-pill:hover {
-  background: #e0f2fe;
-  color: #0369a1;
+  color: #0f172a;
 }
 
 .range-pill.selected {
-  background: var(--blue);
-  color: #ffffff;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .range-summary-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #bae6fd;
-  background: #f0f9ff;
-  color: #0369a1;
-  border-radius: 999px;
-  padding: 6px 13px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 10px;
+  padding: 5px 11px;
   min-height: 36px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
 
-.range-summary-chip:hover {
-  background: #e0f2fe;
+.range-summary-chip:hover,
+.range-summary-chip.open {
+  border-color: #0284c7;
+  color: #0369a1;
+  background: #f0f9ff;
 }
 
 .range-caret {

@@ -1,6 +1,7 @@
 <template>
   <div class="catalog-page">
     <PageHeader
+      class="desktop-only"
       title="สินค้าและราคา (เฉพาะสินค้าที่เปิดใช้งาน)"
       subtitle="ราคาปกติ Bplus ชุด 0 แยกหน่วยใหญ่-หน่วยย่อย พร้อมราคาครบในแถวเดียว ตัดสินค้าที่ปิดใช้งานออกแล้ว"
     >
@@ -12,8 +13,14 @@
       </template>
     </PageHeader>
 
-    <!-- Summary KPI Strip -->
-    <div class="kpis">
+    <!-- Mobile Compact Summary Strip (Matches Mockup) -->
+    <div class="mob-only mob-prod-banner">
+      <span>📦 ราคาชุด 0 · เปิดใช้งาน</span>
+      <strong>{{ fmt(summary.total_matched_skus) }} / {{ fmt(summary.total_active_skus) }} รายการ</strong>
+    </div>
+
+    <!-- Summary KPI Strip (Desktop only) -->
+    <div class="kpis desktop-only">
       <div class="card kpi">
         <div class="kpi-top">
           <div class="kpi-icon">📦</div>
@@ -519,6 +526,22 @@ function resetFilters() {
 .prod-mob-box.small-box {
   background: #f0f9ff;
   border: 1px solid #bae6fd;
+}
+
+@media (max-width: 800px) {
+  .mob-prod-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 11px 14px;
+    margin-bottom: 12px;
+    border-radius: 16px;
+    background: #e0f2fe;
+    color: #0369a1;
+    font-size: 13px;
+    font-weight: 600;
+  }
 }
 
 @media (max-width: 380px) {

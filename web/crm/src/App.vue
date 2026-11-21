@@ -99,24 +99,12 @@
           <h1 v-else class="topbar-title">{{ pageTitle }}</h1>
           <div class="breadcrumb">
             POPSTAR Connect
-            <template v-if="activeNavMeta?.group?.title">
+            <template v-if="activeNavMeta?.group?.title && activeNavMeta.group.title !== pageTitle">
               / <span class="muted">{{ activeNavMeta.group.title }}</span>
             </template>
             / <strong>{{ pageTitle }}</strong>
           </div>
           <div class="grow"></div>
-
-          <select
-            v-model="fontPreset"
-            class="font-preset-select"
-            aria-label="เลือกแบบอักษร"
-            title="เปลี่ยนแบบอักษรให้อ่านง่ายตามถนัด"
-            @change="applyFontPreset"
-          >
-            <option value="prompt">Aa Prompt (สไตล์ PEAK)</option>
-            <option value="noto">Aa Noto Sans Thai</option>
-            <option value="sarabun">Aa Sarabun (มีหัวอ่านชัด)</option>
-          </select>
 
           <button
             type="button"
@@ -124,7 +112,7 @@
             aria-label="ค้นหาเมนูและหน้าต่างๆ (Ctrl+K)"
             @click="uiState.commandPaletteOpen = true"
           >
-            <span>⌘ ค้นหาเมนู</span>
+            <span>⌘ ค้นหาเมนูหรือหน้า...</span>
             <kbd>Ctrl K</kbd>
           </button>
 
@@ -138,8 +126,6 @@
             >
               ☁️ ส่งข้อมูล ({{ offlineDrafts.length }})
             </button>
-            <button type="button" class="btn light" @click="openQuickAdd">+ เพิ่มร้าน</button>
-            <button type="button" class="btn primary" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
           </div>
 
           <div class="mobile-top-quick">
@@ -153,8 +139,16 @@
             >
               ☁️
             </button>
+            <RouterLink
+              v-if="!showMobileBack && isManager"
+              to="/sync"
+              class="topbtn"
+              aria-label="สถานะซิงก์ Push API"
+            >
+              🔄
+            </RouterLink>
             <button
-              v-if="!showMobileBack"
+              v-else-if="!showMobileBack"
               type="button"
               class="topbtn"
               aria-label="ค้นหาเมนูทั้งหมด"
@@ -219,8 +213,8 @@
           <span>ออกตลาด</span>
         </RouterLink>
         <RouterLink to="/more" :class="['mobile-nav-item', { active: isMoreSectionActive }]">
-          <span class="mni" aria-hidden="true">⋯</span>
-          <span>เพิ่มเติม</span>
+          <span class="mni" aria-hidden="true">☰</span>
+          <span>เมนู</span>
           <span v-if="offlineDrafts.length" class="mobile-nav-dot" aria-hidden="true"></span>
         </RouterLink>
       </nav>
@@ -366,23 +360,9 @@ const router = useRouter();
 const mobileQuickOpen = ref(false);
 const mobileSidebarOpen = ref(false);
 
-const FONT_STORAGE_KEY = 'popstar_font_preset_v2';
-const fontPreset = ref((typeof localStorage !== 'undefined' && localStorage.getItem(FONT_STORAGE_KEY)) || 'prompt');
-
-function applyFontPreset() {
-  if (typeof document === 'undefined') return;
-  if (fontPreset.value && fontPreset.value !== 'prompt') {
-    document.documentElement.dataset.fontPreset = fontPreset.value;
-  } else {
-    delete document.documentElement.dataset.fontPreset;
-  }
-  try {
-    localStorage.setItem(FONT_STORAGE_KEY, fontPreset.value);
-  } catch {
-    // ignore storage errors
-  }
+if (typeof document !== 'undefined') {
+  delete document.documentElement.dataset.fontPreset;
 }
-applyFontPreset();
 
 const visibleNavGroups = computed(() => filterNavGroups(CRM_NAV_GROUPS, isManager.value));
 

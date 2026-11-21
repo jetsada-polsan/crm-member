@@ -1,22 +1,23 @@
 <template>
   <div class="peak-nav-root">
-    <!-- PEAK-style Primary "+ สร้างรายการ" Action Bar -->
+    <!-- Compact Executive Quick Action Row -->
     <div class="peak-create-wrap">
       <button
         type="button"
         class="peak-create-btn"
         @click="$emit('open-visit')"
       >
-        <span class="peak-create-plus" aria-hidden="true">＋</span>
-        <span>บันทึกเข้าพบร้านค้า</span>
+        <span aria-hidden="true">＋</span>
+        <span>บันทึกเข้าพบ</span>
       </button>
       <button
         type="button"
         class="peak-subcreate-btn"
         title="เพิ่มร้านค้าใหม่"
+        aria-label="เพิ่มร้านค้าใหม่"
         @click="$emit('open-quick-add')"
       >
-        <span>🏪 เพิ่มร้านใหม่</span>
+        🏪
       </button>
     </div>
 
@@ -132,72 +133,60 @@ watch(
 }
 
 .peak-create-wrap {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 7px;
-  padding: 0 4px 10px;
-  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 .peak-create-btn {
-  width: 100%;
-  min-height: 44px;
+  flex: 1;
+  min-height: 38px;
   border-radius: 10px;
   border: 0;
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  background: #0284c7;
   color: #ffffff;
-  font-size: 14.5px;
+  font-size: 13.5px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.24);
-  transition: filter 0.15s ease, transform 0.12s ease;
+  gap: 6px;
+  transition: background-color 0.14s ease, transform 0.12s ease;
 }
 
 .peak-create-btn:hover {
-  filter: brightness(1.05);
+  background: #0369a1;
 }
 
 .peak-create-btn:active {
   transform: scale(0.98);
 }
 
-.peak-create-plus {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.22);
+.peak-subcreate-btn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: #334155;
+  font-size: 16px;
   display: grid;
   place-items: center;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.peak-subcreate-btn {
-  width: 100%;
-  min-height: 38px;
-  border-radius: 9px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #1e293b;
-  font-size: 13.5px;
-  font-weight: 600;
   transition: background-color 0.14s ease, border-color 0.14s ease;
 }
 
 .peak-subcreate-btn:hover {
   background: #f0f9ff;
   border-color: #7dd3fc;
-  color: #0284c7;
 }
 
 .peak-menu {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .peak-group {
@@ -207,43 +196,44 @@ watch(
 
 .peak-group-head {
   width: 100%;
-  min-height: 44px;
-  padding: 9px 12px;
+  min-height: 38px;
+  padding: 7px 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   color: #334155;
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   text-align: left;
   text-decoration: none;
-  transition: background-color 0.14s ease, color 0.14s ease;
+  transition: background-color 0.13s ease, color 0.13s ease;
 }
 
 .peak-group-head:hover {
-  background: #f1f5f9;
+  background: #f3f4f6;
   color: #0f172a;
 }
 
 .peak-group-head.active {
   color: #0284c7;
   background: #f0f9ff;
+  font-weight: 600;
 }
 
 .peak-group-head.is-direct.active {
-  background: #e0f2fe;
-  color: #0369a1;
-  font-weight: 700;
+  background: #eff6ff;
+  color: #0284c7;
+  font-weight: 600;
 }
 
 .peak-group-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: #f1f5f9;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
   display: inline-grid;
   place-items: center;
   font-size: 15px;
@@ -251,7 +241,7 @@ watch(
 }
 
 .peak-group-head.active .peak-group-icon {
-  background: #e0f2fe;
+  background: transparent;
 }
 
 .peak-group-label {
