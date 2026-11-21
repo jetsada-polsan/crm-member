@@ -194,10 +194,10 @@ final class LineWebhookController
         $reply = 'แต้มสะสม POPSTAR: '.number_format($crmBalance).' คะแนน';
 
         if ($erpLink->erp_point_balance !== null) {
-            $reply .= "\\nแต้มใน Bplus: ".number_format((int) $erpLink->erp_point_balance).' คะแนน';
+            $reply .= "\nแต้มใน Bplus: ".number_format((int) $erpLink->erp_point_balance).' คะแนน';
         }
 
-        return $reply."\\n\\n".$this->activeRewardsReply();
+        return $reply."\n\n".$this->activeRewardsReply();
     }
 
     private function activeRewardsReply(): string
@@ -233,7 +233,7 @@ final class LineWebhookController
             $lines[] = 'ดูรายการทั้งหมดได้ในหน้าสมาชิก';
         }
 
-        return implode("\\n", $lines);
+        return implode("\n", $lines);
     }
 
     private function recordIncomingChat(string $lineUserId, array $event, string $accessToken): bool
