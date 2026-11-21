@@ -49,7 +49,7 @@ final class LineWebhookController
 
             if ($eventType === 'message' && ($event['message']['type'] ?? '') === 'text' && $lineUserId) {
                 $text = trim((string) ($event['message']['text'] ?? ''));
-                if (preg_match('/^LINK[:\\-\\s]+([A-Za-z0-9\\-]+)$/i', $text, $m)) {
+                if (preg_match('/^LINK[:\-\s]+([A-Za-z0-9\-]+)$/i', $text, $m)) {
                     $rawCode = strtoupper(trim($m[1]));
                     $bound = $this->consumeLinkCode($rawCode, $lineUserId);
                     if ($bound) {
