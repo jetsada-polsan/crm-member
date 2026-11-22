@@ -2,65 +2,22 @@
   <div class="catalog-page">
     <PageHeader
       class="desktop-only"
-      title="สินค้าและราคา (เฉพาะสินค้าที่เปิดใช้งาน)"
-      subtitle="ราคาปกติ Bplus ชุด 0 แยกหน่วยใหญ่-หน่วยย่อย พร้อมราคาครบในแถวเดียว ตัดสินค้าที่ปิดใช้งานออกแล้ว"
+      title="สินค้าและราคา"
+      subtitle="ค้นหาราคาและหน่วยขายจาก Bplus ERP"
     >
-      <template #primary>
-        <div class="catalog-total-pill">
-          📦 ยอดรวมสินค้าทั้งหมด:
-          <strong>{{ fmt(summary.total_active_skus) }} รายการ</strong>
-        </div>
-      </template>
     </PageHeader>
 
-    <!-- Mobile Compact Summary Strip (Matches Mockup) -->
-    <div class="mob-only mob-prod-banner">
-      <span>📦 ราคาชุด 0 · เปิดใช้งาน</span>
-      <strong>{{ fmt(summary.total_matched_skus) }} / {{ fmt(summary.total_active_skus) }} รายการ</strong>
-    </div>
-
-    <!-- Summary KPI Strip (Desktop only) -->
-    <div class="kpis desktop-only">
-      <div class="card kpi">
-        <div class="kpi-top">
-          <div class="kpi-icon">📦</div>
-          <span class="tag green">เปิดใช้งานเท่านั้น</span>
-        </div>
-        <div class="kpi-label">ยอดรวมสินค้าทั้งหมด</div>
-        <div class="kpi-value">{{ fmt(summary.total_active_skus) }} <span class="kpi-unit">รายการ</span></div>
-        <div class="kpi-foot">คัดกรองเฉพาะ SKU &amp; รหัสขายที่เปิดใช้งานใน Bplus</div>
+    <!-- One concise summary replaces repetitive KPI cards. -->
+    <div class="catalog-summary" role="status" aria-live="polite">
+      <div class="catalog-summary-count">
+        <strong>{{ fmt(summary.total_matched_skus) }}</strong>
+        <span>รายการที่พบ</span>
+        <small>จากสินค้าเปิดใช้งาน {{ fmt(summary.total_active_skus) }} รายการ</small>
       </div>
-
-      <div class="card kpi">
-        <div class="kpi-top">
-          <div class="kpi-icon green">📐</div>
-          <span class="tag blue">ครบ 2 หน่วย</span>
-        </div>
-        <div class="kpi-label">มีทั้งหน่วยใหญ่ &amp; หน่วยย่อย</div>
-        <div class="kpi-value">{{ fmt(summary.multi_unit_skus) }} <span class="kpi-unit">รายการ</span></div>
-        <div class="kpi-foot">รวมรหัสราคา/หน่วยทั้งหมด {{ fmt(summary.total_price_rows) }} หน่วย</div>
-      </div>
-
-      <div class="card kpi">
-        <div class="kpi-top">
-          <div class="kpi-icon orange">🔍</div>
-          <span class="tag orange">ผลลัพธ์</span>
-        </div>
-        <div class="kpi-label">ตรงตามเงื่อนไขค้นหา</div>
-        <div class="kpi-value">{{ fmt(summary.total_matched_skus) }} <span class="kpi-unit">รายการ</span></div>
-        <div class="kpi-foot">
-          แสดงลำดับ {{ fmt(meta.from) }} – {{ fmt(meta.to) }} (หน้า {{ meta.current_page }}/{{ meta.last_page }})
-        </div>
-      </div>
-
-      <div class="card kpi">
-        <div class="kpi-top">
-          <div class="kpi-icon purple">🏷️</div>
-          <span class="tag blue">ชุดราคา 0</span>
-        </div>
-        <div class="kpi-label">อัปเดตราคา Bplus ล่าสุด</div>
-        <div class="kpi-value" style="font-size:17px;line-height:1.45;margin-top:4px">{{ priceSyncLabel }}</div>
-        <div class="kpi-foot">ราคาปกติตามรหัสขายและหน่วยนับ</div>
+      <div class="catalog-summary-sync">
+        <span class="catalog-status-dot" aria-hidden="true"></span>
+        ราคาปกติ · ชุดราคา 0
+        <small>อัปเดต {{ priceSyncLabel }}</small>
       </div>
     </div>
 
@@ -69,10 +26,11 @@
       <div class="catalog-search-box">
         <input
           id="product-search"
-          v-model="search"
+          v-model="searchInput"
           type="search"
-          placeholder="ค้นหาชื่อสินค้า, รหัส SKU, บาร์โค้ดขาย หรือชื่อหน่วย..."
-          @input="onFilterChanged"
+          aria-label="ค้นหาสินค้า"
+          placeholder="ค้นหาชื่อสินค้า / SKU / บาร์โค้ด"
+          @input="onSearchInput"
         />
       </div>
 
@@ -84,13 +42,14 @@
       </select>
 
       <select v-model.number="perPage" aria-label="จำนวนรายการต่อหน้า" @change="page = 1">
+        <option :value="20">20 รายการ / หน้า</option>
         <option :value="50">50 รายการ / หน้า</option>
         <option :value="100">100 รายการ / หน้า</option>
         <option :value="200">200 รายการ / หน้า</option>
       </select>
 
       <button
-        v-if="search || selectedCategory"
+        v-if="searchInput || selectedCategory"
         type="button"
         class="btn light"
         @click="resetFilters"
@@ -203,47 +162,52 @@
           </table>
         </div>
 
-        <!-- Mobile Card List -->
-        <div class="mob-cards panel-pad">
-          <article v-for="item in groupedProducts" :key="`m-${item.erp_product_code}`" class="card mob-card prod-mob-card">
-            <div class="prod-mob-head">
-              <span class="row-num-badge">{{ fmt(item.row_no) }}</span>
-              <div style="flex:1;min-width:0">
-                <strong class="prod-title">{{ item.product_name }}</strong>
-                <div class="prod-meta-tags" style="margin-top:4px">
-                  <span class="tag gray">{{ item.erp_product_code }}</span>
-                  <span v-if="item.category_name" class="tag blue">{{ item.category_name }}</span>
-                  <span class="tag gray">หน่วย: {{ item.unit_summary }}</span>
-                </div>
+        <!-- Mobile-first compact, scannable product rows -->
+        <div class="mob-cards catalog-mobile-list" role="list" aria-label="รายการสินค้า">
+          <article v-for="item in groupedProducts" :key="'mobile-' + item.erp_product_code" class="catalog-mobile-item" role="listitem">
+            <div class="catalog-mobile-heading">
+              <strong class="catalog-mobile-name">{{ item.product_name }}</strong>
+              <div class="catalog-mobile-meta">
+                <span>SKU {{ item.erp_product_code }}</span>
+                <span v-if="item.category_name" class="catalog-mobile-category">{{ item.category_name }}</span>
               </div>
             </div>
 
-            <div class="prod-mob-prices">
-              <div class="prod-mob-box large-box">
-                <div class="small muted">หน่วยใหญ่</div>
-                <template v-if="item.large_unit">
-                  <strong>{{ item.large_unit.unit }}</strong>
-                  <div class="price-pill large" style="margin-top:4px;display:inline-block">
-                    {{ money(item.large_unit.price) }} ฿
-                  </div>
-                </template>
-                <span v-else class="muted">—</span>
+            <div class="catalog-mobile-prices">
+              <div v-if="item.small_unit" class="catalog-mobile-price">
+                <span>หน่วยย่อย · {{ item.small_unit.unit }}</span>
+                <strong>{{ money(item.small_unit.price) }} ฿</strong>
               </div>
-
-              <div class="prod-mob-box small-box">
-                <div class="small muted">หน่วยย่อย</div>
-                <template v-if="item.small_unit">
-                  <strong>{{ item.small_unit.unit }}</strong>
-                  <div class="price-pill small-u" style="margin-top:4px;display:inline-block">
-                    {{ money(item.small_unit.price) }} ฿
-                  </div>
-                </template>
-                <span v-else class="muted">—</span>
+              <div v-if="item.large_unit" class="catalog-mobile-price">
+                <span>หน่วยใหญ่ · {{ item.large_unit.unit }}</span>
+                <strong>{{ money(item.large_unit.price) }} ฿</strong>
+              </div>
+              <div v-if="!item.small_unit && !item.large_unit" class="catalog-mobile-price">
+                <span>ราคา</span>
+                <strong>ไม่มีข้อมูล</strong>
               </div>
             </div>
+
+            <details
+              v-if="(item.extra_units || []).length || (item.small_unit?.goods_codes || []).length || (item.large_unit?.goods_codes || []).length"
+              class="catalog-mobile-details"
+            >
+              <summary>ดูรหัสขายและหน่วยเพิ่มเติม</summary>
+              <div v-if="(item.small_unit?.goods_codes || []).length">
+                บาร์โค้ดหน่วยย่อย: {{ item.small_unit.goods_codes.join(', ') }}
+              </div>
+              <div v-if="(item.large_unit?.goods_codes || []).length">
+                บาร์โค้ดหน่วยใหญ่: {{ item.large_unit.goods_codes.join(', ') }}
+              </div>
+              <div v-for="(extra, i) in item.extra_units || []" :key="i">
+                {{ extra.unit }} · {{ money(extra.price) }} ฿
+              </div>
+            </details>
           </article>
 
-          <div v-if="!groupedProducts.length" class="placeholder">ไม่พบรายการสินค้าที่ตรงกับคำค้นหา</div>
+          <div v-if="!groupedProducts.length" class="placeholder catalog-no-results">
+            ไม่พบสินค้า ลองค้นหาด้วยชื่อ รหัสสินค้า หรือเปลี่ยนหมวดหมู่
+          </div>
         </div>
 
         <!-- Pagination Footer -->
@@ -267,16 +231,18 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { crmGet, fmt, money } from '../composables/useCrmSession.js';
 
 const search = ref('');
+const searchInput = ref('');
+let searchTimer = null;
 const selectedCategory = ref('');
 const page = ref(1);
-const perPage = ref(50);
+const perPage = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches ? 20 : 50);
 
 const { data, isLoading, isError } = useQuery({
   queryKey: computed(() => ['crm', 'product-catalog', search.value, selectedCategory.value, page.value, perPage.value]),
@@ -324,7 +290,23 @@ function onFilterChanged() {
   page.value = 1;
 }
 
+function onSearchInput() {
+  if (searchTimer !== null) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    search.value = searchInput.value;
+    page.value = 1;
+    searchTimer = null;
+  }, 300);
+}
+
+onUnmounted(() => {
+  if (searchTimer !== null) clearTimeout(searchTimer);
+});
+
 function resetFilters() {
+  if (searchTimer !== null) clearTimeout(searchTimer);
+  searchTimer = null;
+  searchInput.value = '';
   search.value = '';
   selectedCategory.value = '';
   page.value = 1;
@@ -548,5 +530,54 @@ function resetFilters() {
   .prod-mob-prices {
     grid-template-columns: 1fr;
   }
+}
+
+/* Catalog: compact visual hierarchy, mobile-first list without nested cards. */
+.catalog-summary{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 18px;margin-bottom:14px}
+.catalog-summary-count{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;color:#334155;font-size:14px}
+.catalog-summary-count strong{font-size:24px;line-height:1.3;color:#0f172a;font-weight:750}
+.catalog-summary-count small{font-size:12px;color:#64748b}
+.catalog-summary-sync{display:flex;align-items:center;gap:7px;font-size:13px;color:#334155}
+.catalog-summary-sync small{font-size:12px;color:#64748b;margin-left:6px}
+.catalog-status-dot{width:8px;height:8px;flex:none;border-radius:50%;background:#0d9488}
+.catalog-mobile-list{padding:0!important}
+.catalog-mobile-item{padding:14px 16px;border-bottom:1px solid #e9eef5;background:#fff}
+.catalog-mobile-item:last-of-type{border-bottom:0}
+.catalog-mobile-heading{min-width:0}
+.catalog-mobile-name{display:block;color:#172033;font-size:15px;font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+.catalog-mobile-meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px 9px;margin-top:3px;font-size:12px;color:#64748b}
+.catalog-mobile-category{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.catalog-mobile-prices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:9px}
+.catalog-mobile-price{min-width:0;display:flex;flex-direction:column;gap:1px}
+.catalog-mobile-price:only-child{grid-column:1/-1}
+.catalog-mobile-price span{font-size:12px;color:#64748b;overflow-wrap:anywhere}
+.catalog-mobile-price strong{font-size:17px;font-weight:750;line-height:1.45;font-variant-numeric:tabular-nums;color:#0369a1}
+.catalog-mobile-details{margin-top:9px;font-size:12px;color:#64748b}
+.catalog-mobile-details summary{display:inline-flex;align-items:center;min-height:36px;cursor:pointer;color:#0369a1;font-weight:600}
+.catalog-mobile-details[open]{padding-bottom:4px}
+.catalog-mobile-details>div{padding:3px 0;overflow-wrap:anywhere}
+.catalog-no-results{padding:24px!important;white-space:normal}
+@media(max-width:800px){
+  .catalog-page{min-width:0}
+  .catalog-summary{margin-bottom:10px;padding:10px 13px;align-items:flex-start}
+  .catalog-summary-count strong{font-size:20px}
+  .catalog-summary-count small{flex-basis:100%}
+  .catalog-summary-sync{flex-wrap:wrap}
+  .catalog-summary-sync small{flex-basis:100%;margin-left:15px}
+  .catalog-filter-bar{padding:10px!important;margin-bottom:10px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  .catalog-search-box{grid-column:1/-1;width:100%}
+  .catalog-filter-bar>select{width:100%;min-width:0;font-size:14px}
+  .catalog-filter-bar>button{grid-column:1/-1}
+  .catalog-table-card{border-radius:14px}
+  .catalog-table-card .pager{display:flex;flex-direction:column;gap:10px;padding:12px 14px;align-items:stretch;font-size:12px}
+  .catalog-table-card .pager-btns{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px}
+  .catalog-table-card .pager-btns .btn{padding:8px;min-width:0}
+}
+@media(max-width:360px){
+  .catalog-mobile-item{padding:12px}
+  .catalog-mobile-prices{gap:8px}
+  .catalog-mobile-price strong{font-size:16px}
+  .catalog-filter-bar{grid-template-columns:1fr}
+  .catalog-filter-bar>select{grid-column:1/-1}
 }
 </style>

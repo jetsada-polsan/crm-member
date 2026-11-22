@@ -1,28 +1,5 @@
 <template>
   <div>
-    <div :class="['auth-role-banner', roleMode === 'member' ? 'is-member' : 'is-staff']">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-        <template v-if="roleMode === 'member'">
-          <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4Z" />
-          <path d="m9 12 2 2 4-4" />
-        </template>
-        <template v-else>
-          <rect x="3" y="7" width="18" height="14" rx="2" />
-          <path d="M8 7V5a3 3 0 0 1 3-3h2a3 3 0 0 1 3 3v2" />
-        </template>
-      </svg>
-      <div class="auth-role-banner-text">
-        <template v-if="roleMode === 'member'">
-          <strong>บัญชีสมาชิกของคุณ</strong><br />
-          ดูประวัติซื้อ คะแนนสะสม และสิทธิพิเศษ เมื่อยืนยันและผูกบัญชี ERP แล้ว
-        </template>
-        <template v-else>
-          <strong>พื้นที่ทำงานพนักงาน &amp; ผู้ดูแล</strong><br />
-          บันทึกงานภาคสนาม ติดตาม Lead และตรวจสอบ ERP Sync Mirror อย่างปลอดภัย
-        </template>
-      </div>
-    </div>
-
     <div v-if="displayError" class="auth-error" role="alert" aria-live="assertive">
       {{ displayError }}
     </div>
@@ -30,7 +7,7 @@
     <form novalidate @submit.prevent="onSubmit">
       <div class="auth-field">
         <label :for="identId">
-          {{ roleMode === 'staff' ? 'อีเมล / รหัสใบจอง (เช่น B16) / รหัสเซลล์' : 'เบอร์โทรศัพท์หรืออีเมลสมาชิก' }}
+          {{ roleMode === 'staff' ? 'อีเมลหรือรหัสพนักงาน' : 'เบอร์โทรศัพท์หรืออีเมล' }}
         </label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -45,11 +22,12 @@
             inputmode="text"
             class="no-trailing-btn"
             autocomplete="username"
-            :placeholder="roleMode === 'staff' ? 'เช่น B16, 01 หรือ b16@popstar.local' : '08x-xxx-xxxx หรือ email@domain.com'"
+            :placeholder="roleMode === 'staff' ? 'กรอกอีเมล รหัสเซลส์ หรือรหัสใบจอง' : 'กรอกเบอร์โทรศัพท์หรืออีเมล'"
             aria-required="true"
             required
           />
         </div>
+        <small v-if="roleMode === 'staff'" class="auth-field-hint">ใช้รหัสใบจอง (เช่น B16) หรือรหัสเซลส์ได้</small>
       </div>
 
       <div class="auth-field">
@@ -97,15 +75,7 @@
           <input v-model="remember" type="checkbox" />
           <span>จำชื่อผู้ใช้</span>
         </label>
-        <button
-          type="button"
-          class="auth-link-disabled"
-          disabled
-          aria-disabled="true"
-          title="ยังไม่เปิดใช้งานการรีเซ็ตรหัสผ่านอัตโนมัติ กรุณาติดต่อผู้ดูแลระบบ"
-        >
-          ลืมรหัสผ่าน? (ยังไม่เปิดใช้งาน)
-        </button>
+        <span class="auth-help-hint">ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบ</span>
       </div>
 
       <button class="auth-submit" type="submit" :disabled="busy">
@@ -114,7 +84,7 @@
             busy
               ? 'กำลังตรวจสอบสิทธิ์...'
               : roleMode === 'staff'
-                ? 'เข้าสู่ระบบ Workspace'
+                ? 'เข้าสู่ระบบ'
                 : 'เข้าสู่ระบบสมาชิก'
           }}
         </span>
@@ -124,39 +94,14 @@
       </button>
     </form>
 
-    <div class="auth-divider">หรือช่องทางอื่น</div>
-
-    <button
-      type="button"
-      class="auth-alt"
-      disabled
-      aria-disabled="true"
-      :title="roleMode === 'staff' ? 'บัญชีพนักงานเปิดโดยผู้ดูแลระบบเท่านั้น' : 'LINE Login ยังไม่เปิดใช้งาน กรุณาเข้าสู่ระบบแล้วผูกบัญชี LINE ภายในพอร์ทัล'"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-        <path d="M3 6h18v12H3z" />
-        <path d="m3 7 9 7 9-7" />
-      </svg>
-      <span>
-        {{
-          roleMode === 'staff'
-            ? 'ติดต่อผู้ดูแลระบบ IT เพื่อขอสิทธิ์ใช้งาน'
-            : 'เข้าสู่ระบบด้วย LINE (ยังไม่เปิดใช้งาน)'
-        }}
-      </span>
-    </button>
-
     <p class="auth-footnote">
       <template v-if="roleMode === 'staff'">
-        ต้องการเปิดบัญชี CRM หรือพบปัญหาใช้งาน? ติดต่อผู้ดูแลระบบ IT
+        ยังไม่มีสิทธิ์เข้าใช้งาน? <strong>ติดต่อผู้ดูแลระบบ IT</strong>
       </template>
       <template v-else>
         ยังไม่มีบัญชีสมาชิก?
-        <button type="button" class="auth-link" @click="$emit('open-register')">
-          สมัครสมาชิกใหม่ →
-        </button>
+        <button type="button" class="auth-link" @click="$emit('open-register')">สมัครสมาชิกใหม่</button>
       </template>
-      <br />POPSTAR Connect · ทีมขาย &amp; สมาชิก
     </p>
   </div>
 </template>
