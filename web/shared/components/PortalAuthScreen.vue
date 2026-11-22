@@ -1,5 +1,10 @@
 <template>
-  <AuthLayout :title="headerCopy.title" :subtitle="headerCopy.subtitle" :loading="loading">
+  <AuthLayout
+    :welcome-text="headerCopy.welcome"
+    :title="headerCopy.title"
+    :subtitle="headerCopy.subtitle"
+    :loading="loading"
+  >
     <LoginRoleSwitcher v-if="!showRegister" v-model="authRole" />
 
     <LoginForm
@@ -51,27 +56,52 @@ const errorMessage = ref('');
 const headerCopy = computed(() => {
   if (props.loading) {
     return {
+      welcome: 'POPSTAR Connect',
       title: 'กำลังตรวจสอบสิทธิ์',
-      subtitle: 'กำลังตรวจสอบสถานะเซสชันของคุณบน POPSTAR Connect...',
+      subtitle: 'กรุณารอสักครู่ ระบบกำลังตรวจสอบสถานะเซสชันของคุณ...',
     };
   }
   if (showRegister.value) {
     return {
+      welcome: 'ยินดีต้อนรับสู่ POPSTAR Connect',
       title: 'สมัครสมาชิกใหม่',
-      subtitle: 'ลงทะเบียนบัญชีร้านค้าเพื่อเชื่อมโยงสิทธิประโยชน์และระบบ Popstar Loyalty',
+      subtitle: 'ลงทะเบียนบัญชีร้านค้าเพื่อตรวจสอบยอดซื้อและสะสมคะแนนแลกของรางวัล',
     };
   }
   if (authRole.value === 'member') {
     return {
+      welcome: 'ยินดีต้อนรับสู่ POPSTAR Connect',
       title: 'เข้าสู่ระบบสมาชิก',
-      subtitle: 'ตรวจสอบคะแนนสะสม ยอดซื้อ และสถานะการยืนยันร้านค้าของคุณ',
+      subtitle: 'ตรวจสอบคะแนนสะสม ประวัติยอดซื้อ และสิทธิพิเศษสำหรับร้านค้าของคุณ',
     };
   }
   return {
+    welcome: 'ยินดีต้อนรับสู่ POPSTAR Connect',
     title: 'เข้าสู่ระบบพนักงาน',
-    subtitle: 'สำหรับทีมขายภาคสนาม ผู้จัดการ และผู้ดูแลระบบ ERP Mirror',
+    subtitle: 'สำหรับทีมขายภาคสนาม ผู้จัดการ และผู้ดูแลระบบ',
   };
 });
+
+function formatAuthError(err, fallback) {
+  const raw = String(err?.message || '').trim();
+  if (!raw) return fallback;
+  if (raw === 'Invalid credentials') {
+    return 'ข้อมูลผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง';
+  }
+  if (raw === 'Disabled account') {
+    return 'บัญชีนี้ถูกระงับการใช้งานชั่วคราว กรุณาติดต่อผู้ดูแลระบบ';
+  }
+  if (raw === 'This phone number is already registered.') {
+    return 'เบอร์โทรศัพท์นี้ถูกใช้สมัครสมาชิกแล้ว กรุณาเข้าสู่ระบบหรือใช้เบอร์อื่น';
+  }
+  if (raw === 'Enter a valid phone number.') {
+    return 'กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (ตัวเลข 8–15 หลัก)';
+  }
+  if (raw.toLowerCase().includes('email has already been taken')) {
+    return 'อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่นหรือเข้าสู่ระบบ';
+  }
+  return raw;
+}
 
 watch(authRole, () => {
   errorMessage.value = '';
@@ -98,7 +128,7 @@ async function handleLogin(payload) {
       busy.value = false;
     }
   } catch (err) {
-    errorMessage.value = err?.message || 'เข้าสู่ระบบไม่สำเร็จ';
+    errorMessage.value = formatAuthError(err, 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     busy.value = false;
   }
 }
@@ -112,7 +142,7 @@ async function handleRegister(payload) {
       busy.value = false;
     }
   } catch (err) {
-    errorMessage.value = err?.message || 'สมัครสมาชิกไม่สำเร็จ';
+    errorMessage.value = formatAuthError(err, 'สมัครสมาชิกไม่สำเร็จ กรุณาตรวจสอบข้อมูลอีกครั้ง');
     busy.value = false;
   }
 }

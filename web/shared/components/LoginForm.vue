@@ -1,41 +1,29 @@
 <template>
-  <div>
-    <div :class="['auth-role-banner', roleMode === 'member' ? 'is-member' : 'is-staff']">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-        <template v-if="roleMode === 'member'">
-          <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4Z" />
-          <path d="m9 12 2 2 4-4" />
-        </template>
-        <template v-else>
-          <rect x="3" y="7" width="18" height="14" rx="2" />
-          <path d="M8 7V5a3 3 0 0 1 3-3h2a3 3 0 0 1 3 3v2" />
-        </template>
-      </svg>
-      <div class="auth-role-banner-text">
-        <template v-if="roleMode === 'member'">
-          <strong>บัญชีสมาชิกของคุณ</strong><br />
-          ดูประวัติซื้อ คะแนนสะสม และสิทธิพิเศษ เมื่อยืนยันและผูกบัญชี ERP แล้ว
-        </template>
-        <template v-else>
-          <strong>พื้นที่ทำงานพนักงาน &amp; ผู้ดูแล</strong><br />
-          บันทึกงานภาคสนาม ติดตาม Lead และตรวจสอบ ERP Sync Mirror อย่างปลอดภัย
-        </template>
-      </div>
-    </div>
-
+  <div class="auth-form-container">
     <div v-if="displayError" class="auth-error" role="alert" aria-live="assertive">
-      {{ displayError }}
+      <svg class="auth-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 8v4m0 4h.01" />
+      </svg>
+      <span>{{ displayError }}</span>
     </div>
 
-    <form novalidate @submit.prevent="onSubmit">
+    <form class="auth-form" novalidate @submit.prevent="onSubmit">
+      <!-- 5. ช่อง Username / Email -->
       <div class="auth-field">
         <label :for="identId">
-          {{ roleMode === 'staff' ? 'อีเมล / รหัสใบจอง (เช่น B16) / รหัสเซลล์' : 'เบอร์โทรศัพท์หรืออีเมลสมาชิก' }}
+          {{ roleMode === 'staff' ? 'ชื่อผู้ใช้ / รหัสพนักงาน / อีเมล' : 'เบอร์โทรศัพท์ หรือ อีเมล' }}
         </label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <path d="m3 7 9 6 9-6" />
+            <template v-if="roleMode === 'staff'">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20v-1a7 7 0 0 1 14 0v1" />
+            </template>
+            <template v-else>
+              <rect x="3" y="5" width="18" height="14" rx="2.5" />
+              <path d="m3 7 9 6 9-6" />
+            </template>
           </svg>
           <input
             :id="identId"
@@ -45,18 +33,23 @@
             inputmode="text"
             class="no-trailing-btn"
             autocomplete="username"
-            :placeholder="roleMode === 'staff' ? 'เช่น B16, 01 หรือ b16@popstar.local' : '08x-xxx-xxxx หรือ email@domain.com'"
+            :placeholder="
+              roleMode === 'staff'
+                ? 'เช่น B16, 01 หรืออีเมลพนักงาน'
+                : '08x-xxx-xxxx หรือ email@domain.com'
+            "
             aria-required="true"
             required
           />
         </div>
       </div>
 
+      <!-- 6. ช่อง Password & ปุ่มแสดง/ซ่อนรหัสผ่าน -->
       <div class="auth-field">
         <label :for="passId">รหัสผ่าน</label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="5" y="10" width="14" height="11" rx="2" />
+            <rect x="5" y="10" width="14" height="11" rx="2.5" />
             <path d="M8 10V7a4 4 0 0 1 8 0v3" />
           </svg>
           <input
@@ -65,13 +58,14 @@
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
             autocomplete="current-password"
-            placeholder="กรอกรหัสผ่าน"
+            placeholder="กรอกรหัสผ่านของคุณ"
             aria-required="true"
             required
           />
           <button
             type="button"
             class="auth-eye"
+            :title="showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'"
             :aria-label="showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'"
             :aria-pressed="String(showPassword)"
             @click="showPassword = !showPassword"
@@ -92,72 +86,98 @@
         </div>
       </div>
 
+      <!-- 7. Remember Me & คำแนะนำกรณีลืมรหัสผ่าน -->
       <div class="auth-tools">
         <label class="auth-remember">
           <input v-model="remember" type="checkbox" />
-          <span>จำชื่อผู้ใช้</span>
+          <span>จำชื่อผู้ใช้งาน</span>
         </label>
         <button
           type="button"
-          class="auth-link-disabled"
-          disabled
-          aria-disabled="true"
-          title="ยังไม่เปิดใช้งานการรีเซ็ตรหัสผ่านอัตโนมัติ กรุณาติดต่อผู้ดูแลระบบ"
+          class="auth-help-trigger"
+          :aria-expanded="String(showForgotHelp)"
+          @click="showForgotHelp = !showForgotHelp"
         >
-          ลืมรหัสผ่าน? (ยังไม่เปิดใช้งาน)
+          {{ showForgotHelp ? 'ซ่อนคำแนะนำ' : 'ลืมรหัสผ่าน?' }}
         </button>
       </div>
 
+      <div v-if="showForgotHelp" class="auth-help-box" role="region" aria-label="คำแนะนำการรีเซ็ตรหัสผ่าน">
+        <svg class="auth-help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8h.01M11 12h1v4h1" />
+        </svg>
+        <div class="auth-help-content">
+          <template v-if="roleMode === 'staff'">
+            <strong>การตั้งรหัสผ่านใหม่สำหรับพนักงาน</strong>
+            <span>กรุณาติดต่อผู้ดูแลระบบ (Admin) หรือหัวหน้าทีมขาย เพื่อตรวจสอบและรีเซ็ตรหัสผ่านให้บัญชีของคุณ</span>
+          </template>
+          <template v-else>
+            <strong>การตั้งรหัสผ่านใหม่สำหรับสมาชิก</strong>
+            <span>กรุณาติดต่อผู้ดูแลระบบผ่านช่องทางบริการลูกค้าของ POPSTAR หรือแจ้งพนักงานขายที่ดูแลร้านค้าของท่าน</span>
+          </template>
+        </div>
+      </div>
+
+      <!-- 8. ปุ่มเข้าสู่ระบบ -->
       <button class="auth-submit" type="submit" :disabled="busy">
+        <svg
+          v-if="busy"
+          class="auth-spinner"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" stroke-opacity="0.28" />
+          <path d="M21 12a9 9 0 0 0-9-9" stroke-linecap="round" />
+        </svg>
         <span>
           {{
             busy
               ? 'กำลังตรวจสอบสิทธิ์...'
               : roleMode === 'staff'
-                ? 'เข้าสู่ระบบ Workspace'
+                ? 'เข้าสู่ระบบพนักงาน'
                 : 'เข้าสู่ระบบสมาชิก'
           }}
         </span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <svg
+          v-if="!busy"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.1"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <path d="M5 12h14m-6-6 6 6-6 6" />
         </svg>
       </button>
     </form>
 
-    <div class="auth-divider">หรือช่องทางอื่น</div>
-
-    <button
-      type="button"
-      class="auth-alt"
-      disabled
-      aria-disabled="true"
-      :title="roleMode === 'staff' ? 'บัญชีพนักงานเปิดโดยผู้ดูแลระบบเท่านั้น' : 'LINE Login ยังไม่เปิดใช้งาน กรุณาเข้าสู่ระบบแล้วผูกบัญชี LINE ภายในพอร์ทัล'"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-        <path d="M3 6h18v12H3z" />
-        <path d="m3 7 9 7 9-7" />
-      </svg>
-      <span>
-        {{
-          roleMode === 'staff'
-            ? 'ติดต่อผู้ดูแลระบบ IT เพื่อขอสิทธิ์ใช้งาน'
-            : 'เข้าสู่ระบบด้วย LINE (ยังไม่เปิดใช้งาน)'
-        }}
-      </span>
-    </button>
-
-    <p class="auth-footnote">
-      <template v-if="roleMode === 'staff'">
-        ต้องการเปิดบัญชี CRM หรือพบปัญหาใช้งาน? ติดต่อผู้ดูแลระบบ IT
-      </template>
-      <template v-else>
-        ยังไม่มีบัญชีสมาชิก?
-        <button type="button" class="auth-link" @click="$emit('open-register')">
-          สมัครสมาชิกใหม่ →
+    <!-- 9. ลิงก์สมัครสมาชิก / ติดต่อผู้ดูแลระบบ -->
+    <div :class="['auth-bottom-box', roleMode === 'member' ? 'is-member' : 'is-staff']">
+      <template v-if="roleMode === 'member'">
+        <span class="auth-bottom-label">ยังไม่มีบัญชีสมาชิกร้านค้า?</span>
+        <button type="button" class="auth-link-btn" @click="$emit('open-register')">
+          <span>สมัครสมาชิกใหม่</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14m-6-6 6 6-6 6" />
+          </svg>
         </button>
       </template>
-      <br />POPSTAR Connect · ทีมขาย &amp; สมาชิก
-    </p>
+      <template v-else>
+        <svg class="auth-bottom-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+        <div class="auth-bottom-text">
+          <strong>สำหรับพนักงาน POPSTAR</strong>
+          <span>ต้องการเปิดบัญชีผู้ใช้งานหรือพบปัญหาเข้าสู่ระบบ กรุณาติดต่อผู้ดูแลระบบ</span>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -184,6 +204,7 @@ const identifier = ref(readRememberedIdentifier(props.roleMode));
 const password = ref('');
 const remember = ref(Boolean(identifier.value));
 const showPassword = ref(false);
+const showForgotHelp = ref(false);
 const localError = ref('');
 
 const displayError = computed(() => localError.value || props.errorMessage);
@@ -194,6 +215,7 @@ watch(
     localError.value = '';
     password.value = '';
     showPassword.value = false;
+    showForgotHelp.value = false;
     const saved = readRememberedIdentifier(nextRole);
     identifier.value = saved;
     remember.value = Boolean(saved);
@@ -205,8 +227,8 @@ function onSubmit() {
   if (!identifier.value) {
     localError.value =
       props.roleMode === 'staff'
-        ? 'กรุณากรอกอีเมลพนักงานก่อนเข้าสู่ระบบ'
-        : 'กรุณากรอกเบอร์โทรศัพท์หรืออีเมลสมาชิก';
+        ? 'กรุณากรอกชื่อผู้ใช้ รหัสพนักงาน หรืออีเมลก่อนเข้าสู่ระบบ'
+        : 'กรุณากรอกเบอร์โทรศัพท์หรืออีเมลสมาชิกก่อนเข้าสู่ระบบ';
     identRef.value?.focus();
     return;
   }
