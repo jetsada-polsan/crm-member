@@ -53,6 +53,12 @@ class PendingQueue:
         with self.connect() as db:
             db.execute("UPDATE outgoing SET status='sent',sent_at=CURRENT_TIMESTAMP WHERE id=?",(record_id,))
 
+    def purge_sent(self, keep_days=3):
+        """Drop acknowledged batches older than keep_days; pending ones are never touched."""
+        with self.connect() as db:
+            return db.execute("DELETE FROM outgoing WHERE status='sent' AND sent_at < datetime('now', ?)",
+                (f'-{int(keep_days)} days',)).rowcount
+
     def counts(self):
         with self.connect() as db:
             return dict(db.execute('SELECT status,COUNT(*) FROM outgoing GROUP BY status').fetchall())

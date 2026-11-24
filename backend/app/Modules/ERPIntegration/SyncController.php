@@ -19,7 +19,7 @@ final class SyncController
             'records' => ['required', 'array', 'min:1', 'max:250'],
             'records.*.erp_customer_code' => ['required', 'string', 'max:64'],
             'records.*.customer_name' => ['required', 'string', 'max:255'],
-            'records.*.phone' => ['nullable', 'string', 'max:40'],
+            'records.*.phone' => ['nullable', 'string', 'max:128'],
             'records.*.province' => ['nullable', 'string', 'max:120'],
             'records.*.address' => ['nullable', 'string', 'max:500'],
             'records.*.ar_enable' => ['nullable', 'string', 'max:8'],
