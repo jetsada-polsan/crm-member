@@ -26,6 +26,7 @@ Route::prefix('api/sync/v1')->middleware(['sync.token', 'throttle:60,1'])->group
     Route::post('/invoices', [SyncController::class, 'invoices']);
     Route::post('/salespersons', [SyncController::class, 'salespersons']);
     Route::post('/members', [SyncController::class, 'members']);
+    Route::get('/cursors', [SyncController::class, 'cursors']);
 });
 Route::post('/api/line/webhook', LineWebhookController::class)->middleware('throttle:120,1');
 

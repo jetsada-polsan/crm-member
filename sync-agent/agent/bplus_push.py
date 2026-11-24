@@ -22,7 +22,7 @@ FIELDS = {
     'members': ['member_code', 'full_name', 'title', 'phone', 'mobile_phone', 'email', 'address', 'member_type_code',
                 'member_type_name', 'member_since', 'member_expire', 'erp_point_balance', 'erp_redeemed_total',
                 'erp_spent_total', 'last_point_at'],
-    'invoices': ['branch_code', 'doc_type', 'dt_properties', 'doc_category', 'invoice_no', 'erp_customer_code',
+    'invoices': ['di_key', 'branch_code', 'doc_type', 'dt_properties', 'doc_category', 'invoice_no', 'erp_customer_code',
                  'salesperson_code', 'salesperson_name', 'sold_at', 'before_vat_amount', 'vat_amount',
                  'gross_amount', 'net_amount', 'status'],
     'items': ['line_no', 'erp_product_code', 'product_name', 'iccat_code', 'iccat_name', 'is_excluded_kpi', 'qty',
@@ -36,7 +36,7 @@ REQUIRED = {
 }
 MASTER_SQL = {'customers': 'bplus_customers.sql', 'products': 'bplus_products.sql',
               'salespersons': 'bplus_salespersons.sql', 'members': 'bplus_members.sql'}
-INT_FIELDS = {'credit_term_days', 'dt_properties', 'line_no', 'erp_point_balance', 'erp_redeemed_total'}
+INT_FIELDS = {'di_key', 'credit_term_days', 'dt_properties', 'line_no', 'erp_point_balance', 'erp_redeemed_total'}
 BOOL_FIELDS = {'is_excluded_kpi', 'is_active'}
 
 
@@ -120,11 +120,17 @@ def save_state(path: Path, state: dict) -> None:
     tmp.replace(path)
 
 
-def queue_invoices(conn, q, source, state_path: Path, start_key: int, max_invoices: int) -> int:
-    """Incremental by DI_KEY cursor; each invoice is sent with its complete item list."""
+LOOKBACK = 50  # same re-read window as the LAN pull, catches recently edited bills
+
+
+def queue_invoices(conn, q, source, state_path: Path, start_key: int, max_invoices: int,
+                   server_cursor: int | None = None) -> int:
+    """Incremental by DI_KEY. The server cursor (shared with the LAN pull) wins when known,
+    so the two sync paths never diverge; local state is only a fallback when offline."""
     inv_sql, item_sql = _sql('bplus_invoices.sql'), _sql('bplus_sales_items.sql')
     state = load_state(state_path)
-    after = int(state.get('invoices_after_key', start_key))
+    local = int(state.get('invoices_after_key', start_key))
+    after = max(0, server_cursor - LOOKBACK) if server_cursor else local
     done, batches = 0, 0
     while done < max_invoices:
         page = min(100, max_invoices - done)

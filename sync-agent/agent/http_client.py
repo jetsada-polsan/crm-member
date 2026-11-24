@@ -23,3 +23,12 @@ def send_batch(base_url, token, kind, body_json, timeout=25):
         if payload.get('ok') is not True:
             raise RuntimeError('Cloud API did not acknowledge batch')
         return payload
+
+
+def get_cursors(base_url, token, source, timeout=15):
+    """Shared server-side cursor (also advanced by the LAN pull)."""
+    from urllib.parse import quote
+    url=base_url.rstrip('/')+'/api/sync/v1/cursors?source='+quote(source)
+    req=urllib.request.Request(url,headers={'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'PopstarSyncAgent/2.0'})
+    with urllib.request.urlopen(req,timeout=timeout,context=ssl.create_default_context()) as r:
+        return json.loads(r.read().decode('utf-8'))

@@ -252,10 +252,17 @@ def run_push_sync(kind: str, cfg: dict[str, str]) -> dict[str, Any]:
             try:
                 for k in kinds:
                     if k == "invoices":
+                        try:
+                            from agent.http_client import get_cursors
+                            server_cursor = int(get_cursors(base_url, token, source).get("invoices") or 0)
+                        except Exception as exc:  # noqa: BLE001
+                            server_cursor = None
+                            log_event("warn", "sync:invoices", f"อ่าน cursor จากเว็บไม่ได้ ใช้ค่าในเครื่องแทน: {exc}")
                         queued += bplus_push.queue_invoices(
                             conn, q, source, queue_path(cfg).with_name("push_state.json"),
                             int(cfg.get("POPSTAR_INVOICE_START_KEY", "0") or 0),
                             int(cfg.get("POPSTAR_INVOICE_MAX_PER_RUN", "2000") or 2000),
+                            server_cursor,
                         )
                     else:
                         queued += bplus_push.queue_master(conn, k, q, source)

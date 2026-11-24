@@ -65,6 +65,7 @@ final class SyncController
             'records.*.doc_type' => ['required', 'string', 'max:32'],
             'records.*.dt_properties' => ['nullable', 'integer'],
             'records.*.doc_category' => ['nullable', Rule::in(['sale', 'return', 'reservation', 'other'])],
+            'records.*.di_key' => ['nullable', 'integer', 'min:1'],
             'records.*.invoice_no' => ['required', 'string', 'max:80'],
             'records.*.erp_customer_code' => ['required', 'string', 'max:64'],
             'records.*.salesperson_code' => ['nullable', 'string', 'max:32'],
@@ -103,8 +104,45 @@ final class SyncController
             }
         }
 
+        $maxDocumentKey = (int) collect($data['records'])->max('di_key');
+
         return $this->applyBatch('invoices', $data, function ($record, $source, $now) {
             ErpMirrorUpserter::upsertInvoiceWithItems($source, $record, $now);
+        }, afterCommit: function () use ($data, $maxDocumentKey): void {
+            self::advanceInvoiceCursor($data['source'], $maxDocumentKey);
+        });
+    }
+
+    /**
+     * Shared invoice cursor for both sync paths (LAN pull via Local Bridge and HTTPS push),
+     * so neither path re-reads what the other already stored.
+     */
+    public function cursors(Request $request): JsonResponse
+    {
+        $source = (string) $request->query('source', config('popstar.erp_source_system', 'BPLUS'));
+        $invoiceCursor = (int) (DB::table('erp_sync_cursors')->where('source_system', $source)
+            ->where('kind', 'invoices')->value('cursor_value') ?? 0);
+
+        return response()->json(['ok' => true, 'source' => $source, 'invoices' => $invoiceCursor]);
+    }
+
+    private static function advanceInvoiceCursor(string $source, int $documentKey): void
+    {
+        if ($documentKey <= 0) {
+            return;
+        }
+        $now = now();
+        DB::transaction(function () use ($source, $documentKey, $now): void {
+            $current = DB::table('erp_sync_cursors')->where('source_system', $source)
+                ->where('kind', 'invoices')->lockForUpdate()->value('cursor_value');
+            if ($current !== null && (int) $current >= $documentKey) {
+                return;
+            }
+            DB::table('erp_sync_cursors')->upsert(
+                [['source_system' => $source, 'kind' => 'invoices', 'cursor_value' => $documentKey, 'created_at' => $now, 'updated_at' => $now]],
+                ['source_system', 'kind'],
+                ['cursor_value', 'updated_at']
+            );
         });
     }
 
