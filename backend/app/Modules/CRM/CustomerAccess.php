@@ -125,7 +125,7 @@ final class CustomerAccess
             ];
         };
 
-        $map = SalesRules::cacheRemember('reservation_sp_map', 120, $compute);
+        $map = SalesRules::cacheRemember('reservation_sp_map', 120, $compute, allowStale: false);
         if (! app()->runningUnitTests()) {
             self::$reservationMapMemo = $map;
         }
