@@ -54,21 +54,24 @@
           <div class="pin-visit-top">
             <span :class="['tag', resultMeta.tag]">{{ resultMeta.label }}</span>
             <span class="small muted">
-              โดย <b>{{ pin.latest_visit.staff_name || 'ทีมขาย' }}</b> · {{ formatThaiDateTime(pin.latest_visit.visited_at) }}
+              โดย <b>{{ pin.latest_visit.staff_name || 'ทีมขาย' }}</b> ·
+              {{ formatThaiDateTime(pin.latest_visit.visited_at) }}
             </span>
           </div>
           <div v-if="pin.latest_visit.follow_up_action || pin.latest_visit.follow_up_date" class="pin-visit-detail">
             <span>🔔 นัดติดตาม:</span>
             <b>{{ pin.latest_visit.follow_up_action || 'ติดตามรอบถัดไป' }}</b>
-            <span v-if="pin.latest_visit.follow_up_date" class="tag orange">กำหนด {{ pin.latest_visit.follow_up_date }}</span>
+            <span v-if="pin.latest_visit.follow_up_date" class="tag orange"
+              >กำหนด {{ pin.latest_visit.follow_up_date }}</span
+            >
           </div>
           <div v-if="pin.latest_visit.supplier_name || pin.latest_visit.product_types" class="pin-visit-detail">
             <span>🛒 แหล่งซื้อ/สินค้า:</span>
-            <span>{{ [pin.latest_visit.supplier_name, pin.latest_visit.product_types].filter(Boolean).join(' · ') }}</span>
+            <span>{{
+              [pin.latest_visit.supplier_name, pin.latest_visit.product_types].filter(Boolean).join(' · ')
+            }}</span>
           </div>
-          <div v-if="pin.latest_visit.note" class="pin-visit-note">
-            “{{ pin.latest_visit.note }}”
-          </div>
+          <div v-if="pin.latest_visit.note" class="pin-visit-note">“{{ pin.latest_visit.note }}”</div>
         </div>
 
         <div v-else class="pin-empty-box">
@@ -117,15 +120,9 @@
     </template>
 
     <template v-if="pin" #footer>
-      <a :href="googleMapsUrl(pin)" target="_blank" rel="noopener" class="btn">
-        🧭 เปิด Google Maps
-      </a>
-      <button v-if="detailTarget" type="button" class="btn light" @click="openFullDetail">
-        🔍 ดูประวัติร้านเต็ม
-      </button>
-      <button v-if="detailTarget" type="button" class="btn primary" @click="launchVisit">
-        📸 บันทึกเข้าพบ
-      </button>
+      <a :href="googleMapsUrl(pin)" target="_blank" rel="noopener" class="btn"> 🧭 เปิด Google Maps </a>
+      <button v-if="detailTarget" type="button" class="btn light" @click="openFullDetail">🔍 ดูประวัติร้านเต็ม</button>
+      <button v-if="detailTarget" type="button" class="btn primary" @click="launchVisit">📸 บันทึกเข้าพบ</button>
     </template>
   </BaseModal>
 </template>
@@ -316,7 +313,10 @@ function launchVisit() {
   padding: 0;
   overflow: hidden;
   text-align: left;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
   box-shadow: 0 3px 10px rgba(21, 41, 79, 0.05);
 }
 

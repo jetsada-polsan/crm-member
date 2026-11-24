@@ -33,9 +33,7 @@ export function getPortalUrl(targetPortal, path = '/') {
   if (typeof window === 'undefined') return path;
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const configured =
-    targetPortal === 'crm'
-      ? import.meta.env.VITE_CRM_PORTAL_URL
-      : import.meta.env.VITE_MEMBER_PORTAL_URL;
+    targetPortal === 'crm' ? import.meta.env.VITE_CRM_PORTAL_URL : import.meta.env.VITE_MEMBER_PORTAL_URL;
   if (configured) {
     return `${String(configured).replace(/\/$/, '')}${normalizedPath}`;
   }
@@ -72,9 +70,7 @@ export async function authenticateMemberPortal({ identifier, password }) {
   clearCsrfCache();
   await ensureCsrfToken('/api/member/csrf');
   const trimmed = String(identifier || '').trim();
-  const payload = trimmed.includes('@')
-    ? { email: trimmed, password }
-    : { phone: trimmed, password };
+  const payload = trimmed.includes('@') ? { email: trimmed, password } : { phone: trimmed, password };
   const res = await apiMutate('/api/member/login', 'POST', payload, { csrfEndpoint: '/api/member/csrf' });
   clearCsrfCache();
   return res;

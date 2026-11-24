@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\StaffUser;
+use App\Modules\ERPIntegration\ErpMirrorUpserter;
 use App\Modules\ERPIntegration\SalesRules;
+use App\Modules\Loyalty\LoyaltyController;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -17,11 +19,11 @@ class SalesCalculationRulesTest extends TestCase
     public function test_false_string_from_bridge_does_not_classify_products_and_lines_as_services(): void
     {
         $now = now();
-        \App\Modules\ERPIntegration\ErpMirrorUpserter::upsertProduct('BPLUS', [
+        ErpMirrorUpserter::upsertProduct('BPLUS', [
             'erp_product_code' => 'FOOD-1', 'product_name' => 'Food',
             'category_code' => 'FG', 'is_excluded_kpi' => 'False',
         ], $now);
-        \App\Modules\ERPIntegration\ErpMirrorUpserter::upsertInvoiceWithItems('BPLUS', [
+        ErpMirrorUpserter::upsertInvoiceWithItems('BPLUS', [
             'branch_code' => '001', 'doc_type' => 'IV', 'invoice_no' => 'TEST-1',
             'erp_customer_code' => 'AR1', 'sold_at' => '2026-01-01 12:00:00',
             'dt_properties' => 307, 'status' => 'posted', 'before_vat_amount' => 100,
@@ -47,8 +49,8 @@ class SalesCalculationRulesTest extends TestCase
             'is_active' => true, 'exclude_cancelled' => true, 'exclude_reservation' => true,
             'reverse_on_return' => true, 'baht_per_point' => 100, 'points_per_unit' => 1, 'min_invoice_amount' => 0,
         ];
-        $this->assertSame(0, \App\Modules\Loyalty\LoyaltyController::calculatePointsForAmount(1000, $activeRule, 'other', 'other'));
-        $this->assertSame(0, \App\Modules\Loyalty\LoyaltyController::calculatePointsForAmount(1000, $activeRule, 'sale', 'other'));
+        $this->assertSame(0, LoyaltyController::calculatePointsForAmount(1000, $activeRule, 'other', 'other'));
+        $this->assertSame(0, LoyaltyController::calculatePointsForAmount(1000, $activeRule, 'sale', 'other'));
     }
 
     private function createAdmin(): StaffUser

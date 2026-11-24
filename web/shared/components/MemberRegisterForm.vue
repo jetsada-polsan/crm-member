@@ -1,17 +1,29 @@
 <template>
   <div class="auth-form-container">
     <div class="auth-notice">
-      <svg class="auth-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+      <svg
+        class="auth-notice-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.9"
+        aria-hidden="true"
+      >
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8h.01M11 12h1v4h1" />
       </svg>
-      <span>
-        สามารถสมัครสมาชิกได้ทันที ประวัติยอดซื้อและคะแนนสะสมจะเชื่อมโยงเมื่อทีมงานยืนยันข้อมูลร้านค้าแล้ว
-      </span>
+      <span> สามารถสมัครสมาชิกได้ทันที ประวัติยอดซื้อและคะแนนสะสมจะเชื่อมโยงเมื่อทีมงานยืนยันข้อมูลร้านค้าแล้ว </span>
     </div>
 
     <div v-if="displayError" class="auth-error" role="alert" aria-live="assertive">
-      <svg class="auth-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <svg
+        class="auth-error-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"
+      >
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8v4m0 4h.01" />
       </svg>
@@ -125,9 +137,7 @@
       </div>
 
       <div class="auth-field">
-        <label :for="`${idPrefix}-r-pass2`">
-          ยืนยันรหัสผ่านอีกครั้ง <span class="auth-req" aria-hidden="true">*</span>
-        </label>
+        <label :for="`${idPrefix}-r-pass2`"> ยืนยันรหัสผ่านอีกครั้ง <span class="auth-req" aria-hidden="true">*</span> </label>
         <div class="auth-input-wrap">
           <svg class="auth-input-icon" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="5" y="10" width="14" height="11" rx="2.5" />
@@ -185,7 +195,15 @@
     <div class="auth-bottom-box is-member">
       <span class="auth-bottom-label">มีบัญชีสมาชิกอยู่แล้ว?</span>
       <button type="button" class="auth-link-btn" @click="$emit('back-to-login')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.1"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <path d="M19 12H5m6 6-6-6 6-6" />
         </svg>
         <span>กลับไปหน้าเข้าสู่ระบบ</span>

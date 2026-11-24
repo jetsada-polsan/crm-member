@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="ทะเบียนสมาชิก"
-      subtitle="จัดการสมาชิก ตรวจคำขอเชื่อม ERP และยืนยันสิทธิ์"
-    >
+    <PageHeader title="ทะเบียนสมาชิก" subtitle="จัดการสมาชิก ตรวจคำขอเชื่อม ERP และยืนยันสิทธิ์">
       <template #secondary>
         <RouterLink to="/loyalty" class="btn light">💎 กติกาแต้ม</RouterLink>
         <button type="button" class="btn light" @click="refetchAll">⟳ รีเฟรช</button>
@@ -32,7 +29,7 @@
           📩 คำขอเชื่อม ({{ (verifications || []).length }})
         </button>
       </div>
-      <div class="head-filter" style="margin-bottom:0">
+      <div class="head-filter" style="margin-bottom: 0">
         <input
           v-if="memberTab === 'members'"
           v-model="search"
@@ -50,7 +47,7 @@
 
     <!-- Verification Requests Queue -->
     <div v-if="memberTab === 'verifications'" class="card mb-md">
-      <div class="section-head" style="padding:16px 18px 0">
+      <div class="section-head" style="padding: 16px 18px 0">
         <div>
           <h3>คำขอเชื่อมบัญชี Member → ERP ({{ (verifications || []).length }})</h3>
           <small>เบอร์โทรตรงอย่างเดียวจะไม่อนุมัติอัตโนมัติ — ต้องตรวจสอบและยืนยันโดยทีมงาน</small>
@@ -73,21 +70,28 @@
             <tr v-for="v in verifications || []" :key="v.id">
               <td>
                 <b>{{ v.member_name }}</b>
-                <div class="small muted">{{ v.account_phone || v.member_email || `Member #${v.member_account_id}` }}</div>
+                <div class="small muted">
+                  {{ v.account_phone || v.member_email || `Member #${v.member_account_id}` }}
+                </div>
               </td>
               <td>
                 <span class="tag blue">{{ v.requested_customer_code || '—' }}</span>
-                <span v-if="v.requested_member_code" class="tag gray" style="margin-left:4px">{{ v.requested_member_code }}</span>
+                <span v-if="v.requested_member_code" class="tag gray" style="margin-left: 4px">{{
+                  v.requested_member_code
+                }}</span>
               </td>
               <td>{{ v.requested_phone || '—' }}</td>
               <td>{{ v.evidence_note || '—' }}</td>
               <td>
-                <span class="tag" :class="v.status === 'approved' ? 'green' : v.status === 'rejected' ? 'red' : 'orange'">
+                <span
+                  class="tag"
+                  :class="v.status === 'approved' ? 'green' : v.status === 'rejected' ? 'red' : 'orange'"
+                >
                   {{ v.status }}
                 </span>
               </td>
               <td>
-                <div v-if="v.status === 'pending'" style="display:flex;gap:6px;flex-wrap:wrap">
+                <div v-if="v.status === 'pending'" style="display: flex; gap: 6px; flex-wrap: wrap">
                   <button type="button" class="btn primary" @click="openReviewModal(v)">ตรวจสอบ &amp; อนุมัติ</button>
                   <button type="button" class="btn danger" @click="quickRejectVerification(v)">ปฏิเสธ</button>
                 </div>
@@ -104,7 +108,9 @@
         <div v-for="v in verifications || []" :key="`vm-${v.id}`" class="card mob-card">
           <div class="row-between-start">
             <strong>{{ v.member_name }}</strong>
-            <span class="tag" :class="v.status === 'approved' ? 'green' : v.status === 'rejected' ? 'red' : 'orange'">{{ v.status }}</span>
+            <span class="tag" :class="v.status === 'approved' ? 'green' : v.status === 'rejected' ? 'red' : 'orange'">{{
+              v.status
+            }}</span>
           </div>
           <div class="small muted mt-sm">
             รหัส ERP ที่ขอ: {{ v.requested_customer_code || '—' }} · โทร: {{ v.requested_phone || v.account_phone || '—' }}
@@ -120,7 +126,7 @@
 
     <!-- All Registered Member Accounts -->
     <div v-if="memberTab === 'members'" class="card">
-      <div class="section-head" style="padding:16px 18px 0">
+      <div class="section-head" style="padding: 16px 18px 0">
         <div>
           <h3>ทะเบียนบัญชีสมาชิกทั้งหมด ({{ (members || []).length }})</h3>
           <small>แสดงสถานะการยืนยัน ERP, การเชื่อม LINE และคะแนนสะสม</small>
@@ -147,15 +153,20 @@
                 <b>{{ m.name }}</b>
                 <div class="small muted">ID #{{ m.id }} · {{ m.status }}</div>
               </td>
-              <td>{{ m.phone || '—' }}<div class="small muted">{{ m.email || '—' }}</div></td>
+              <td>
+                {{ m.phone || '—' }}
+                <div class="small muted">{{ m.email || '—' }}</div>
+              </td>
               <td>
                 <span class="tag" :class="m.verification_status === 'verified' ? 'green' : 'orange'">
-                  {{ m.verification_status === 'verified' ? 'member_verified' : (m.verification_status || 'unverified') }}
+                  {{ m.verification_status === 'verified' ? 'member_verified' : m.verification_status || 'unverified' }}
                 </span>
               </td>
               <td>
                 <span v-if="m.erp_customer_code" class="tag gray">{{ m.erp_customer_code }}</span>
-                <span v-if="m.internal_customer_code" class="tag blue" style="margin-left:4px">{{ m.internal_customer_code }}</span>
+                <span v-if="m.internal_customer_code" class="tag blue" style="margin-left: 4px">{{
+                  m.internal_customer_code
+                }}</span>
                 <div v-if="m.erp_customer_name" class="small muted">{{ m.erp_customer_name }}</div>
                 <span v-if="!m.erp_customer_code && !m.internal_customer_code" class="small muted">ยังไม่ผูกบัญชี</span>
               </td>
@@ -164,9 +175,11 @@
                   {{ m.line_binding_status || 'unbound' }}
                 </span>
               </td>
-              <td><b>{{ fmt(m.points_balance) }} แต้ม</b></td>
               <td>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <b>{{ fmt(m.points_balance) }} แต้ม</b>
+              </td>
+              <td>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap">
                   <RouterLink
                     v-if="m.crm_customer_master_id"
                     :to="`/customer-360/${m.crm_customer_master_id}`"
@@ -182,12 +195,7 @@
                   >
                     ✓ Verify Link
                   </button>
-                  <button
-                    v-else-if="!m.link_id"
-                    type="button"
-                    class="btn light"
-                    @click="openBindModal(m)"
-                  >
+                  <button v-else-if="!m.link_id" type="button" class="btn light" @click="openBindModal(m)">
                     🔗 ผูก ERP / Master
                   </button>
                 </div>
@@ -209,10 +217,16 @@
             </span>
           </div>
           <div class="small muted mt-sm">
-            {{ m.phone || m.email || '—' }} · ERP: {{ m.erp_customer_code || 'ยังไม่ผูก' }} · {{ fmt(m.points_balance) }} แต้ม
+            {{ m.phone || m.email || '—' }} · ERP: {{ m.erp_customer_code || 'ยังไม่ผูก' }} ·
+            {{ fmt(m.points_balance) }} แต้ม
           </div>
           <div class="mob-card-actions">
-            <RouterLink v-if="m.crm_customer_master_id" :to="`/customer-360/${m.crm_customer_master_id}`" class="btn light">360°</RouterLink>
+            <RouterLink
+              v-if="m.crm_customer_master_id"
+              :to="`/customer-360/${m.crm_customer_master_id}`"
+              class="btn light"
+              >360°</RouterLink
+            >
             <button
               v-if="m.link_id && m.verification_status !== 'verified'"
               type="button"
@@ -221,7 +235,9 @@
             >
               ✓ Verify Link
             </button>
-            <button v-else-if="!m.link_id" type="button" class="btn light" @click="openBindModal(m)">🔗 ผูก ERP / Master</button>
+            <button v-else-if="!m.link_id" type="button" class="btn light" @click="openBindModal(m)">
+              🔗 ผูก ERP / Master
+            </button>
           </div>
         </div>
         <div v-if="!(members || []).length" class="placeholder">ยังไม่มีสมาชิกในระบบ</div>
@@ -230,9 +246,10 @@
 
     <!-- Verification Review Modal -->
     <BaseModal :open="Boolean(reviewTarget)" title="อนุมัติคำขอเชื่อมบัญชี Member" @close="reviewTarget = null">
-      <div v-if="reviewTarget" style="display:grid;gap:10px">
-        <div class="notice" style="margin-bottom:0">
-          สมาชิก <b>{{ reviewTarget.member_name }}</b> ขอเชื่อมรหัส <b>{{ reviewTarget.requested_customer_code || 'ไม่ระบุ' }}</b>
+      <div v-if="reviewTarget" style="display: grid; gap: 10px">
+        <div class="notice" style="margin-bottom: 0">
+          สมาชิก <b>{{ reviewTarget.member_name }}</b> ขอเชื่อมรหัส
+          <b>{{ reviewTarget.requested_customer_code || 'ไม่ระบุ' }}</b>
         </div>
         <div class="field">
           <label>ค้นหาลูกค้า ERP ที่ต้องการเชื่อม</label>
@@ -266,8 +283,8 @@
 
     <!-- Manual Bind Member Link Modal -->
     <BaseModal :open="Boolean(bindTarget)" title="ผูกสมาชิกเข้ากับลูกค้า ERP / Customer Master" @close="bindTarget = null">
-      <div v-if="bindTarget" style="display:grid;gap:10px">
-        <div class="notice" style="margin-bottom:0">
+      <div v-if="bindTarget" style="display: grid; gap: 10px">
+        <div class="notice" style="margin-bottom: 0">
           บัญชีสมาชิก: <b>{{ bindTarget.name }}</b> ({{ bindTarget.phone || bindTarget.email }})
         </div>
         <div class="field">
@@ -290,7 +307,12 @@
       </div>
       <template #footer="{ requestClose }">
         <button type="button" class="btn" @click="requestClose">ยกเลิก</button>
-        <button type="button" class="btn primary" :disabled="!bindForm.erp_customer_id || busy" @click="submitBindMember">
+        <button
+          type="button"
+          class="btn primary"
+          :disabled="!bindForm.erp_customer_id || busy"
+          @click="submitBindMember"
+        >
           {{ busy ? 'กำลังผูก...' : 'ผูกและเปิดรอตรวจ' }}
         </button>
       </template>
@@ -298,28 +320,43 @@
 
     <!-- Back-office Create Member Modal (คีย์สมาชิกที่หลังบ้าน) -->
     <BaseModal :open="createModalOpen" title="➕ เพิ่มสมาชิกใหม่ (คีย์จากหลังบ้าน)" @close="closeCreateMemberModal">
-      <div v-if="createdCredentials" style="display:grid;gap:12px">
-        <div class="notice" style="margin-bottom:0;border-color:#86efac;background:#f0fdf4;color:#166534">
+      <div v-if="createdCredentials" style="display: grid; gap: 12px">
+        <div class="notice" style="margin-bottom: 0; border-color: #86efac; background: #f0fdf4; color: #166534">
           <b>สร้างบัญชีสมาชิกสำเร็จแล้ว!</b> สามารถคัดลอกข้อมูลด้านล่างส่งให้เจ้าของร้านเข้าใช้งาน Member Portal ได้ทันที (ไม่ต้องใช้ LINE OA)
         </div>
-        <div class="minirow"><span>ลิงก์เข้าใช้งาน</span><b>{{ memberPortalUrl }}</b></div>
-        <div class="minirow"><span>ชื่อสมาชิก / ร้านค้า</span><b>{{ createdCredentials.name }}</b></div>
-        <div class="minirow"><span>ชื่อผู้ใช้ (เข้าสู่ระบบ)</span><b>{{ createdCredentials.phone || createdCredentials.email }}</b></div>
-        <div class="minirow"><span>รหัสผ่านชั่วคราว</span><b style="font-family:monospace;font-size:15px">{{ createdCredentials.password }}</b></div>
+        <div class="minirow">
+          <span>ลิงก์เข้าใช้งาน</span><b>{{ memberPortalUrl }}</b>
+        </div>
+        <div class="minirow">
+          <span>ชื่อสมาชิก / ร้านค้า</span><b>{{ createdCredentials.name }}</b>
+        </div>
+        <div class="minirow">
+          <span>ชื่อผู้ใช้ (เข้าสู่ระบบ)</span><b>{{ createdCredentials.phone || createdCredentials.email }}</b>
+        </div>
+        <div class="minirow">
+          <span>รหัสผ่านชั่วคราว</span
+          ><b style="font-family: monospace; font-size: 15px">{{ createdCredentials.password }}</b>
+        </div>
         <div class="minirow">
           <span>สถานะสิทธิ์</span>
           <span class="tag" :class="createdCredentials.verification_status === 'verified' ? 'green' : 'orange'">
-            {{ createdCredentials.verification_status === 'verified' ? 'ยืนยันแล้ว (ดูบิลและแต้มได้ทันที)' : createdCredentials.verification_status }}
+            {{
+              createdCredentials.verification_status === 'verified'
+                ? 'ยืนยันแล้ว (ดูบิลและแต้มได้ทันที)'
+                : createdCredentials.verification_status
+            }}
           </span>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px">
           <button type="button" class="btn primary" @click="copyCreatedCredentials">📋 คัดลอกข้อความส่งให้ร้านค้า</button>
-          <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn light">↗ เปิดหน้า Member Portal</a>
+          <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn light"
+            >↗ เปิดหน้า Member Portal</a
+          >
         </div>
       </div>
 
-      <div v-else style="display:grid;gap:10px">
-        <div class="notice" style="margin-bottom:0">
+      <div v-else style="display: grid; gap: 10px">
+        <div class="notice" style="margin-bottom: 0">
           ทีมงานหลังบ้านสามารถคีย์สมัครสมาชิกและผูกกับลูกค้า Bplus ERP ได้ในขั้นตอนเดียว โดยไม่ต้องให้ร้านค้าสมัครเองหรือเชื่อม LINE OA ก่อน
         </div>
         <div class="field">
@@ -352,7 +389,11 @@
         <div class="field">
           <label>3. รหัสผ่านเข้า Member Portal (ขั้นต่ำ 12 ตัวอักษร) *</label>
           <div class="input-action-row">
-            <input v-model="createForm.password" :type="showCreatePassword ? 'text' : 'password'" placeholder="อย่างน้อย 12 ตัวอักษร" />
+            <input
+              v-model="createForm.password"
+              :type="showCreatePassword ? 'text' : 'password'"
+              placeholder="อย่างน้อย 12 ตัวอักษร"
+            />
             <button type="button" class="btn light" @click="showCreatePassword = !showCreatePassword">
               {{ showCreatePassword ? 'ซ่อน' : 'ดู' }}
             </button>
@@ -369,8 +410,19 @@
             <input v-model="createForm.verification_note" placeholder="คีย์สมัครโดยแอดมินหลังบ้าน" />
           </div>
         </div>
-        <label v-if="createForm.erp_customer_id" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer;padding:6px 0">
-          <input v-model="createForm.auto_verify" type="checkbox" style="width:16px;height:16px" />
+        <label
+          v-if="createForm.erp_customer_id"
+          style="
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 6px 0;
+          "
+        >
+          <input v-model="createForm.auto_verify" type="checkbox" style="width: 16px; height: 16px" />
           <span>ยืนยันสิทธิ์ทันที (member_verified) ให้ร้านค้าเห็นบิลขายและแต้มสะสมได้ทันที</span>
         </label>
       </div>
@@ -385,7 +437,12 @@
           <button
             type="button"
             class="btn primary"
-            :disabled="busy || !createForm.name.trim() || (!createForm.phone.trim() && !createForm.email.trim()) || createForm.password.length < 12"
+            :disabled="
+              busy ||
+              !createForm.name.trim() ||
+              (!createForm.phone.trim() && !createForm.email.trim()) ||
+              createForm.password.length < 12
+            "
             @click="submitCreateMember"
           >
             {{ busy ? 'กำลังบันทึก...' : '✓ บันทึกและสร้างบัญชีสมาชิก' }}
@@ -443,7 +500,11 @@ const memberPortalUrl = computed(() => {
   return `${protocol}//member.${hostname}${port ? `:${port}` : ''}/`;
 });
 
-const { data: members, isLoading: membersLoading, refetch: refetchMembers } = useQuery({
+const {
+  data: members,
+  isLoading: membersLoading,
+  refetch: refetchMembers,
+} = useQuery({
   queryKey: computed(() => ['crm', 'members-registry', search.value]),
   queryFn: ({ signal }) => {
     const p = new URLSearchParams();
@@ -454,7 +515,8 @@ const { data: members, isLoading: membersLoading, refetch: refetchMembers } = us
 
 const { data: verifications, refetch: refetchVerifs } = useQuery({
   queryKey: computed(() => ['crm', 'loyalty-verifications', verifyFilter.value]),
-  queryFn: ({ signal }) => crmGet(`/loyalty/verifications?status=${encodeURIComponent(verifyFilter.value)}`, { signal }),
+  queryFn: ({ signal }) =>
+    crmGet(`/loyalty/verifications?status=${encodeURIComponent(verifyFilter.value)}`, { signal }),
 });
 
 const { data: erpData } = useQuery({
@@ -507,7 +569,10 @@ function onSelectCreateErpCustomer() {
   if (!picked) return;
   if (!createForm.value.name.trim()) createForm.value.name = picked.customer_name || '';
   if (!createForm.value.phone.trim() && picked.phone) {
-    const firstPhone = String(picked.phone).split(/[,/\s]+/)[0]?.trim() || '';
+    const firstPhone =
+      String(picked.phone)
+        .split(/[,/\s]+/)[0]
+        ?.trim() || '';
     if (firstPhone) createForm.value.phone = firstPhone;
   }
 }

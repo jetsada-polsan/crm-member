@@ -51,7 +51,10 @@ const markerCoordsById = new Map();
 let lastFitSignature = '';
 
 const esc = (s) =>
-  String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  String(s ?? '').replace(
+    /[&<>"']/g,
+    (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]
+  );
 
 function extractValidPins(pins) {
   const valid = [];
@@ -184,9 +187,7 @@ function makeMarkerIcon(pin, isSelected) {
   const selectedClass = isSelected ? ' is-selected' : '';
   const hasPhotoClass = firstPhotoUrl ? ' has-photo' : '';
   const badgeHtml = photoCount > 0 ? `<span class="cm-pin-badge">📷 ${photoCount}</span>` : '';
-  const innerHtml = firstPhotoUrl
-    ? `<img src="${firstPhotoUrl}" alt="" class="cm-pin-img" />`
-    : `<span>🏪</span>`;
+  const innerHtml = firstPhotoUrl ? `<img src="${firstPhotoUrl}" alt="" class="cm-pin-img" />` : `<span>🏪</span>`;
   const shortName = esc(pinDisplayName(pin)).slice(0, 18);
   const showNamePill = isSelected || currentZoom.value >= 14;
   const labelPillHtml = showNamePill ? `<span class="cm-pin-name">${shortName}</span>` : '';
@@ -273,7 +274,13 @@ function redrawPicked() {
     map.removeLayer(pickedMarker);
     pickedMarker = null;
   }
-  if (props.pickedLocation?.latitude == null || props.pickedLocation?.longitude == null || props.pickedLocation.latitude === '' || props.pickedLocation.longitude === '') return;
+  if (
+    props.pickedLocation?.latitude == null ||
+    props.pickedLocation?.longitude == null ||
+    props.pickedLocation.latitude === '' ||
+    props.pickedLocation.longitude === ''
+  )
+    return;
   const lat = Number(props.pickedLocation?.latitude);
   const lng = Number(props.pickedLocation?.longitude);
   if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
@@ -333,7 +340,11 @@ onMounted(() => {
   }
 });
 
-watch(() => props.pins, () => redraw(false), { deep: true });
+watch(
+  () => props.pins,
+  () => redraw(false),
+  { deep: true }
+);
 watch(
   () => props.selectedPinId,
   (id) => {
@@ -374,9 +385,7 @@ onBeforeUnmount(() => {
           {{ cfg.label }}
         </button>
       </div>
-      <button type="button" class="cm-tool-btn cm-fit-btn" title="ซูมดูหมุดทั้งหมด" @click="fitAll">
-        🎯 ดูทั้งหมด
-      </button>
+      <button type="button" class="cm-tool-btn cm-fit-btn" title="ซูมดูหมุดทั้งหมด" @click="fitAll">🎯 ดูทั้งหมด</button>
     </div>
 
     <!-- Floating top-center banner when in interactive pinning mode -->
@@ -573,7 +582,9 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   overflow: hidden;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 :deep(.cm-pin span) {
@@ -592,7 +603,9 @@ onBeforeUnmount(() => {
 
 :deep(.cm-pin-wrap.is-selected .cm-pin) {
   transform: rotate(-45deg) scale(1.22);
-  box-shadow: 0 0 0 6px rgba(2, 132, 199, 0.28), 0 8px 18px rgba(15, 26, 51, 0.34);
+  box-shadow:
+    0 0 0 6px rgba(2, 132, 199, 0.28),
+    0 8px 18px rgba(15, 26, 51, 0.34);
 }
 
 :deep(.cm-pin-badge) {

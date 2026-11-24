@@ -6,23 +6,21 @@
     :dirty="isDirty"
     @close="closeQuickAdd"
   >
-    <div v-if="duplicates.length" class="error" style="margin-bottom:14px">
+    <div v-if="duplicates.length" class="error" style="margin-bottom: 14px">
       <strong>พบข้อมูลร้านค้าที่อาจซ้ำในระบบ ({{ duplicates.length }} รายการ):</strong>
-      <ul style="margin:6px 0 6px 18px;padding:0;font-size:13px">
+      <ul style="margin: 6px 0 6px 18px; padding: 0; font-size: 13px">
         <li v-for="d in duplicates" :key="`${d.source}-${d.id}`">
           <b>[{{ d.source === 'erp' ? 'ERP' : 'Lead' }} {{ d.code }}]</b>
           {{ d.name }} · {{ d.phone || 'ไม่มีเบอร์' }}
-          <span class="tag red" style="margin-left:4px">{{ d.match_reasons.join(', ') }}</span>
+          <span class="tag red" style="margin-left: 4px">{{ d.match_reasons.join(', ') }}</span>
         </li>
       </ul>
-      <div v-if="forceNeeded" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn danger" @click="submit(true)">
-          ยืนยันบันทึกร้านใหม่แม้ข้อมูลคล้าย/ซ้ำ
-        </button>
+      <div v-if="forceNeeded" style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap">
+        <button type="button" class="btn danger" @click="submit(true)">ยืนยันบันทึกร้านใหม่แม้ข้อมูลคล้าย/ซ้ำ</button>
       </div>
     </div>
 
-    <div v-if="uploadActive" style="margin-bottom:14px">
+    <div v-if="uploadActive" style="margin-bottom: 14px">
       <UploadProgressBar :percent="uploadPercent" label="กำลังอัปโหลดรูปหน้าร้านและบันทึกข้อมูล..." />
     </div>
 
@@ -55,13 +53,23 @@
           </select>
         </div>
 
-        <div class="field span2" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0">
-          <strong class="small" style="color:var(--blue)">พิกัด GPS และภาพหน้าร้าน</strong>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div
+          class="field span2"
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 6px 0;
+          "
+        >
+          <strong class="small" style="color: var(--blue)">พิกัด GPS และภาพหน้าร้าน</strong>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
             <button type="button" class="btn" @click="requestGps">
               📍 {{ gps ? `GPS ±${gps.accuracy_m}ม.` : 'ขอพิกัด GPS' }}
             </button>
-            <label class="btn light" style="cursor:pointer;margin:0">
+            <label class="btn light" style="cursor: pointer; margin: 0">
               📷 {{ photo ? 'ถ่าย/เลือกรูปใหม่' : 'ถ่ายภาพหน้าร้าน' }}
               <input
                 type="file"
@@ -75,29 +83,33 @@
         </div>
 
         <div v-if="gps" class="field span2">
-          <div class="notice" style="margin-bottom:0">
+          <div class="notice" style="margin-bottom: 0">
             พิกัดปัจจุบัน: <b>{{ gps.latitude }}, {{ gps.longitude }}</b> (ความแม่นยำ ~{{ gps.accuracy_m }} เมตร)
           </div>
         </div>
 
         <div v-if="photo" class="field span2">
           <img :src="photo.previewUrl" alt="ภาพตัวอย่างหน้าร้าน" class="photo-preview" />
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px;flex-wrap:wrap">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-top: 6px;
+              gap: 8px;
+              flex-wrap: wrap;
+            "
+          >
             <span class="small muted">
-              ขนาดไฟล์หลังบีบอัด: <b>{{ formatBytes(photo.compressedSize) }}</b>
-              (ลดลง {{ photo.savingsPct }}% จาก {{ formatBytes(photo.originalSize) }})
+              ขนาดไฟล์หลังบีบอัด: <b>{{ formatBytes(photo.compressedSize) }}</b> (ลดลง {{ photo.savingsPct }}% จาก
+              {{ formatBytes(photo.originalSize) }})
             </span>
-            <button type="button" class="btn danger" style="padding:5px 10px" @click="clearPhoto">ลบรูป</button>
+            <button type="button" class="btn danger" style="padding: 5px 10px" @click="clearPhoto">ลบรูป</button>
           </div>
         </div>
 
         <div class="field span2">
-          <button
-            type="button"
-            class="btn"
-            style="width:100%"
-            @click="showOptional = !showOptional"
-          >
+          <button type="button" class="btn" style="width: 100%" @click="showOptional = !showOptional">
             {{ showOptional ? '▲ ซ่อนข้อมูลเพิ่มเติม' : '▼ กรอกข้อมูลเพิ่มเติม (ชื่อผู้ติดต่อ, LINE, จังหวัด, แหล่งซื้อ, สินค้าที่ใช้)' }}
           </button>
         </div>
@@ -212,13 +224,7 @@ const uploadPercent = ref(0);
 let dupTimer = null;
 
 const isDirty = computed(() =>
-  Boolean(
-    form.value.shop_name.trim() ||
-      form.value.phone.trim() ||
-      form.value.notes.trim() ||
-      photo.value ||
-      gps.value
-  )
+  Boolean(form.value.shop_name.trim() || form.value.phone.trim() || form.value.notes.trim() || photo.value || gps.value)
 );
 
 watch(quickAddOpen, (open) => {

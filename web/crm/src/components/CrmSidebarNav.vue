@@ -2,11 +2,7 @@
   <div class="peak-nav-root">
     <!-- Compact Executive Quick Action Row -->
     <div class="peak-create-wrap">
-      <button
-        type="button"
-        class="peak-create-btn"
-        @click="$emit('open-visit')"
-      >
+      <button type="button" class="peak-create-btn" @click="$emit('open-visit')">
         <span aria-hidden="true">＋</span>
         <span>บันทึกเข้าพบ</span>
       </button>
@@ -74,10 +70,7 @@
             >
               <span class="peak-subdot" aria-hidden="true"></span>
               <span class="peak-sublabel">{{ item.label }}</span>
-              <span
-                v-if="item.name === 'profile' && offlineDraftCount > 0"
-                class="tag orange peak-subbadge"
-              >
+              <span v-if="item.name === 'profile' && offlineDraftCount > 0" class="tag orange peak-subbadge">
                 {{ offlineDraftCount }}
               </span>
             </RouterLink>
@@ -153,7 +146,9 @@ watch(
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: background-color 0.14s ease, transform 0.12s ease;
+  transition:
+    background-color 0.14s ease,
+    transform 0.12s ease;
 }
 
 .peak-create-btn:hover {
@@ -175,7 +170,9 @@ watch(
   font-size: 16px;
   display: grid;
   place-items: center;
-  transition: background-color 0.14s ease, border-color 0.14s ease;
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .peak-subcreate-btn:hover {
@@ -209,7 +206,9 @@ watch(
   gap: 9px;
   text-align: left;
   text-decoration: none;
-  transition: background-color 0.13s ease, color 0.13s ease;
+  transition:
+    background-color 0.13s ease,
+    color 0.13s ease;
 }
 
 .peak-group-head:hover {
@@ -287,7 +286,9 @@ watch(
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
-  transition: background-color 0.13s ease, color 0.13s ease;
+  transition:
+    background-color 0.13s ease,
+    color 0.13s ease;
 }
 
 .peak-subitem:hover {
@@ -301,7 +302,9 @@ watch(
   border-radius: 50%;
   background: #cbd5e1;
   flex-shrink: 0;
-  transition: background-color 0.14s ease, transform 0.14s ease;
+  transition:
+    background-color 0.14s ease,
+    transform 0.14s ease;
 }
 
 .peak-subitem.active {

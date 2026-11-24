@@ -10,17 +10,17 @@
         </RouterLink>
       </template>
       <template #primary>
-        <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn primary">
-          ↗ เปิดหน้าสมาชิก
-        </a>
+        <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn primary"> ↗ เปิดหน้าสมาชิก </a>
       </template>
     </PageHeader>
 
     <div class="notice">
-      ใช้งานได้ทันทีโดย <b>ไม่ต้องมี LINE OA ก่อน</b>: ร้านค้าสามารถสมัครเองผ่าน Member Portal ด้วยเบอร์โทร/อีเมล หรือทีมงานหลังบ้านสามารถ <b>คีย์สร้างบัญชีสมาชิกและผูก ERP ให้ร้านค้าโดยตรง</b> ในเมนูทะเบียนสมาชิก แล้วส่งลิงก์พร้อมรหัสผ่านให้ร้านค้าเข้าใช้งานได้ทันที (หากเชื่อมต่อ LINE OA ภายหลังจะรองรับการแจ้งเตือนและแลกของรางวัลผ่านแชทเพิ่มได้)
+      ใช้งานได้ทันทีโดย <b>ไม่ต้องมี LINE OA ก่อน</b>: ร้านค้าสามารถสมัครเองผ่าน Member Portal ด้วยเบอร์โทร/อีเมล หรือทีมงานหลังบ้านสามารถ
+      <b>คีย์สร้างบัญชีสมาชิกและผูก ERP ให้ร้านค้าโดยตรง</b> ในเมนูทะเบียนสมาชิก แล้วส่งลิงก์พร้อมรหัสผ่านให้ร้านค้าเข้าใช้งานได้ทันที (หากเชื่อมต่อ
+      LINE OA ภายหลังจะรองรับการแจ้งเตือนและแลกของรางวัลผ่านแชทเพิ่มได้)
     </div>
 
-    <div v-if="isManager" class="kpis" style="margin-bottom:16px">
+    <div v-if="isManager" class="kpis" style="margin-bottom: 16px">
       <div class="card kpi">
         <div class="kpi-label">บัญชีสมาชิกทั้งหมด</div>
         <div class="kpi-value">{{ fmt((members || []).length) }}</div>
@@ -28,19 +28,19 @@
       </div>
       <div class="card kpi">
         <div class="kpi-label">ยืนยันบัญชี ERP แล้ว</div>
-        <div class="kpi-value" style="color:var(--green)">{{ fmt(verifiedCount) }}</div>
+        <div class="kpi-value" style="color: var(--green)">{{ fmt(verifiedCount) }}</div>
         <div class="kpi-foot">เข้าถึงประวัติบิลและแต้มได้แล้ว</div>
       </div>
       <div class="card kpi">
         <div class="kpi-label">คำขอเชื่อมรอตรวจสอบ</div>
-        <div class="kpi-value" style="color:var(--orange)">{{ fmt((verifications || []).length) }}</div>
+        <div class="kpi-value" style="color: var(--orange)">{{ fmt((verifications || []).length) }}</div>
         <div class="kpi-foot">รอ Admin/Manager อนุมัติ</div>
       </div>
     </div>
 
     <div class="split">
       <div class="card panel-pad">
-        <h3 style="margin:0 0 10px">ขั้นตอนการสมัครและยืนยันตัวตนสมาชิก (4 ขั้น)</h3>
+        <h3 style="margin: 0 0 10px">ขั้นตอนการสมัครและยืนยันตัวตนสมาชิก (4 ขั้น)</h3>
         <div class="timeline">
           <div class="timeline-item">
             <b>1. สมัครสมาชิกบน Member Portal (unverified)</b>
@@ -52,21 +52,25 @@
           </div>
           <div class="timeline-item">
             <b>3. ผู้ดูแลระบบตรวจสอบและอนุมัติ (member_verified)</b>
-            <div class="small muted">แอดมินตรวจสอบรหัส ERP และ Customer Master ในเมนู สมาชิก &amp; Member Registry แล้วกดอนุมัติ</div>
+            <div class="small muted">
+              แอดมินตรวจสอบรหัส ERP และ Customer Master ในเมนู สมาชิก &amp; Member Registry แล้วกดอนุมัติ
+            </div>
           </div>
           <div class="timeline-item">
             <b>4. แสดง Digital Member Card, บิลขาย Bplus และของรางวัล</b>
-            <div class="small muted">ก่อนอนุมัติระบบจะบล็อก /api/member/invoices และ /api/member/points ด้วย HTTP 403 เสมอ</div>
+            <div class="small muted">
+              ก่อนอนุมัติระบบจะบล็อก /api/member/invoices และ /api/member/points ด้วย HTTP 403 เสมอ
+            </div>
           </div>
         </div>
-        <div v-if="isManager" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <div v-if="isManager" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px">
           <RouterLink to="/members" class="btn primary">ไปหน้าตรวจคำขอ &amp; สมาชิก →</RouterLink>
           <RouterLink to="/loyalty" class="btn light">ไปหน้ากติกาคะแนน</RouterLink>
         </div>
       </div>
 
       <div class="card panel-pad">
-        <h3 style="margin:0 0 10px">URL สำหรับส่งต่อให้ร้านค้า / LINE OA</h3>
+        <h3 style="margin: 0 0 10px">URL สำหรับส่งต่อให้ร้านค้า / LINE OA</h3>
         <div class="minirow">
           <span>Member Portal URL</span>
           <b>{{ memberPortalUrl }}</b>
@@ -79,7 +83,7 @@
           <span>รหัสผ่านขั้นต่ำ</span>
           <span class="tag blue">min:12 + PDPA Consent</span>
         </div>
-        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap">
           <button type="button" class="btn" @click="copyPortalUrl">📋 คัดลอกลิงก์ Member Portal</button>
           <a :href="memberPortalUrl" target="_blank" rel="noopener noreferrer" class="btn light">เปิดในแท็บใหม่ ↗</a>
         </div>
@@ -126,9 +130,7 @@ const { data: verifications } = useQuery({
   enabled: isManager,
 });
 
-const verifiedCount = computed(
-  () => (members.value || []).filter((m) => m.verification_status === 'verified').length
-);
+const verifiedCount = computed(() => (members.value || []).filter((m) => m.verification_status === 'verified').length);
 
 async function copyPortalUrl() {
   try {

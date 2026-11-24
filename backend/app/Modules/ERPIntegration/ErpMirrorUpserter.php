@@ -2,6 +2,7 @@
 
 namespace App\Modules\ERPIntegration;
 
+use App\Modules\CRM\CustomerAccess;
 use App\Modules\Loyalty\InvoicePointsSynchronizer;
 use Illuminate\Support\Facades\DB;
 
@@ -22,7 +23,7 @@ final class ErpMirrorUpserter
             ->where('erp_customer_code', $code)
             ->exists();
 
-        if (! $exists && \App\Modules\CRM\CustomerAccess::isClosedCustomerRecord(
+        if (! $exists && CustomerAccess::isClosedCustomerRecord(
             isset($rec['ar_enable']) ? (string) $rec['ar_enable'] : null,
             isset($rec['customer_name']) ? (string) $rec['customer_name'] : null
         )) {

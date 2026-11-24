@@ -5,7 +5,9 @@
     <!-- ===================================================== -->
     <div class="mob-only mob-app-shell">
       <div v-if="offlineDrafts.length" class="notice row-between">
-        <span>มีข้อมูลเข้าพบค้างส่ง <b>{{ offlineDrafts.length }}</b> รายการ</span>
+        <span
+          >มีข้อมูลเข้าพบค้างส่ง <b>{{ offlineDrafts.length }}</b> รายการ</span
+        >
         <button type="button" class="btn primary" :disabled="offlineSyncing" @click="syncPendingOfflineDrafts">
           {{ offlineSyncing ? 'กำลังส่ง...' : 'ส่งทันที' }}
         </button>
@@ -38,7 +40,10 @@
             <b>{{ heroTargetPct != null ? `${heroTargetPct}%` : 'รอตั้งเป้า' }}</b>
           </div>
           <div class="mob-hero-track">
-            <div class="mob-hero-fill" :style="{ width: `${heroTargetPct != null ? Math.min(100, Math.max(4, heroTargetPct)) : 0}%` }"></div>
+            <div
+              class="mob-hero-fill"
+              :style="{ width: `${heroTargetPct != null ? Math.min(100, Math.max(4, heroTargetPct)) : 0}%` }"
+            ></div>
           </div>
         </div>
 
@@ -90,23 +95,18 @@
         </div>
         <div class="app-group-list">
           <div v-for="t in dueAndOpenTasks.slice(0, 4)" :key="`mt-${t.id}`" class="app-list-row">
-            <button
-              type="button"
-              class="mob-check-circle"
-              :aria-label="`ปิดงาน ${t.title}`"
-              @click="completeTask(t.id)"
-            >
+            <button type="button" class="mob-check-circle" :aria-label="`ปิดงาน ${t.title}`" @click="completeTask(t.id)">
               ✓
             </button>
             <div class="app-list-body">
-              <strong class="app-list-title">{{ t.lead_shop_name || (t.crm_lead_id ? `ร้าน #${t.crm_lead_id}` : 'ลูกค้าทั่วไป') }}</strong>
+              <strong class="app-list-title">{{
+                t.lead_shop_name || (t.crm_lead_id ? `ร้าน #${t.crm_lead_id}` : 'ลูกค้าทั่วไป')
+              }}</strong>
               <span class="app-list-sub">{{ t.title }}</span>
             </div>
             <span :class="['tag', taskDueTagClass(t.due_date)]">{{ taskDueText(t.due_date) }}</span>
           </div>
-          <div v-if="!dueAndOpenTasks.length" class="mob-empty-row">
-            ✨ ไม่มีงานติดตามค้างวันนี้
-          </div>
+          <div v-if="!dueAndOpenTasks.length" class="mob-empty-row">✨ ไม่มีงานติดตามค้างวันนี้</div>
         </div>
       </section>
 
@@ -150,7 +150,9 @@
             <span class="app-icon-box">📅</span>
             <div class="app-list-body">
               <strong class="app-list-title">{{ p.route_name }}</strong>
-              <span class="app-list-sub">{{ p.visit_date === todayIso ? 'วันนี้' : p.visit_date }}{{ p.district ? ` · ${p.district}` : '' }}</span>
+              <span class="app-list-sub"
+                >{{ p.visit_date === todayIso ? 'วันนี้' : p.visit_date }}{{ p.district ? ` · ${p.district}` : '' }}</span
+              >
             </div>
             <span class="app-chevron">›</span>
           </RouterLink>
@@ -191,7 +193,7 @@
           <div class="mob-sheet-metrics">
             <div class="mob-sheet-box">
               <small class="muted">ยอดซื้อสะสม</small>
-              <strong style="color:var(--green)">฿{{ fmt(selectedQuickStore.total_sales_net) }}</strong>
+              <strong style="color: var(--green)">฿{{ fmt(selectedQuickStore.total_sales_net) }}</strong>
             </div>
             <div class="mob-sheet-box">
               <small class="muted">จำนวนบิล</small>
@@ -203,7 +205,7 @@
               v-if="selectedQuickStore.phone"
               :href="`tel:${cleanPhone(selectedQuickStore.phone)}`"
               class="btn"
-              style="background:#f0fdf4;border-color:#bbf7d0;color:#15803d"
+              style="background: #f0fdf4; border-color: #bbf7d0; color: #15803d"
             >
               📞 โทร
             </a>
@@ -211,7 +213,10 @@
             <button
               type="button"
               class="btn primary"
-              @click="openVisitWizard({ kind: 'erp', id: Number(selectedQuickStore.id) }); selectedQuickStore = null"
+              @click="
+                openVisitWizard({ kind: 'erp', id: Number(selectedQuickStore.id) });
+                selectedQuickStore = null;
+              "
             >
               📸 เช็คอิน
             </button>
@@ -235,13 +240,17 @@
         <SalesTargetAndAlertBoard v-if="mobileAnalyticsSheet === 'targets'" />
         <div v-else-if="mobileAnalyticsSheet === 'breakdown'" class="stack-md">
           <div class="app-group-list">
-            <div v-for="row in dashboard?.reservation_by_doc_type || []" :key="`mb-${row.doc_type}`" class="app-list-row">
+            <div
+              v-for="row in dashboard?.reservation_by_doc_type || []"
+              :key="`mb-${row.doc_type}`"
+              class="app-list-row"
+            >
               <span class="tag blue">{{ row.doc_type }}</span>
               <div class="app-list-body">
                 <strong class="app-list-title">{{ row.salesperson_name || `สาย ${row.doc_type}` }}</strong>
                 <span class="app-list-sub">{{ fmt(row.customer_count) }} ลูกหนี้ · {{ fmt(row.doc_count) }} ใบจอง</span>
               </div>
-              <b style="color:var(--blue);white-space:nowrap">฿{{ fmt(row.total_before_vat) }}</b>
+              <b style="color: var(--blue); white-space: nowrap">฿{{ fmt(row.total_before_vat) }}</b>
             </div>
           </div>
         </div>
@@ -260,7 +269,8 @@
               {{ me?.role === 'executive' ? 'ผู้บริหาร' : isManager ? 'เห็นทุกสาย' : 'เฉพาะสายของคุณ' }}
             </span>
             <span v-if="isManager" class="small muted">
-              {{ fmt((dashboard?.reservation_by_doc_type || []).length) }} สายใบจอง · ลูกหนี้ {{ fmt(dashboard?.customers) }} ราย
+              {{ fmt((dashboard?.reservation_by_doc_type || []).length) }} สายใบจอง · ลูกหนี้
+              {{ fmt(dashboard?.customers) }} ราย
             </span>
             <template v-else>
               <span v-if="boundDocTypes.length" class="tag orange">สาย {{ boundDocTypes.join(', ') }}</span>
@@ -268,7 +278,11 @@
             </template>
           </div>
           <p class="exec-subtitle">
-            {{ isManager ? 'สรุปยอดขายจริงก่อน VAT การเข้าพบ และความคืบหน้าของทีมขาย' : 'แผนออกตลาด งานติดตาม และยอดขายในสายของคุณ' }}
+            {{
+              isManager
+                ? 'สรุปยอดขายจริงก่อน VAT การเข้าพบ และความคืบหน้าของทีมขาย'
+                : 'แผนออกตลาด งานติดตาม และยอดขายในสายของคุณ'
+            }}
           </p>
         </div>
 
@@ -282,7 +296,9 @@
       </div>
 
       <div v-if="offlineDrafts.length" class="notice row-between">
-        <span>มีข้อมูลเข้าพบค้างส่ง <b>{{ offlineDrafts.length }}</b> รายการ</span>
+        <span
+          >มีข้อมูลเข้าพบค้างส่ง <b>{{ offlineDrafts.length }}</b> รายการ</span
+        >
         <button type="button" class="btn primary" :disabled="offlineSyncing" @click="syncPendingOfflineDrafts">
           {{ offlineSyncing ? 'กำลังส่ง...' : 'ส่งข้อมูลทันที' }}
         </button>
@@ -314,48 +330,63 @@
       <template v-if="activeDashTab === 'overview'">
         <div class="dash-stack">
           <SkeletonBlock v-if="(dashLoading || dashFetching) && !dashboard" variant="kpis" />
-          <div v-else-if="dashboard && !dashError && validPeriod" class="kpis" style="margin-bottom:0">
+          <div v-else-if="dashboard && !dashError && validPeriod" class="kpis" style="margin-bottom: 0">
             <div class="card kpi kpi-primary-accent">
               <div class="kpi-top">
-                <span class="kpi-label" style="margin:0">ยอดขายสุทธิจริง (ก่อน VAT)</span>
+                <span class="kpi-label" style="margin: 0">ยอดขายสุทธิจริง (ก่อน VAT)</span>
                 <span class="tag blue">Bplus</span>
               </div>
-              <div class="kpi-value" style="margin-top:8px">฿{{ fmt(dashboard?.sales_kpis?.net_sales_before_vat ?? dashboard?.posted_sales_net) }}</div>
-              <div class="kpi-foot">{{ fmt(dashboard?.posted_invoices) }} บิลขาย · ลดหนี้ ฿{{ fmt(dashboard?.sales_kpis?.return_308_before_vat) }}</div>
+              <div class="kpi-value" style="margin-top: 8px">
+                ฿{{ fmt(dashboard?.sales_kpis?.net_sales_before_vat ?? dashboard?.posted_sales_net) }}
+              </div>
+              <div class="kpi-foot">
+                {{ fmt(dashboard?.posted_invoices) }} บิลขาย · ลดหนี้ ฿{{
+                  fmt(dashboard?.sales_kpis?.return_308_before_vat)
+                }}
+              </div>
             </div>
 
             <div class="card kpi">
               <div class="kpi-top">
-                <span class="kpi-label" style="margin:0">เข้าพบลูกค้า</span>
+                <span class="kpi-label" style="margin: 0">เข้าพบลูกค้า</span>
                 <span class="tag green">เดือนนี้ {{ fmt(dashboard?.visit_performance?.visits_this_month) }}</span>
               </div>
-              <div class="kpi-value" style="margin-top:8px">{{ fmt(dashboard?.visit_performance?.period_visits) }} <span class="kpi-unit">ครั้ง</span></div>
+              <div class="kpi-value" style="margin-top: 8px">
+                {{ fmt(dashboard?.visit_performance?.period_visits) }} <span class="kpi-unit">ครั้ง</span>
+              </div>
               <div class="kpi-foot">ปิดงานติดตามแล้ว {{ fmt(dashboard?.visit_performance?.completed_tasks) }} งาน</div>
             </div>
 
             <div class="card kpi">
               <div class="kpi-top">
-                <span class="kpi-label" style="margin:0">ลูกค้าใหม่ (Leads)</span>
+                <span class="kpi-label" style="margin: 0">ลูกค้าใหม่ (Leads)</span>
                 <span class="tag green">วันนี้ +{{ fmt(dashboard?.acquisition?.leads_today) }}</span>
               </div>
-              <div class="kpi-value" style="margin-top:8px">{{ fmt(dashboard?.acquisition?.period_leads) }} <span class="kpi-unit">ราย</span></div>
-              <div class="kpi-foot">สะสม {{ fmt(dashboard?.acquisition?.total_leads) }} ร้าน · รออนุมัติ {{ fmt(dashboard?.acquisition?.pending_approval) }}</div>
+              <div class="kpi-value" style="margin-top: 8px">
+                {{ fmt(dashboard?.acquisition?.period_leads) }} <span class="kpi-unit">ราย</span>
+              </div>
+              <div class="kpi-foot">
+                สะสม {{ fmt(dashboard?.acquisition?.total_leads) }} ร้าน · รออนุมัติ
+                {{ fmt(dashboard?.acquisition?.pending_approval) }}
+              </div>
             </div>
 
             <div class="card kpi">
               <div class="kpi-top">
-                <span class="kpi-label" style="margin:0">งานติดตามคงค้าง</span>
+                <span class="kpi-label" style="margin: 0">งานติดตามคงค้าง</span>
                 <span :class="['tag', Number(dashboard?.visit_performance?.open_tasks || 0) > 0 ? 'orange' : 'gray']">
                   {{ Number(dashboard?.visit_performance?.open_tasks || 0) > 0 ? 'รอดำเนินการ' : 'ครบแล้ว' }}
                 </span>
               </div>
-              <div class="kpi-value" style="margin-top:8px">{{ fmt(dashboard?.visit_performance?.open_tasks) }} <span class="kpi-unit">งาน</span></div>
+              <div class="kpi-value" style="margin-top: 8px">
+                {{ fmt(dashboard?.visit_performance?.open_tasks) }} <span class="kpi-unit">งาน</span>
+              </div>
               <div class="kpi-foot">ลูกหนี้ ERP ใช้งาน {{ fmt(dashboard?.customers) }} ราย</div>
             </div>
           </div>
 
           <!-- Primary Visual: Upgraded Monthly Sales Chart + Recent Activities -->
-          <div class="dash-grid" style="margin-bottom:0">
+          <div class="dash-grid" style="margin-bottom: 0">
             <div class="card">
               <div class="section-head">
                 <div>
@@ -365,7 +396,12 @@
                 <span class="tag blue">รายเดือน</span>
               </div>
               <div class="chart exec-chart">
-                <svg v-if="monthlySalesBars.some((bar) => bar.value !== 0)" viewBox="0 0 680 236" role="img" aria-label="ยอดซื้อสุทธิจริงรายเดือนจาก Bplus">
+                <svg
+                  v-if="monthlySalesBars.some((bar) => bar.value !== 0)"
+                  viewBox="0 0 680 236"
+                  role="img"
+                  aria-label="ยอดซื้อสุทธิจริงรายเดือนจาก Bplus"
+                >
                   <defs>
                     <linearGradient id="popSalesBarGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stop-color="#0284c7" />
@@ -373,7 +409,15 @@
                     </linearGradient>
                   </defs>
                   <g v-for="tick in chartYTicks" :key="tick.y">
-                    <line x1="56" :y1="tick.y" x2="666" :y2="tick.y" stroke="#e5e7eb" stroke-dasharray="3 4" stroke-width="1" />
+                    <line
+                      x1="56"
+                      :y1="tick.y"
+                      x2="666"
+                      :y2="tick.y"
+                      stroke="#e5e7eb"
+                      stroke-dasharray="3 4"
+                      stroke-width="1"
+                    />
                     <text x="48" :y="tick.y + 4" text-anchor="end" font-size="11" fill="#94a3b8">{{ tick.label }}</text>
                   </g>
                   <line x1="56" y1="184" x2="666" y2="184" stroke="#cbd5e1" stroke-width="1.2" />
@@ -386,7 +430,9 @@
                       rx="6"
                       :fill="bar.value < 0 ? '#e11d48' : 'url(#popSalesBarGrad)'"
                     >
-                      <title>{{ bar.label }} · ฿{{ fmt(bar.value) }} · {{ bar.saleCount }} บิลขาย / {{ bar.returnCount }} ใบคืน</title>
+                      <title>
+                        {{ bar.label }} · ฿{{ fmt(bar.value) }} · {{ bar.saleCount }} บิลขาย / {{ bar.returnCount }} ใบคืน
+                      </title>
                     </rect>
                     <text
                       v-if="bar.value !== 0"
@@ -399,7 +445,9 @@
                     >
                       {{ bar.shortVal }}
                     </text>
-                    <text :x="bar.x + 26" y="210" text-anchor="middle" font-size="12" font-weight="500" fill="#64748b">{{ bar.label }}</text>
+                    <text :x="bar.x + 26" y="210" text-anchor="middle" font-size="12" font-weight="500" fill="#64748b">
+                      {{ bar.label }}
+                    </text>
                   </g>
                 </svg>
                 <div v-else class="placeholder">ยังไม่มีบิลขายในช่วง 7 เดือนล่าสุด</div>
@@ -412,17 +460,33 @@
                   <h3>เข้าพบล่าสุด</h3>
                   <small>รายการเช็คอินหน้างานล่าสุด</small>
                 </div>
-                <RouterLink to="/visits" class="small" style="font-weight:600">ดูทั้งหมด →</RouterLink>
+                <RouterLink to="/visits" class="small" style="font-weight: 600">ดูทั้งหมด →</RouterLink>
               </div>
               <div class="activity">
                 <div v-for="act in (dashboard?.recent_activities || []).slice(0, 5)" :key="act.id" class="activity-row">
                   <div class="bullet">📍</div>
-                  <div style="min-width:0">
+                  <div style="min-width: 0">
                     <strong>{{ act.shop_name || 'ร้านค้า' }} · {{ act.result }}</strong>
-                    <small>{{ act.staff_name || 'ทีมขาย' }} · {{ act.visited_at ? new Date(act.visited_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '' }}</small>
+                    <small
+                      >{{ act.staff_name || 'ทีมขาย' }} ·
+                      {{
+                        act.visited_at
+                          ? new Date(act.visited_at).toLocaleString('th-TH', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : ''
+                      }}</small
+                    >
                   </div>
                 </div>
-                <div v-if="!(dashboard?.recent_activities || []).length" class="small muted" style="padding:20px 0;text-align:center">
+                <div
+                  v-if="!(dashboard?.recent_activities || []).length"
+                  class="small muted"
+                  style="padding: 20px 0; text-align: center"
+                >
                   ยังไม่มีรายการเข้าพบล่าสุด
                 </div>
               </div>
@@ -434,10 +498,10 @@
             <div class="card panel-pad">
               <div class="row-between mb-sm">
                 <div>
-                  <h3 style="margin:0;font-size:15.5px">แผนออกตลาดวันนี้</h3>
+                  <h3 style="margin: 0; font-size: 15.5px">แผนออกตลาดวันนี้</h3>
                   <small class="muted">เส้นทางที่กำหนดไว้สำหรับ {{ todayThaiLabel }}</small>
                 </div>
-                <RouterLink to="/plans" class="small" style="font-weight:600">แผนทั้งหมด →</RouterLink>
+                <RouterLink to="/plans" class="small" style="font-weight: 600">แผนทั้งหมด →</RouterLink>
               </div>
               <SkeletonBlock v-if="plansLoading && !(plans || []).length" variant="list" :rows="3" />
               <template v-else>
@@ -453,7 +517,7 @@
                     {{ p.visit_date === todayIso ? 'วันนี้' : 'เร็วๆ นี้' }}
                   </span>
                 </div>
-                <div v-if="!displayPlans.length" class="small muted" style="padding:14px 0;text-align:center">
+                <div v-if="!displayPlans.length" class="small muted" style="padding: 14px 0; text-align: center">
                   ยังไม่มีแผนออกตลาดสำหรับวันนี้
                 </div>
               </template>
@@ -462,24 +526,31 @@
             <div class="card panel-pad">
               <div class="row-between mb-sm">
                 <div>
-                  <h3 style="margin:0;font-size:15.5px">งานติดตามครบกำหนด</h3>
+                  <h3 style="margin: 0; font-size: 15.5px">งานติดตามครบกำหนด</h3>
                   <small class="muted">รายการที่ต้องโทรหรือเข้าเยี่ยม</small>
                 </div>
-                <RouterLink to="/followups" class="small" style="font-weight:600">ดูทั้งหมด →</RouterLink>
+                <RouterLink to="/followups" class="small" style="font-weight: 600">ดูทั้งหมด →</RouterLink>
               </div>
               <SkeletonBlock v-if="tasksLoading && !(tasks || []).length" variant="list" :rows="3" />
               <template v-else>
                 <div v-for="t in dueAndOpenTasks.slice(0, 4)" :key="t.id" class="minirow">
-                  <div style="min-width:0;flex:1 1 160px">
+                  <div style="min-width: 0; flex: 1 1 160px">
                     <strong>{{ t.lead_shop_name || (t.crm_lead_id ? `ร้าน #${t.crm_lead_id}` : 'ลูกค้าทั่วไป') }}</strong>
                     <div class="small muted">{{ t.title }}</div>
                   </div>
                   <div class="row-actions">
                     <span :class="['tag', taskDueTagClass(t.due_date)]">{{ taskDueText(t.due_date) }}</span>
-                    <button type="button" class="btn light" style="min-height:32px;padding:4px 10px;font-size:12.5px" @click="completeTask(t.id)">✓ ปิด</button>
+                    <button
+                      type="button"
+                      class="btn light"
+                      style="min-height: 32px; padding: 4px 10px; font-size: 12.5px"
+                      @click="completeTask(t.id)"
+                    >
+                      ✓ ปิด
+                    </button>
                   </div>
                 </div>
-                <div v-if="!dueAndOpenTasks.length" class="small muted" style="padding:14px 0;text-align:center">
+                <div v-if="!dueAndOpenTasks.length" class="small muted" style="padding: 14px 0; text-align: center">
                   ไม่มีงานติดตามที่ครบกำหนด
                 </div>
               </template>
@@ -498,7 +569,7 @@
         <div class="dash-stack">
           <div class="middle">
             <div class="card">
-              <div class="section-head" style="padding-bottom:12px">
+              <div class="section-head" style="padding-bottom: 12px">
                 <div>
                   <h3>{{ isManager ? 'ยอดตามสายใบจอง (207)' : 'ใบจองในสายของคุณ' }}</h3>
                   <small>แยกตามรหัสใบจองในช่วงที่เลือก</small>
@@ -532,7 +603,7 @@
             </div>
 
             <div class="card">
-              <div class="section-head" style="padding-bottom:12px">
+              <div class="section-head" style="padding-bottom: 12px">
                 <div>
                   <h3>{{ isManager ? 'ยอดขายสุทธิจริงตามเซลล์' : 'ยอดขายสุทธิจริงของคุณ' }}</h3>
                   <small>ก่อน VAT · หักใบลดหนี้ 308 แล้ว</small>
@@ -552,7 +623,7 @@
                       <strong>{{ sp.salesperson_name || 'ไม่ระบุชื่อ' }}</strong>
                     </div>
                     <div class="res-breakdown-amount">
-                      <b style="color:var(--green)">{{ fmt(sp.net_sales_before_vat) }} ฿</b>
+                      <b style="color: var(--green)">{{ fmt(sp.net_sales_before_vat) }} ฿</b>
                     </div>
                   </div>
                   <div class="reportbar">
@@ -575,7 +646,7 @@
           </div>
 
           <div class="card">
-            <div class="section-head" style="padding-bottom:13px">
+            <div class="section-head" style="padding-bottom: 13px">
               <div>
                 <h3>ลูกค้าล่าสุด</h3>
                 <small>รายชื่อร้านค้าล่าสุดในระบบ</small>
@@ -585,19 +656,32 @@
             <div class="table-wrap desktop-table-only">
               <table class="table">
                 <thead>
-                  <tr><th>รหัส</th><th>ชื่อร้านค้า</th><th>รหัส ERP</th><th>สถานะ</th></tr>
+                  <tr>
+                    <th>รหัส</th>
+                    <th>ชื่อร้านค้า</th>
+                    <th>รหัส ERP</th>
+                    <th>สถานะ</th>
+                  </tr>
                 </thead>
                 <tbody>
                   <tr
                     v-for="row in (masterPreview?.data || []).slice(0, 6)"
                     :key="row.customer_master_id"
-                    style="cursor:pointer"
+                    style="cursor: pointer"
                     @click="openDetailDrawer('master', row.customer_master_id)"
                   >
-                    <td><span class="tag blue">{{ row.internal_customer_code }}</span></td>
-                    <td><b>{{ row.display_name }}</b></td>
+                    <td>
+                      <span class="tag blue">{{ row.internal_customer_code }}</span>
+                    </td>
+                    <td>
+                      <b>{{ row.display_name }}</b>
+                    </td>
                     <td>{{ row.erp_customer_code || '—' }}</td>
-                    <td><span class="tag" :class="row.link_status === 'linked' ? 'green' : 'orange'">{{ row.link_status === 'linked' ? 'เชื่อมแล้ว' : 'รอเชื่อม' }}</span></td>
+                    <td>
+                      <span class="tag" :class="row.link_status === 'linked' ? 'green' : 'orange'">{{
+                        row.link_status === 'linked' ? 'เชื่อมแล้ว' : 'รอเชื่อม'
+                      }}</span>
+                    </td>
                   </tr>
                   <tr v-if="!(masterPreview?.data || []).length">
                     <td colspan="4" class="placeholder">ยังไม่มีข้อมูลลูกค้าในระบบ</td>
@@ -697,9 +781,16 @@ const todayThaiLabel = nowDate.toLocaleDateString('th-TH', {
   month: 'long',
 });
 
-const { data: dashboard, isLoading: dashLoading, isFetching: dashFetching, isError: dashError, refetch } = useQuery({
+const {
+  data: dashboard,
+  isLoading: dashLoading,
+  isFetching: dashFetching,
+  isError: dashError,
+  refetch,
+} = useQuery({
   queryKey: ['crm', 'dashboard', dateFrom, dateTo],
-  queryFn: ({ signal }) => crmGet(`/dashboard?${new URLSearchParams({ from: dateFrom.value, to: dateTo.value })}`, { signal }),
+  queryFn: ({ signal }) =>
+    crmGet(`/dashboard?${new URLSearchParams({ from: dateFrom.value, to: dateTo.value })}`, { signal }),
   enabled: validPeriod,
 });
 
@@ -717,15 +808,27 @@ const heroTargetPct = computed(() => targetsSummary.value?.summary?.overall_sale
 const urgentStores = computed(() => (inactiveAlerts.value?.rows || []).slice(0, 6));
 
 function cleanPhone(raw) {
-  return String(raw || '').split(/[,/\s]+/)[0]?.replace(/[^0-9+]/g, '') || '';
+  return (
+    String(raw || '')
+      .split(/[,/\s]+/)[0]
+      ?.replace(/[^0-9+]/g, '') || ''
+  );
 }
 
-const { data: plans, isLoading: plansLoading, refetch: refetchPlans } = useQuery({
+const {
+  data: plans,
+  isLoading: plansLoading,
+  refetch: refetchPlans,
+} = useQuery({
   queryKey: ['crm', 'plans'],
   queryFn: ({ signal }) => crmGet('/plans', { signal }),
 });
 
-const { data: tasks, isLoading: tasksLoading, refetch: refetchTasks } = useQuery({
+const {
+  data: tasks,
+  isLoading: tasksLoading,
+  refetch: refetchTasks,
+} = useQuery({
   queryKey: ['crm', 'tasks'],
   queryFn: ({ signal }) => crmGet('/tasks', { signal }),
 });
@@ -735,9 +838,7 @@ const { data: masterPreview, refetch: refetchMaster } = useQuery({
   queryFn: ({ signal }) => crmGet('/customer-master?per_page=10&page=1', { signal }),
 });
 
-const todayPlans = computed(() =>
-  (plans.value || []).filter((p) => p.visit_date === todayIso)
-);
+const todayPlans = computed(() => (plans.value || []).filter((p) => p.visit_date === todayIso));
 
 const displayPlans = computed(() => {
   if (todayPlans.value.length) return todayPlans.value.slice(0, 4);
@@ -834,9 +935,14 @@ const monthlySalesBars = computed(() => {
   const maxPositive = Math.max(0, ...months.map((item) => item.value));
   const maxNegative = Math.max(0, ...months.map((item) => Math.abs(Math.min(0, item.value))));
   return months.map((item, index) => {
-    const height = item.value >= 0
-      ? (maxPositive ? (item.value / maxPositive) * 144 : 0)
-      : (maxNegative ? (Math.abs(item.value) / maxNegative) * 24 : 0);
+    const height =
+      item.value >= 0
+        ? maxPositive
+          ? (item.value / maxPositive) * 144
+          : 0
+        : maxNegative
+          ? (Math.abs(item.value) / maxNegative) * 24
+          : 0;
     return {
       ...item,
       shortVal: formatCompactBaht(item.value),
@@ -855,10 +961,7 @@ const boundDocTypes = computed(() => {
 });
 
 const totalReservationAmount = computed(() =>
-  (dashboard.value?.reservation_by_doc_type || []).reduce(
-    (sum, r) => sum + Number(r.total_before_vat || 0),
-    0
-  )
+  (dashboard.value?.reservation_by_doc_type || []).reduce((sum, r) => sum + Number(r.total_before_vat || 0), 0)
 );
 
 const maxReservationAmount = computed(() =>
@@ -1042,10 +1145,18 @@ function refetchAll() {
   font-size: 20px;
 }
 
-.mob-dock-icon.blue { background: #e0f2fe; }
-.mob-dock-icon.amber { background: #fef3c7; }
-.mob-dock-icon.green { background: #dcfce7; }
-.mob-dock-icon.purple { background: #ede9fe; }
+.mob-dock-icon.blue {
+  background: #e0f2fe;
+}
+.mob-dock-icon.amber {
+  background: #fef3c7;
+}
+.mob-dock-icon.green {
+  background: #dcfce7;
+}
+.mob-dock-icon.purple {
+  background: #ede9fe;
+}
 
 .mob-section {
   min-width: 0;
@@ -1232,7 +1343,9 @@ function refetchAll() {
   padding: 10px 12px;
   margin-bottom: -1px;
   white-space: nowrap;
-  transition: color 0.14s ease, border-color 0.14s ease;
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .exec-tab:hover {

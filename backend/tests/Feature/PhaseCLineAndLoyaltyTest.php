@@ -17,8 +17,8 @@ class PhaseCLineAndLoyaltyTest extends TestCase
     private function createStaff(string $role): StaffUser
     {
         $id = DB::table('staff_users')->insertGetId([
-            'name' => 'Staff ' . $role,
-            'email' => $role . uniqid() . '@popstar.local',
+            'name' => 'Staff '.$role,
+            'email' => $role.uniqid().'@popstar.local',
             'password' => Hash::make('Secret123!'),
             'role' => $role,
             'is_active' => true,
@@ -61,7 +61,7 @@ class PhaseCLineAndLoyaltyTest extends TestCase
                 'type' => 'message',
                 'replyToken' => 'reply-tok-1',
                 'source' => ['userId' => 'U_LINE_123456'],
-                'message' => ['type' => 'text', 'text' => 'LINK:' . $linkCode],
+                'message' => ['type' => 'text', 'text' => 'LINK:'.$linkCode],
             ]],
         ]);
         $sig = base64_encode(hash_hmac('sha256', $eventBody, 'secret-phase-c-123', true));
@@ -176,7 +176,7 @@ class PhaseCLineAndLoyaltyTest extends TestCase
 
         // Manager cancels redemption -> reverses spent 50 pts back (balance -> 100) and restores stock (1 -> 2)
         $this->actingAs($mgr, 'staff');
-        $this->postJson('/api/crm/loyalty/redemptions/' . $redeem['redemption_id'] . '/status', [
+        $this->postJson('/api/crm/loyalty/redemptions/'.$redeem['redemption_id'].'/status', [
             'status' => 'cancelled',
         ])->assertOk()->assertJson(['ok' => true, 'status' => 'cancelled']);
 

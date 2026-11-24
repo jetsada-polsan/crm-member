@@ -5,7 +5,4 @@ import { router } from './router.js';
 import { memberQueryClient } from './composables/useMemberSession.js';
 import '../../shared/base.css';
 
-createApp(App)
-  .use(router)
-  .use(VueQueryPlugin, { queryClient: memberQueryClient })
-  .mount('#app');
+createApp(App).use(router).use(VueQueryPlugin, { queryClient: memberQueryClient }).mount('#app');

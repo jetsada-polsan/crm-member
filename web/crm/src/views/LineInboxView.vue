@@ -16,21 +16,26 @@
       </template>
     </PageHeader>
 
-    <div v-if="!lineStatus.configured" class="notice" style="margin-bottom:14px">
+    <div v-if="!lineStatus.configured" class="notice" style="margin-bottom: 14px">
       <b>โหมดพร้อมใช้งาน / ทดสอบแชท:</b> ตอนนี้ยังไม่ได้ใส่ Channel Secret &amp; Channel Access Token —
-      <button v-if="isManager" type="button" class="btn-link" style="text-decoration:underline;font-size:inherit" @click="openLineConfigModal">คลิกที่นี่เพื่อกรอก Token LINE OA ทันที</button>
-      หรือกด <b>🧪 ทดสอบรับแชทจำลอง</b> เพื่อทดลองตอบแชทและผูกลูกหนี้ Bplus ได้ทันที และเมื่อตั้ง Webhook URL เป็น <code>/api/line/webhook</code> แชทลูกค้าจริงจะไหลเข้าหน้านี้อัตโนมัติครับ
+      <button
+        v-if="isManager"
+        type="button"
+        class="btn-link"
+        style="text-decoration: underline; font-size: inherit"
+        @click="openLineConfigModal"
+      >
+        คลิกที่นี่เพื่อกรอก Token LINE OA ทันที
+      </button>
+      หรือกด <b>🧪 ทดสอบรับแชทจำลอง</b> เพื่อทดลองตอบแชทและผูกลูกหนี้ Bplus ได้ทันที และเมื่อตั้ง Webhook URL เป็น
+      <code>/api/line/webhook</code> แชทลูกค้าจริงจะไหลเข้าหน้านี้อัตโนมัติครับ
     </div>
 
     <div class="inbox-shell">
       <!-- LEFT PANE: Thread list -->
       <aside class="card inbox-list-pane">
         <div class="inbox-list-head">
-          <input
-            v-model="search"
-            class="inbox-search"
-            placeholder="ค้นหาชื่อลูกค้า, รหัสลูกหนี้, ข้อความ..."
-          />
+          <input v-model="search" class="inbox-search" placeholder="ค้นหาชื่อลูกค้า, รหัสลูกหนี้, ข้อความ..." />
           <div class="inbox-filters">
             <button
               v-for="tab in filterTabs"
@@ -47,7 +52,7 @@
         </div>
 
         <div class="inbox-thread-scroll">
-          <div v-if="threadsLoading && !threads.length" style="padding:16px">
+          <div v-if="threadsLoading && !threads.length" style="padding: 16px">
             <SkeletonBlock variant="list" :rows="4" />
           </div>
 
@@ -79,9 +84,9 @@
           </button>
 
           <div v-if="!threadsLoading && !threads.length" class="inbox-empty-list">
-            <div style="font-size:32px;margin-bottom:6px">💬</div>
-            <div style="font-weight:600;margin-bottom:4px">ยังไม่มีห้องแชทลูกค้า</div>
-            <div class="small muted" style="margin-bottom:12px">
+            <div style="font-size: 32px; margin-bottom: 6px">💬</div>
+            <div style="font-weight: 600; margin-bottom: 4px">ยังไม่มีห้องแชทลูกค้า</div>
+            <div class="small muted" style="margin-bottom: 12px">
               กดปุ่มด้านล่างเพื่อจำลองข้อความเข้าจากลูกค้า LINE OA หรือเชื่อมต่อ Token ในหน้าตั้งค่า
             </div>
             <button v-if="isManager" type="button" class="btn primary" @click="openSimulateModal">
@@ -103,38 +108,29 @@
               <div>
                 <div class="chat-title">
                   <b>{{ activeThread.display_name || activeThread.line_user_id }}</b>
-                  <span v-if="activeThread.erp_customer_code" class="tag green" style="margin-left:6px">
+                  <span v-if="activeThread.erp_customer_code" class="tag green" style="margin-left: 6px">
                     {{ activeThread.erp_customer_code }} · {{ activeThread.erp_customer_name }}
                   </span>
-                  <span v-else class="tag orange" style="margin-left:6px">ยังไม่ผูกบัญชีลูกหนี้</span>
+                  <span v-else class="tag orange" style="margin-left: 6px">ยังไม่ผูกบัญชีลูกหนี้</span>
                 </div>
                 <div class="small muted">
                   LINE ID: {{ activeThread.line_user_id }}
-                  <template v-if="activeThread.assigned_staff_name"> · ผู้ดูแล: {{ activeThread.assigned_staff_name }}</template>
+                  <template v-if="activeThread.assigned_staff_name">
+                    · ผู้ดูแล: {{ activeThread.assigned_staff_name }}
+                  </template>
                 </div>
               </div>
             </div>
             <div class="chat-head-actions">
-              <button
-                type="button"
-                class="btn light"
-                @click="toggleThreadStatus"
-              >
+              <button type="button" class="btn light" @click="toggleThreadStatus">
                 {{ activeThread.status === 'resolved' ? '🔓 เปิดเคสอีกครั้ง' : '✓ ปิดเคสนี้' }}
               </button>
             </div>
           </div>
 
           <div ref="msgScrollRef" class="chat-messages">
-            <div
-              v-for="m in messages"
-              :key="m.id"
-              class="msg-row"
-              :class="m.direction"
-            >
-              <div v-if="m.direction === 'system'" class="msg-system">
-                {{ m.body }} · {{ shortTime(m.created_at) }}
-              </div>
+            <div v-for="m in messages" :key="m.id" class="msg-row" :class="m.direction">
+              <div v-if="m.direction === 'system'" class="msg-system">{{ m.body }} · {{ shortTime(m.created_at) }}</div>
               <div v-else class="msg-bubble" :class="m.direction">
                 <div v-if="m.direction === 'outgoing' && m.sender_staff_name" class="msg-sender">
                   {{ m.sender_staff_name }}
@@ -142,9 +138,18 @@
                 <div class="msg-body">{{ m.body }}</div>
                 <div class="msg-meta">
                   <span>{{ shortTime(m.created_at) }}</span>
-                  <span v-if="m.direction === 'outgoing' && m.delivery_status === 'sent'" class="meta-ok">· ส่งผ่าน LINE แล้ว</span>
-                  <span v-else-if="m.direction === 'outgoing' && m.delivery_status === 'simulated'" class="meta-sim">· โหมดทดสอบ</span>
-                  <span v-else-if="m.direction === 'outgoing' && m.delivery_status === 'failed'" class="meta-err" :title="m.delivery_error || ''">· ส่งไม่สำเร็จ</span>
+                  <span v-if="m.direction === 'outgoing' && m.delivery_status === 'sent'" class="meta-ok"
+                    >· ส่งผ่าน LINE แล้ว</span
+                  >
+                  <span v-else-if="m.direction === 'outgoing' && m.delivery_status === 'simulated'" class="meta-sim"
+                    >· โหมดทดสอบ</span
+                  >
+                  <span
+                    v-else-if="m.direction === 'outgoing' && m.delivery_status === 'failed'"
+                    class="meta-err"
+                    :title="m.delivery_error || ''"
+                    >· ส่งไม่สำเร็จ</span
+                  >
                 </div>
                 <div v-if="m.delivery_error" class="msg-error-text">{{ m.delivery_error }}</div>
               </div>
@@ -178,9 +183,9 @@
         </template>
 
         <div v-else class="chat-empty-state">
-          <div style="font-size:44px;margin-bottom:8px">💬</div>
-          <h3 style="margin:0 0 6px">เลือกห้องแชททางซ้ายเพื่อเริ่มตอบลูกค้า</h3>
-          <p class="muted small" style="max-width:360px;text-align:center;margin:0 0 14px">
+          <div style="font-size: 44px; margin-bottom: 8px">💬</div>
+          <h3 style="margin: 0 0 6px">เลือกห้องแชททางซ้ายเพื่อเริ่มตอบลูกค้า</h3>
+          <p class="muted small" style="max-width: 360px; text-align: center; margin: 0 0 14px">
             เมื่อลูกค้าทักเข้ามาทาง LINE OA ข้อความจะปรากฏที่นี่ทันที พร้อมให้ทีมงานผูกกับลูกหนี้ Bplus เพื่อดูยอดซื้อ บิลล่าสุด และแต้มสะสมได้พร้อมกัน
           </p>
           <button v-if="isManager" type="button" class="btn primary" @click="openSimulateModal">
@@ -195,12 +200,7 @@
           <div class="detail-section">
             <div class="detail-head">
               <h4>🏢 ผูกกับลูกหนี้ Bplus ERP</h4>
-              <button
-                v-if="customerSnapshot && !editingLink"
-                type="button"
-                class="btn-link"
-                @click="startEditLink"
-              >
+              <button v-if="customerSnapshot && !editingLink" type="button" class="btn-link" @click="startEditLink">
                 เปลี่ยนร้าน
               </button>
             </div>
@@ -211,7 +211,7 @@
               <div class="small muted">
                 📞 {{ customerSnapshot.phone || '—' }} · 📍 {{ customerSnapshot.province || 'ไม่ระบุจังหวัด' }}
               </div>
-              <div v-if="customerSnapshot.salesperson_name" class="small muted" style="margin-top:2px">
+              <div v-if="customerSnapshot.salesperson_name" class="small muted" style="margin-top: 2px">
                 พนักงานขายดูแล: <b>{{ customerSnapshot.salesperson_name }}</b>
               </div>
 
@@ -226,23 +226,23 @@
                 </div>
                 <div class="bound-kpi">
                   <span>แต้มสมาชิก CRM</span>
-                  <strong style="color:var(--green)">{{ fmt(customerSnapshot.points_balance) }} แต้ม</strong>
+                  <strong style="color: var(--green)">{{ fmt(customerSnapshot.points_balance) }} แต้ม</strong>
                 </div>
               </div>
 
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px">
                 <RouterLink
                   v-if="customerSnapshot.customer_master_id"
                   :to="`/customer-360/${customerSnapshot.customer_master_id}`"
                   class="btn light"
-                  style="flex:1;justify-content:center"
+                  style="flex: 1; justify-content: center"
                 >
                   🔍 ดูข้อมูล 360°
                 </RouterLink>
                 <button
                   type="button"
                   class="btn light"
-                  style="flex:1;justify-content:center"
+                  style="flex: 1; justify-content: center"
                   @click="insertSummaryToChat"
                 >
                   📤 ส่งสรุปยอดเข้าแชท
@@ -251,11 +251,11 @@
             </div>
 
             <div v-else class="bind-box">
-              <div class="field" style="margin-bottom:8px">
+              <div class="field" style="margin-bottom: 8px">
                 <label>ค้นหาลูกหนี้ Bplus (รหัส AR / ชื่อร้าน / เบอร์โทร)</label>
                 <input v-model="erpSearch" placeholder="พิมพ์ชื่อร้านหรือรหัสลูกหนี้..." />
               </div>
-              <div class="field" style="margin-bottom:8px">
+              <div class="field" style="margin-bottom: 8px">
                 <select v-model="selectedErpId">
                   <option value="">-- เลือกลูกหนี้ Bplus --</option>
                   <option v-for="c in erpOptions" :key="c.id" :value="c.id">
@@ -263,25 +263,23 @@
                   </option>
                 </select>
               </div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <div style="display: flex; gap: 6px; flex-wrap: wrap">
                 <button
                   type="button"
                   class="btn primary"
-                  style="flex:1;justify-content:center"
+                  style="flex: 1; justify-content: center"
                   :disabled="!selectedErpId || linking"
                   @click="saveLinkCustomer"
                 >
                   {{ linking ? 'กำลังผูก...' : '🔗 ผูกกับลูกหนี้รายนี้' }}
                 </button>
-                <button v-if="editingLink" type="button" class="btn light" @click="editingLink = false">
-                  ยกเลิก
-                </button>
+                <button v-if="editingLink" type="button" class="btn light" @click="editingLink = false">ยกเลิก</button>
               </div>
               <button
                 v-if="customerSnapshot && editingLink"
                 type="button"
                 class="btn-link danger"
-                style="margin-top:8px"
+                style="margin-top: 8px"
                 @click="unlinkCustomer"
               >
                 ยกเลิกการผูกลูกหนี้เดิม
@@ -292,7 +290,11 @@
           <div v-if="customerSnapshot?.recent_invoices?.length" class="detail-section">
             <h4>🧾 บิลล่าสุด 5 ใบ</h4>
             <div class="inv-mini-list">
-              <div v-for="inv in customerSnapshot.recent_invoices" :key="`${inv.doc_type}-${inv.invoice_no}`" class="inv-mini-row">
+              <div
+                v-for="inv in customerSnapshot.recent_invoices"
+                :key="`${inv.doc_type}-${inv.invoice_no}`"
+                class="inv-mini-row"
+              >
                 <div>
                   <div class="inv-no">{{ inv.doc_type }}-{{ inv.invoice_no }}</div>
                   <div class="small muted">{{ shortDate(inv.sold_at) }}</div>
@@ -310,9 +312,15 @@
               v-model="notesDraft"
               rows="3"
               placeholder="จดข้อมูลสำคัญของลูกค้ารายนี้ เช่น เงื่อนไขส่งของ, คนติดต่อ..."
-              style="width:100%;margin-bottom:8px"
+              style="width: 100%; margin-bottom: 8px"
             ></textarea>
-            <button type="button" class="btn light" style="width:100%;justify-content:center" :disabled="savingNotes" @click="saveNotes">
+            <button
+              type="button"
+              class="btn light"
+              style="width: 100%; justify-content: center"
+              :disabled="savingNotes"
+              @click="saveNotes"
+            >
               {{ savingNotes ? 'กำลังบันทึก...' : '💾 บันทึกโน้ต' }}
             </button>
           </div>
@@ -326,8 +334,8 @@
 
     <!-- Simulate Incoming Customer Message Modal -->
     <BaseModal :open="simulateOpen" title="🧪 ทดสอบรับข้อความจากลูกค้า LINE OA" @close="simulateOpen = false">
-      <div style="display:grid;gap:10px">
-        <div class="notice" style="margin-bottom:0">
+      <div style="display: grid; gap: 10px">
+        <div class="notice" style="margin-bottom: 0">
           จำลองเหตุการณ์เหมือนมีร้านค้าทักเข้ามาทาง LINE OA จริง เพื่อให้คุณทดสอบหน้าตอบแชทและผูกบัญชีลูกหนี้ Bplus ได้ทันที
         </div>
         <div class="field">
@@ -340,7 +348,7 @@
         </div>
         <div class="field">
           <label>ทดลองผูกกับลูกหนี้ Bplus ล่วงหน้า (ไม่บังคับ — เว้นว่างไว้เพื่อลองผูกเองในหน้าแชทก็ได้)</label>
-          <input v-model="simErpSearch" placeholder="พิมพ์ค้นหาร้านค้าใน Bplus..." style="margin-bottom:6px" />
+          <input v-model="simErpSearch" placeholder="พิมพ์ค้นหาร้านค้าใน Bplus..." style="margin-bottom: 6px" />
           <select v-model="simForm.erp_customer_id">
             <option value="">-- ยังไม่ผูก (ค่อยไปกดผูกในหน้าแชท) --</option>
             <option v-for="c in simErpOptions" :key="c.id" :value="c.id">
@@ -371,8 +379,8 @@
       @close="lineConfigOpen = false"
     >
       <div class="stack-md">
-        <div class="notice row-between" style="margin-bottom:0">
-          <div style="min-width:0;flex:1 1 200px">
+        <div class="notice row-between" style="margin-bottom: 0">
+          <div style="min-width: 0; flex: 1 1 200px">
             <div class="small muted">Webhook URL สำหรับนำไปวางใน LINE Developers (Messaging API → Webhook URL):</div>
             <code class="webhook-url-code">{{ fullWebhookUrl }}</code>
           </div>
@@ -393,7 +401,7 @@
         <div class="field">
           <label>
             Channel Secret *
-            <span v-if="lineStatus.secret_masked" class="tag green" style="margin-left:6px">
+            <span v-if="lineStatus.secret_masked" class="tag green" style="margin-left: 6px">
               บันทึกไว้แล้ว ({{ lineStatus.secret_masked }})
             </span>
           </label>
@@ -401,21 +409,27 @@
             v-model="lineConfigForm.line_channel_secret"
             :type="showLineSecrets ? 'text' : 'password'"
             autocomplete="new-password"
-            :placeholder="lineStatus.secret_configured ? 'เว้นว่างไว้หากไม่เปลี่ยนค่าเดิม' : 'วาง Channel Secret จากแท็บ Basic settings...'"
+            :placeholder="
+              lineStatus.secret_configured ? 'เว้นว่างไว้หากไม่เปลี่ยนค่าเดิม' : 'วาง Channel Secret จากแท็บ Basic settings...'
+            "
           />
         </div>
 
         <div class="field">
           <label>
             Channel Access Token (Long-lived) *
-            <span v-if="lineStatus.access_token_masked" class="tag green" style="margin-left:6px">
+            <span v-if="lineStatus.access_token_masked" class="tag green" style="margin-left: 6px">
               บันทึกไว้แล้ว ({{ lineStatus.access_token_masked }})
             </span>
           </label>
           <textarea
             v-model="lineConfigForm.line_channel_access_token"
             rows="3"
-            :placeholder="lineStatus.access_token_configured ? 'เว้นว่างไว้หากไม่เปลี่ยน Token เดิม' : 'วาง Channel Access Token (Long-lived) จากแท็บ Messaging API...'"
+            :placeholder="
+              lineStatus.access_token_configured
+                ? 'เว้นว่างไว้หากไม่เปลี่ยน Token เดิม'
+                : 'วาง Channel Access Token (Long-lived) จากแท็บ Messaging API...'
+            "
           ></textarea>
         </div>
 
@@ -536,7 +550,11 @@ async function submitLineConfig() {
   }
 }
 
-const { data: threadsData, isLoading: threadsLoading, refetch: refetchThreads } = useQuery({
+const {
+  data: threadsData,
+  isLoading: threadsLoading,
+  refetch: refetchThreads,
+} = useQuery({
   queryKey: computed(() => ['crm', 'line-chat-threads', filter.value, search.value]),
   queryFn: ({ signal }) => {
     const p = new URLSearchParams();
@@ -549,7 +567,9 @@ const { data: threadsData, isLoading: threadsLoading, refetch: refetchThreads } 
 
 const threads = computed(() => threadsData.value?.threads || []);
 const lineStatus = computed(() => threadsData.value?.line_status || { configured: false });
-const summary = computed(() => threadsData.value?.summary || { total_threads: 0, open_threads: 0, total_unread: 0, unlinked_threads: 0 });
+const summary = computed(
+  () => threadsData.value?.summary || { total_threads: 0, open_threads: 0, total_unread: 0, unlinked_threads: 0 }
+);
 
 const filterTabs = computed(() => [
   { value: 'all', label: 'ทั้งหมด', badge: 0 },
@@ -558,11 +578,15 @@ const filterTabs = computed(() => [
   { value: 'unread', label: 'ยังไม่อ่าน', badge: summary.value.total_unread },
 ]);
 
-watch(threads, (list) => {
-  if (!selectedThreadId.value && list.length > 0) {
-    selectedThreadId.value = list[0].id;
-  }
-}, { immediate: true });
+watch(
+  threads,
+  (list) => {
+    if (!selectedThreadId.value && list.length > 0) {
+      selectedThreadId.value = list[0].id;
+    }
+  },
+  { immediate: true }
+);
 
 const { data: detailData, refetch: refetchMessages } = useQuery({
   queryKey: computed(() => ['crm', 'line-chat-messages', selectedThreadId.value]),
@@ -581,12 +605,15 @@ watch(activeThread, (t) => {
   }
 });
 
-watch(() => messages.value.length, async () => {
-  await nextTick();
-  if (msgScrollRef.value) {
-    msgScrollRef.value.scrollTop = msgScrollRef.value.scrollHeight;
+watch(
+  () => messages.value.length,
+  async () => {
+    await nextTick();
+    if (msgScrollRef.value) {
+      msgScrollRef.value.scrollTop = msgScrollRef.value.scrollHeight;
+    }
   }
-});
+);
 
 const { data: erpPickerData } = useQuery({
   queryKey: computed(() => ['crm', 'line-chat-erp-picker', erpSearch.value]),

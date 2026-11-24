@@ -158,7 +158,7 @@ final class MemberController
         SalesRules::applyActualSalesScope($query, 'i');
 
         $rows = $query->select(
-              'i.source_system',
+            'i.source_system',
             'i.branch_code',
             'i.doc_type',
             'i.dt_properties',

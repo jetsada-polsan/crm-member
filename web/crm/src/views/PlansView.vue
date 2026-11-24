@@ -13,8 +13,8 @@
     <div v-else-if="isError" class="error">{{ error?.message || 'โหลดแผนออกตลาดไม่สำเร็จ' }}</div>
 
     <div v-else class="plans-layout">
-      <div v-if="!(plans || []).length" class="card panel-pad" style="text-align:center;padding:40px 20px">
-        <div style="font-size:38px;margin-bottom:8px">🗓️</div>
+      <div v-if="!(plans || []).length" class="card panel-pad" style="text-align: center; padding: 40px 20px">
+        <div style="font-size: 38px; margin-bottom: 8px">🗓️</div>
         <strong>ยังไม่มีแผนออกตลาดในระบบ</strong>
         <p class="small muted">กดปุ่ม “＋ สร้างแผนออกตลาด” แล้วเลือกดึงร้านค้าจากสายใบจองของคุณเข้าแผนอัตโนมัติได้เลย</p>
         <button type="button" class="btn primary" @click="openCreateModal">＋ สร้างแผนออกตลาดแรก</button>
@@ -28,15 +28,11 @@
               <span class="tag gray">📅 {{ p.visit_date }}</span>
               <strong class="plan-route-title">{{ p.route_name }}</strong>
               <span v-if="p.assigned_name" class="tag purple">👤 {{ p.assigned_name }}</span>
-              <span
-                v-for="dt in p.assigned_reservation_doc_types || []"
-                :key="dt"
-                class="tag green"
-              >
+              <span v-for="dt in p.assigned_reservation_doc_types || []" :key="dt" class="tag green">
                 สาย {{ dt }}
               </span>
             </div>
-            <div v-if="p.district || p.note" class="small muted" style="margin-top:4px">
+            <div v-if="p.district || p.note" class="small muted" style="margin-top: 4px">
               {{ [p.district, p.note].filter(Boolean).join(' · ') }}
             </div>
           </div>
@@ -54,34 +50,29 @@
             >
               🧭 นำทางต่อเนื่อง Google Maps
             </a>
-            <button type="button" class="btn light" @click="openAutoStopModal(p)">
-              ⚡ ดึงร้านจากสายใบจอง
-            </button>
-            <button type="button" class="btn light" @click="openAddStopModal(p)">
-              ＋ เพิ่มจุดแวะ
-            </button>
+            <button type="button" class="btn light" @click="openAutoStopModal(p)">⚡ ดึงร้านจากสายใบจอง</button>
+            <button type="button" class="btn light" @click="openAddStopModal(p)">＋ เพิ่มจุดแวะ</button>
           </div>
         </div>
 
         <!-- Stops list inside plan -->
         <div v-if="(p.stops || []).length" class="plan-stops-list">
-          <div
-            v-for="st in p.stops"
-            :key="st.id"
-            :class="['plan-stop-row', { completed: st.status === 'completed' }]"
-          >
+          <div v-for="st in p.stops" :key="st.id" :class="['plan-stop-row', { completed: st.status === 'completed' }]">
             <div class="plan-stop-left">
               <span class="plan-stop-num">{{ st.stop_order }}</span>
               <div class="plan-stop-info">
-                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
                   <strong>{{ st.shop_name || 'ร้านค้า' }}</strong>
                   <span v-if="st.code" class="tag gray">{{ st.code }}</span>
                   <span :class="['tag', st.status === 'completed' ? 'green' : 'orange']">
                     {{ st.status === 'completed' ? '✅ เข้าพบแล้ว' : '⏳ รอเข้าพบ' }}
                   </span>
                 </div>
-                <div class="small muted" style="margin-top:2px">
-                  {{ [st.address, st.province, st.phone ? `📞 ${st.phone}` : ''].filter(Boolean).join(' · ') || 'ยังไม่ระบุที่อยู่' }}
+                <div class="small muted" style="margin-top: 2px">
+                  {{
+                    [st.address, st.province, st.phone ? `📞 ${st.phone}` : ''].filter(Boolean).join(' · ') ||
+                    'ยังไม่ระบุที่อยู่'
+                  }}
                 </div>
               </div>
             </div>
@@ -96,18 +87,8 @@
               >
                 🧭 นำทาง
               </a>
-              <button
-                type="button"
-                class="btn primary stop-btn"
-                @click="checkinStop(st)"
-              >
-                📸 เช็คอิน
-              </button>
-              <button
-                type="button"
-                class="btn light stop-btn"
-                @click="toggleStopDone(p.id, st)"
-              >
+              <button type="button" class="btn primary stop-btn" @click="checkinStop(st)">📸 เช็คอิน</button>
+              <button type="button" class="btn light stop-btn" @click="toggleStopDone(p.id, st)">
                 {{ st.status === 'completed' ? '↩️ ยกเลิกเสร็จ' : '✓ ทำเครื่องหมายเสร็จ' }}
               </button>
               <button
@@ -124,7 +105,9 @@
         </div>
 
         <div v-else class="plan-stops-empty">
-          <span class="small muted">ยังไม่มีร้านค้าในแผนนี้ — กด “⚡ ดึงร้านจากสายใบจอง” เพื่อให้ระบบจัดรายการร้านที่ยังไม่เคยเข้าพบให้ทันที</span>
+          <span class="small muted"
+            >ยังไม่มีร้านค้าในแผนนี้ — กด “⚡ ดึงร้านจากสายใบจอง” เพื่อให้ระบบจัดรายการร้านที่ยังไม่เคยเข้าพบให้ทันที</span
+          >
         </div>
       </article>
     </div>
@@ -251,7 +234,13 @@ const addStopPlan = ref(null);
 const stopSearch = ref('');
 const selectedCustomerId = ref('');
 
-const { data: plans, isLoading, isError, error, refetch } = useQuery({
+const {
+  data: plans,
+  isLoading,
+  isError,
+  error,
+  refetch,
+} = useQuery({
   queryKey: ['crm', 'plans'],
   queryFn: ({ signal }) => crmGet('/plans', { signal }),
 });
@@ -360,19 +349,37 @@ async function removeStop(planId, stopId) {
 
 function checkinStop(stop) {
   if (stop.erp_customer_id) {
-    openVisitWizard({ kind: 'erp', id: Number(stop.erp_customer_id), planStopId: Number(stop.id), label: stop.shop_name });
+    openVisitWizard({
+      kind: 'erp',
+      id: Number(stop.erp_customer_id),
+      planStopId: Number(stop.id),
+      label: stop.shop_name,
+    });
   } else if (stop.crm_lead_id) {
     openVisitWizard({ kind: 'lead', id: Number(stop.crm_lead_id), planStopId: Number(stop.id), label: stop.shop_name });
   }
 }
 
 function multiStopDirectionsUrl(plan) {
-  const pinned = (plan.stops || []).filter((s) => s.latitude != null && s.longitude != null && s.latitude !== '' && s.longitude !== '' && Number.isFinite(Number(s.latitude)) && Number.isFinite(Number(s.longitude)) && Math.abs(Number(s.latitude)) <= 90 && Math.abs(Number(s.longitude)) <= 180);
+  const pinned = (plan.stops || []).filter(
+    (s) =>
+      s.latitude != null &&
+      s.longitude != null &&
+      s.latitude !== '' &&
+      s.longitude !== '' &&
+      Number.isFinite(Number(s.latitude)) &&
+      Number.isFinite(Number(s.longitude)) &&
+      Math.abs(Number(s.latitude)) <= 90 &&
+      Math.abs(Number(s.longitude)) <= 180
+  );
   if (!pinned.length) return '';
   if (pinned.length === 1) {
     return `https://www.google.com/maps?q=${pinned[0].latitude},${pinned[0].longitude}`;
   }
-  const coords = pinned.slice(0, 10).map((s) => `${s.latitude},${s.longitude}`).join('/');
+  const coords = pinned
+    .slice(0, 10)
+    .map((s) => `${s.latitude},${s.longitude}`)
+    .join('/');
   return `https://www.google.com/maps/dir/${coords}`;
 }
 </script>

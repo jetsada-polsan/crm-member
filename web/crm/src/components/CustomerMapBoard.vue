@@ -6,7 +6,10 @@
         <div>
           <h3>แผนที่ร้านค้า &amp; ภาพเข้าพบหน้างาน</h3>
           <p class="small muted">
-            ปักหมุดแล้ว <b>{{ fmt(allPins.length) }}</b> ร้าน · มีรูปถ่าย <b>{{ fmt(pinsWithPhotosCount) }}</b> ร้าน (<b>{{ fmt(totalPhotosCount) }}</b> รูป)
+            ปักหมุดแล้ว <b>{{ fmt(allPins.length) }}</b> ร้าน · มีรูปถ่าย <b>{{ fmt(pinsWithPhotosCount) }}</b> ร้าน (<b>{{
+              fmt(totalPhotosCount)
+            }}</b>
+            รูป)
           </p>
         </div>
       </div>
@@ -38,27 +41,20 @@
 
     <SkeletonBlock v-if="isLoading && !allPins.length" variant="cards" :rows="2" />
     <div v-else-if="isError" class="panel-pad">
-      <div class="error" style="margin-bottom:0">{{ error?.message || 'โหลดข้อมูลแผนที่ไม่สำเร็จ' }}</div>
+      <div class="error" style="margin-bottom: 0">{{ error?.message || 'โหลดข้อมูลแผนที่ไม่สำเร็จ' }}</div>
     </div>
 
     <div v-else class="map-board-body">
       <!-- Left: Interactive Leaflet Map -->
       <div class="map-board-canvas-col">
-        <CustomerMap
-          :pins="filteredPins"
-          :selected-pin-id="selectedPinId"
-          height="420px"
-          @select="openPinPopup"
-        />
-        <div class="map-foot" style="margin-top:12px">
+        <CustomerMap :pins="filteredPins" :selected-pin-id="selectedPinId" height="420px" @select="openPinPopup" />
+        <div class="map-foot" style="margin-top: 12px">
           <div class="map-legend-group">
             <span><i class="legend-dot erp"></i>ลูกค้า ERP</span>
             <span><i class="legend-dot approved"></i>Lead อนุมัติ</span>
             <span><i class="legend-dot pending"></i>Lead รออนุมัติ</span>
           </div>
-          <span v-if="overlapCount > 1" class="tag blue">
-            แยกจุดพิกัดใกล้กัน {{ overlapCount }} ร้านให้กดได้ครบแล้ว
-          </span>
+          <span v-if="overlapCount > 1" class="tag blue"> แยกจุดพิกัดใกล้กัน {{ overlapCount }} ร้านให้กดได้ครบแล้ว </span>
         </div>
       </div>
 
@@ -70,7 +66,7 @@
         </div>
 
         <div v-if="!filteredPins.length" class="map-list-empty">
-          <div style="font-size:32px;margin-bottom:6px">📍</div>
+          <div style="font-size: 32px; margin-bottom: 6px">📍</div>
           <strong>ไม่พบร้านที่ตรงกับตัวกรอง</strong>
           <p class="small muted">ลองล้างคำค้นหา หรือบันทึกเข้าพบพร้อม GPS เพื่อแสดงหมุดร้านค้า</p>
         </div>
@@ -83,7 +79,7 @@
                 <tr>
                   <th>ร้านค้า &amp; รูป</th>
                   <th>เข้าพบล่าสุด</th>
-                  <th style="text-align:right">ดูข้อมูล</th>
+                  <th style="text-align: right">ดูข้อมูล</th>
                 </tr>
               </thead>
               <tbody>
@@ -93,7 +89,7 @@
                   :class="['map-store-row', { 'is-selected': String(pin.id) === String(selectedPinId) }]"
                   @click="openPinPopup(pin)"
                 >
-                  <td style="white-space:normal">
+                  <td style="white-space: normal">
                     <div class="map-shop-cell">
                       <button
                         type="button"
@@ -101,35 +97,34 @@
                         :title="pin.photos?.length ? 'กดดูรูปหลักฐาน' : 'ยังไม่มีรูปถ่าย'"
                         @click.stop="pin.photos?.length ? openFirstPhoto(pin) : openPinPopup(pin)"
                       >
-                        <img
-                          v-if="pin.photos?.length"
-                          :src="pin.photos[0].url"
-                          :alt="pinDisplayName(pin)"
-                        />
+                        <img v-if="pin.photos?.length" :src="pin.photos[0].url" :alt="pinDisplayName(pin)" />
                         <span v-else class="map-thumb-placeholder">🏪</span>
                         <span v-if="pin.photo_count > 1" class="map-thumb-more">+{{ pin.photo_count - 1 }}</span>
                       </button>
                       <div class="map-shop-info">
                         <b class="map-shop-name">{{ pinDisplayName(pin) }}</b>
                         <div class="map-shop-sub">
-                          <span :class="['tag', pinTypeMeta(pin).tag]">{{ pinCodeLabel(pin) || pinTypeMeta(pin).label }}</span>
+                          <span :class="['tag', pinTypeMeta(pin).tag]">{{
+                            pinCodeLabel(pin) || pinTypeMeta(pin).label
+                          }}</span>
                           <span v-if="pin.province" class="small muted">{{ pin.province }}</span>
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td style="white-space:normal">
+                  <td style="white-space: normal">
                     <template v-if="pin.latest_visit">
                       <span :class="['tag', visitResultMeta(pin.latest_visit.result).tag]">
                         {{ visitResultMeta(pin.latest_visit.result).label }}
                       </span>
-                      <div class="small muted" style="margin-top:4px">
-                        {{ pin.latest_visit.staff_name || 'ทีมขาย' }} · {{ formatThaiDateTime(pin.latest_visit.visited_at) }}
+                      <div class="small muted" style="margin-top: 4px">
+                        {{ pin.latest_visit.staff_name || 'ทีมขาย' }} ·
+                        {{ formatThaiDateTime(pin.latest_visit.visited_at) }}
                       </div>
                     </template>
                     <span v-else class="small muted">ยังไม่เคยเข้าพบ</span>
                   </td>
-                  <td style="text-align:right">
+                  <td style="text-align: right">
                     <button type="button" class="btn light map-row-btn" @click.stop="openPinPopup(pin)">
                       {{ pin.photo_count > 0 ? `📷 ${pin.photo_count} รูป` : 'ดูหมุด' }}
                     </button>
@@ -148,14 +143,19 @@
               @click="openPinPopup(pin)"
             >
               <div class="map-mob-top">
-                <div style="min-width:0">
+                <div style="min-width: 0">
                   <strong class="map-shop-name">{{ pinDisplayName(pin) }}</strong>
-                  <div class="small muted" style="margin-top:2px">
+                  <div class="small muted" style="margin-top: 2px">
                     {{ pinCodeLabel(pin) }}
                     <template v-if="pin.province"> · {{ pin.province }}</template>
                   </div>
                 </div>
-                <span :class="['tag', pin.latest_visit ? visitResultMeta(pin.latest_visit.result).tag : pinTypeMeta(pin).tag]">
+                <span
+                  :class="[
+                    'tag',
+                    pin.latest_visit ? visitResultMeta(pin.latest_visit.result).tag : pinTypeMeta(pin).tag,
+                  ]"
+                >
                   {{ pin.latest_visit ? visitResultMeta(pin.latest_visit.result).label : pinTypeMeta(pin).label }}
                 </span>
               </div>
@@ -212,7 +212,12 @@ const filterKind = ref('all');
 const selectedPinId = ref(null);
 const activePin = ref(null);
 
-const { data: pinsData, isLoading, isError, error } = useQuery({
+const {
+  data: pinsData,
+  isLoading,
+  isError,
+  error,
+} = useQuery({
   queryKey: ['crm', 'pins'],
   queryFn: ({ signal }) => crmGet('/pins', { signal }),
 });

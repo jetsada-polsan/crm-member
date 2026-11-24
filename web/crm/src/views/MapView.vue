@@ -13,11 +13,7 @@
           >
             🗺️ สำรวจร้านบนแผนที่ ({{ fmt(allPins.length) }})
           </button>
-          <button
-            type="button"
-            :class="['btn', activeMode === 'pin' ? 'primary' : 'light']"
-            @click="switchToPinMode()"
-          >
+          <button type="button" :class="['btn', activeMode === 'pin' ? 'primary' : 'light']" @click="switchToPinMode()">
             📌 ปักหมุด / แก้พิกัดร้าน
             <span v-if="unpinnedTotalCount > 0" class="map-header-badge">รอปัก {{ fmt(unpinnedTotalCount) }}</span>
           </button>
@@ -27,12 +23,24 @@
 
     <!-- Summary KPI Bar -->
     <div class="kpis map-kpi-strip">
-      <div class="card kpi map-kpi-card" @click="activeMode = 'explore'; filterKind = 'all'">
+      <div
+        class="card kpi map-kpi-card"
+        @click="
+          activeMode = 'explore';
+          filterKind = 'all';
+        "
+      >
         <div class="label">📍 ปักหมุดแล้วทั้งหมด</div>
         <div class="value">{{ fmt(allPins.length) }}</div>
         <div class="sub">ลูกค้า ERP {{ fmt(erpPinCount) }} · ร้านใหม่ {{ fmt(leadPinCount) }}</div>
       </div>
-      <div class="card kpi map-kpi-card" @click="activeMode = 'explore'; filterKind = 'photos'">
+      <div
+        class="card kpi map-kpi-card"
+        @click="
+          activeMode = 'explore';
+          filterKind = 'photos';
+        "
+      >
         <div class="label">📷 ร้านที่มีรูปถ่ายหน้างาน</div>
         <div class="value">{{ fmt(pinsWithPhotosCount) }}</div>
         <div class="sub">รวมรูปหลักฐาน {{ fmt(totalPhotosCount) }} รูป</div>
@@ -42,12 +50,20 @@
         <div class="value" :style="{ color: unpinnedTotalCount > 0 ? 'var(--orange)' : 'var(--green)' }">
           {{ fmt(unpinnedTotalCount) }}
         </div>
-        <div class="sub">ERP {{ fmt(unpinnedErpCount) }} · Lead {{ fmt(unpinnedLeadCount) }} · รายการ ERP แสดงได้สูงสุด 250 ร้าน</div>
+        <div class="sub">
+          ERP {{ fmt(unpinnedErpCount) }} · Lead {{ fmt(unpinnedLeadCount) }} · รายการ ERP แสดงได้สูงสุด 250 ร้าน
+        </div>
       </div>
       <div class="card kpi map-kpi-card" @click="getGpsAndSwitchToPin">
         <div class="label">🛰️ พิกัด GPS ของคุณ</div>
-        <div class="value" style="font-size:16px">
-          {{ gpsLoading ? 'กำลังค้นหาพิกัด…' : gpsLoc ? `${gpsLoc.latitude.toFixed(4)}, ${gpsLoc.longitude.toFixed(4)}` : 'กดเพื่อรับพิกัด' }}
+        <div class="value" style="font-size: 16px">
+          {{
+            gpsLoading
+              ? 'กำลังค้นหาพิกัด…'
+              : gpsLoc
+                ? `${gpsLoc.latitude.toFixed(4)}, ${gpsLoc.longitude.toFixed(4)}`
+                : 'กดเพื่อรับพิกัด'
+          }}
         </div>
         <div class="sub">
           {{ gpsLoc ? `ความแม่นยำ ±${gpsLoc.accuracy_m || 0} เมตร` : 'แตะเพื่อดึงตำแหน่งปัจจุบันทันที' }}
@@ -73,7 +89,9 @@
         <div class="map-toolbar-inputs">
           <select v-if="isManager" v-model="mapStaffId" class="map-select" aria-label="กรองพนักงานขาย">
             <option value="">พนักงานขายทุกคน</option>
-            <option v-for="person in mapStaff || []" :key="person.id" :value="String(person.id)">{{ person.name }}</option>
+            <option v-for="person in mapStaff || []" :key="person.id" :value="String(person.id)">
+              {{ person.name }}
+            </option>
           </select>
           <select v-model="selectedProvince" class="map-select" aria-label="กรองจังหวัด">
             <option value="">ทุกจังหวัด ({{ provinces.length }})</option>
@@ -93,7 +111,9 @@
       </div>
     </div>
 
-    <p v-if="isManager" class="small muted">ตัวกรองพนักงานใช้กับหมุดบนแผนที่ตามสิทธิ์ลูกค้าของพนักงาน ส่วนรายการปักหมุดและยอดร้านรอปักเป็นภาพรวม</p>
+    <p v-if="isManager" class="small muted">
+      ตัวกรองพนักงานใช้กับหมุดบนแผนที่ตามสิทธิ์ลูกค้าของพนักงาน ส่วนรายการปักหมุดและยอดร้านรอปักเป็นภาพรวม
+    </p>
 
     <!-- Main Workbench Grid: Left Map Canvas, Right Context Panel -->
     <div class="map-workbench">
@@ -118,7 +138,7 @@
             <span><i class="legend-dot pending"></i>Lead รออนุมัติ</span>
             <span v-if="activeMode === 'pin'"><i class="legend-dot picked"></i>จุดปักหมุดใหม่ (ลากขยับได้)</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
             <span v-if="activeLoc && activeMode === 'pin'" class="tag green">
               📍 พิกัดที่เลือก: {{ activeLoc.latitude }}, {{ activeLoc.longitude }}
             </span>
@@ -138,11 +158,7 @@
           >
             🗂️ รายชื่อร้านบนแผนที่ ({{ fmt(filteredPins.length) }})
           </button>
-          <button
-            type="button"
-            :class="['map-side-tab', { active: activeMode === 'pin' }]"
-            @click="switchToPinMode()"
-          >
+          <button type="button" :class="['map-side-tab', { active: activeMode === 'pin' }]" @click="switchToPinMode()">
             📌 ปักหมุดร้านค้า
           </button>
         </div>
@@ -150,11 +166,16 @@
         <!-- MODE 1: EXPLORE STORE DIRECTORY -->
         <div v-if="activeMode === 'explore'" class="map-side-body">
           <div v-if="!filteredPins.length" class="map-empty-state">
-            <div style="font-size:36px">🗺️</div>
+            <div style="font-size: 36px">🗺️</div>
             <strong>ไม่พบร้านค้าที่ตรงกับเงื่อนไข</strong>
             <p class="small muted">ลองล้างตัวกรองคำค้นหา หรือกดสลับไปแท็บ “📌 ปักหมุดร้านค้า” เพื่อเพิ่มพิกัดร้าน</p>
-            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-              <button v-if="searchQuery || filterKind !== 'all' || selectedProvince" type="button" class="btn light" @click="resetFilters">
+            <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap">
+              <button
+                v-if="searchQuery || filterKind !== 'all' || selectedProvince"
+                type="button"
+                class="btn light"
+                @click="resetFilters"
+              >
                 ล้างตัวกรองทั้งหมด
               </button>
               <button type="button" class="btn primary" @click="switchToPinMode()">📌 ไปหน้าปักหมุดร้านค้า</button>
@@ -183,11 +204,15 @@
                 <div class="map-store-text">
                   <div class="map-store-title-row">
                     <strong class="map-store-name">{{ pinDisplayName(pin) }}</strong>
-                    <span :class="['tag', pinTypeMeta(pin).tag]">{{ pinCodeLabel(pin) || pinTypeMeta(pin).label }}</span>
+                    <span :class="['tag', pinTypeMeta(pin).tag]">{{
+                      pinCodeLabel(pin) || pinTypeMeta(pin).label
+                    }}</span>
                   </div>
 
                   <div class="map-store-meta">
-                    <span v-if="pin.district || pin.province">📍 {{ [pin.district, pin.province].filter(Boolean).join(' · ') }}</span>
+                    <span v-if="pin.district || pin.province"
+                      >📍 {{ [pin.district, pin.province].filter(Boolean).join(' · ') }}</span
+                    >
                     <span v-if="pin.phone">📞 {{ pin.phone }}</span>
                     <span v-if="pin.salesperson_name">👤 {{ pin.salesperson_name }}</span>
                   </div>
@@ -210,15 +235,11 @@
                 <button type="button" class="btn light map-act-btn" @click="openPinModal(pin)">
                   {{ pin.photo_count > 0 ? `🖼️ ดูรูป (${pin.photo_count})` : '🔍 ข้อมูลหมุด' }}
                 </button>
-                <button type="button" class="btn light map-act-btn" @click="prefillPinForEdit(pin)">
-                  ✏️ ย้ายหมุด
-                </button>
+                <button type="button" class="btn light map-act-btn" @click="prefillPinForEdit(pin)">✏️ ย้ายหมุด</button>
                 <a :href="googleMapsUrl(pin)" target="_blank" rel="noopener" class="btn light map-act-btn">
                   🧭 นำทาง
                 </a>
-                <button type="button" class="btn primary map-act-btn" @click="startVisitFromPin(pin)">
-                  📸 เช็คอิน
-                </button>
+                <button type="button" class="btn primary map-act-btn" @click="startVisitFromPin(pin)">📸 เช็คอิน</button>
               </div>
             </article>
           </div>
@@ -240,14 +261,20 @@
               <button
                 type="button"
                 :class="['pin-Toggle-btn', { active: subjectKind === 'erp' }]"
-                @click="subjectKind = 'erp'; subjectId = ''"
+                @click="
+                  subjectKind = 'erp';
+                  subjectId = '';
+                "
               >
                 🏢 ลูกหนี้ ERP ({{ fmt((customers || []).length) }})
               </button>
               <button
                 type="button"
                 :class="['pin-Toggle-btn', { active: subjectKind === 'lead' }]"
-                @click="subjectKind = 'lead'; subjectId = ''"
+                @click="
+                  subjectKind = 'lead';
+                  subjectId = '';
+                "
               >
                 🌱 ร้านใหม่ Lead ({{ fmt((leads || []).length) }})
               </button>
@@ -264,7 +291,7 @@
               v-model="storePickerSearch"
               type="search"
               class="map-search-input"
-              style="width:100%;margin-bottom:8px"
+              style="width: 100%; margin-bottom: 8px"
               placeholder="พิมพ์ชื่อร้าน หรือ รหัสลูกหนี้ เพื่อค้นหาเร็ว..."
             />
 
@@ -278,13 +305,15 @@
               >
                 <div class="store-picker-left">
                   <strong>{{ opt.name }}</strong>
-                  <span class="small muted">{{ opt.code }} <template v-if="opt.area">· {{ opt.area }}</template></span>
+                  <span class="small muted"
+                    >{{ opt.code }} <template v-if="opt.area">· {{ opt.area }}</template></span
+                  >
                 </div>
                 <span :class="['tag', opt.hasPin ? 'green' : 'orange']">
                   {{ opt.hasPin ? 'มีหมุดแล้ว' : 'รอปักหมุด' }}
                 </span>
               </button>
-              <div v-if="!filteredSubjectOptions.length" class="small muted" style="padding:14px;text-align:center">
+              <div v-if="!filteredSubjectOptions.length" class="small muted" style="padding: 14px; text-align: center">
                 ไม่พบร้านค้าที่ค้นหา (ลองติ๊กออก "แสดงเฉพาะร้านที่ยังไม่มีหมุด")
               </div>
             </div>
@@ -301,19 +330,19 @@
             </div>
 
             <div class="pin-coord-buttons">
-              <button type="button" class="btn primary" style="width:100%" :disabled="gpsLoading" @click="getGps">
+              <button type="button" class="btn primary" style="width: 100%" :disabled="gpsLoading" @click="getGps">
                 📍 {{ gpsLoading ? 'กำลังค้นหาพิกัด…' : 'ดึงพิกัด GPS ปัจจุบันของฉัน' }}
               </button>
             </div>
 
             <div class="pin-coord-paste">
               <label class="small muted">หรือวางพิกัดจาก Google Maps (ละติจูด, ลองจิจูด)</label>
-              <div style="display:flex;gap:6px;margin-top:4px">
+              <div style="display: flex; gap: 6px; margin-top: 4px">
                 <input
                   v-model="coordInputText"
                   type="text"
                   class="map-search-input"
-                  style="flex:1"
+                  style="flex: 1"
                   placeholder="เช่น 15.2287, 104.8564"
                   @keyup.enter="applyCoordText"
                 />
@@ -327,7 +356,12 @@
                 <strong>{{ activeLoc.latitude }}, {{ activeLoc.longitude }}</strong>
                 <span v-if="activeLoc.accuracy_m != null" class="small"> (±{{ activeLoc.accuracy_m }} ม.)</span>
               </div>
-              <button type="button" class="btn light" style="min-height:32px;padding:4px 10px" @click="clearPickedLoc">
+              <button
+                type="button"
+                class="btn light"
+                style="min-height: 32px; padding: 4px 10px"
+                @click="clearPickedLoc"
+              >
                 ล้างจุด
               </button>
             </div>
@@ -345,13 +379,8 @@
               </div>
             </div>
 
-            <div style="display:grid;gap:8px">
-              <button
-                type="button"
-                class="btn primary"
-                :disabled="saving || !subjectId || !activeLoc"
-                @click="savePin"
-              >
+            <div style="display: grid; gap: 8px">
+              <button type="button" class="btn primary" :disabled="saving || !subjectId || !activeLoc" @click="savePin">
                 {{ saving ? 'กำลังบันทึกหมุด...' : '📌 บันทึกหมุดร้านค้านี้' }}
               </button>
               <button
@@ -379,7 +408,15 @@ import CustomerMap from '../CustomerMap.vue';
 import PinDetailModal from '../components/PinDetailModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
-import { crmGet, crmMutate, fmt, invalidateCrmData, isManager, openLightbox, openVisitWizard } from '../composables/useCrmSession.js';
+import {
+  crmGet,
+  crmMutate,
+  fmt,
+  invalidateCrmData,
+  isManager,
+  openLightbox,
+  openVisitWizard,
+} from '../composables/useCrmSession.js';
 import {
   formatThaiDateTime,
   googleMapsUrl,
@@ -408,12 +445,15 @@ const gpsLoading = ref(false);
 let gpsRequestId = 0;
 const manualLoc = ref(null);
 const selectedPin = ref(null);
-watch(mapStaffId, () => { selectedPin.value = null; });
+watch(mapStaffId, () => {
+  selectedPin.value = null;
+});
 const saving = ref(false);
 
 const { data: pins, refetch: refetchPins } = useQuery({
   queryKey: computed(() => ['crm', 'pins', mapStaffId.value]),
-  queryFn: ({ signal }) => crmGet(`/pins${mapStaffId.value ? `?staff_id=${encodeURIComponent(mapStaffId.value)}` : ''}`, { signal }),
+  queryFn: ({ signal }) =>
+    crmGet(`/pins${mapStaffId.value ? `?staff_id=${encodeURIComponent(mapStaffId.value)}` : ''}`, { signal }),
 });
 
 const { data: mapStaff } = useQuery({
@@ -443,14 +483,24 @@ const leadPinCount = computed(() => allPins.value.filter((p) => !p.erp_customer_
 const pinsWithPhotosCount = computed(() => allPins.value.filter((p) => Number(p.photo_count || 0) > 0).length);
 const totalPhotosCount = computed(() => allPins.value.reduce((acc, p) => acc + Number(p.photo_count || 0), 0));
 
-const pinningOverview = computed(() => mapStaffId.value ? (allManagerPins.value || []) : allPins.value);
-const pinnedErpIds = computed(() => new Set(pinningOverview.value.filter((p) => p.erp_customer_id).map((p) => Number(p.erp_customer_id))));
-const pinnedLeadIds = computed(() => new Set(pinningOverview.value.filter((p) => p.crm_lead_id).map((p) => Number(p.crm_lead_id))));
+const pinningOverview = computed(() => (mapStaffId.value ? allManagerPins.value || [] : allPins.value));
+const pinnedErpIds = computed(
+  () => new Set(pinningOverview.value.filter((p) => p.erp_customer_id).map((p) => Number(p.erp_customer_id)))
+);
+const pinnedLeadIds = computed(
+  () => new Set(pinningOverview.value.filter((p) => p.crm_lead_id).map((p) => Number(p.crm_lead_id)))
+);
 
-const unpinnedErpCount = computed(() => (customers.value || []).filter((c) => !pinnedErpIds.value.has(Number(c.id))).length);
-const unpinnedLeadCount = computed(() => (leads.value || []).filter((l) => !pinnedLeadIds.value.has(Number(l.id))).length);
+const unpinnedErpCount = computed(
+  () => (customers.value || []).filter((c) => !pinnedErpIds.value.has(Number(c.id))).length
+);
+const unpinnedLeadCount = computed(
+  () => (leads.value || []).filter((l) => !pinnedLeadIds.value.has(Number(l.id))).length
+);
 const unpinnedTotalCount = computed(() => unpinnedErpCount.value + unpinnedLeadCount.value);
-const unpinnedForCurrentKindCount = computed(() => (subjectKind.value === 'erp' ? unpinnedErpCount.value : unpinnedLeadCount.value));
+const unpinnedForCurrentKindCount = computed(() =>
+  subjectKind.value === 'erp' ? unpinnedErpCount.value : unpinnedLeadCount.value
+);
 
 const provinces = computed(() => {
   const set = new Set();
@@ -532,8 +582,8 @@ const filteredSubjectOptions = computed(() => {
   });
 });
 
-const selectedSubjectOption = computed(() =>
-  subjectOptions.value.find((o) => String(o.id) === String(subjectId.value)) || null
+const selectedSubjectOption = computed(
+  () => subjectOptions.value.find((o) => String(o.id) === String(subjectId.value)) || null
 );
 
 const activeLoc = computed(() => manualLoc.value || gpsLoc.value);
@@ -689,7 +739,9 @@ async function savePin() {
   saving.value = true;
   try {
     await crmMutate('/pins', 'POST', {
-      ...(subjectKind.value === 'erp' ? { erp_customer_id: Number(subjectId.value) } : { crm_lead_id: Number(subjectId.value) }),
+      ...(subjectKind.value === 'erp'
+        ? { erp_customer_id: Number(subjectId.value) }
+        : { crm_lead_id: Number(subjectId.value) }),
       latitude: activeLoc.value.latitude,
       longitude: activeLoc.value.longitude,
       accuracy_m: activeLoc.value.accuracy_m ?? null,
@@ -728,7 +780,9 @@ async function savePin() {
 
 .map-kpi-card {
   cursor: pointer;
-  transition: transform 0.14s ease, border-color 0.14s ease;
+  transition:
+    transform 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .map-kpi-card:hover {
@@ -925,7 +979,9 @@ async function savePin() {
   padding: 11px 12px;
   background: #ffffff;
   cursor: pointer;
-  transition: border-color 0.14s ease, background-color 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease;
 }
 
 .map-store-item:hover,

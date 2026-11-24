@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="คำขอเปิดรหัส ERP"
-      subtitle="ร้านใหม่ที่ตรวจแล้วและรอเปิดรหัสใน Bplus (ต้องเปิดรหัสใน Bplus เอง)"
-    >
+    <PageHeader title="คำขอเปิดรหัส ERP" subtitle="ร้านใหม่ที่ตรวจแล้วและรอเปิดรหัสใน Bplus (ต้องเปิดรหัสใน Bplus เอง)">
       <template #secondary>
         <RouterLink to="/matching" class="btn light">🔗 จับคู่ลูกค้ากับ ERP</RouterLink>
       </template>
@@ -12,32 +9,46 @@
       </template>
     </PageHeader>
 
-    <div class="card panel-pad" style="margin-bottom:16px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
-        <div class="minirow" style="border:1px solid var(--border);border-radius:12px;padding:10px 12px">
-          <div><b>1. CRM Lead</b><div class="small muted">ทีมขายเก็บข้อมูลภาคสนาม</div></div>
+    <div class="card panel-pad" style="margin-bottom: 16px">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px">
+        <div class="minirow" style="border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px">
+          <div>
+            <b>1. CRM Lead</b>
+            <div class="small muted">ทีมขายเก็บข้อมูลภาคสนาม</div>
+          </div>
           <span class="tag blue">STEP 1</span>
         </div>
-        <div class="minirow" style="border:1px solid var(--border);border-radius:12px;padding:10px 12px">
-          <div><b>2. ขอเปิดบัญชี ERP</b><div class="small muted">ส่งคำขอเข้าคิวนี้</div></div>
+        <div class="minirow" style="border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px">
+          <div>
+            <b>2. ขอเปิดบัญชี ERP</b>
+            <div class="small muted">ส่งคำขอเข้าคิวนี้</div>
+          </div>
           <span class="tag orange">STEP 2</span>
         </div>
-        <div class="minirow" style="border:1px solid var(--border);border-radius:12px;padding:10px 12px">
-          <div><b>3. เปิดรหัสใน Bplus &amp; Sync</b><div class="small muted">ฝ่ายบัญชีเปิด AR แล้วซิงค์</div></div>
+        <div class="minirow" style="border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px">
+          <div>
+            <b>3. เปิดรหัสใน Bplus &amp; Sync</b>
+            <div class="small muted">ฝ่ายบัญชีเปิด AR แล้วซิงค์</div>
+          </div>
           <span class="tag purple">STEP 3</span>
         </div>
-        <div class="minirow" style="border:1px solid var(--border);border-radius:12px;padding:10px 12px">
-          <div><b>4. เชื่อมรหัสเข้าด้วยกัน</b><div class="small muted">ประวัติ CRM คงอยู่ครบ</div></div>
+        <div class="minirow" style="border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px">
+          <div>
+            <b>4. เชื่อมรหัสเข้าด้วยกัน</b>
+            <div class="small muted">ประวัติ CRM คงอยู่ครบ</div>
+          </div>
           <span class="tag green">STEP 4</span>
         </div>
       </div>
     </div>
 
     <SkeletonBlock v-if="isLoading && !requests.length" variant="table" :rows="5" />
-    <div v-else-if="isError" class="error">{{ error?.message || 'โหลดคิวคำขอเปิด ERP ไม่สำเร็จ (สงวนสิทธิ์สำหรับผู้จัดการ/แอดมิน)' }}</div>
+    <div v-else-if="isError" class="error">
+      {{ error?.message || 'โหลดคิวคำขอเปิด ERP ไม่สำเร็จ (สงวนสิทธิ์สำหรับผู้จัดการ/แอดมิน)' }}
+    </div>
 
-    <div v-else class="card" style="margin-bottom:16px">
-      <div class="section-head" style="padding:16px 18px 0">
+    <div v-else class="card" style="margin-bottom: 16px">
+      <div class="section-head" style="padding: 16px 18px 0">
         <div>
           <h3>คิวคำขอเปิดรหัสลูกค้า ERP ({{ requests.length }})</h3>
           <small>เรียงตามเวลาที่ส่งคำขอก่อน-หลัง</small>
@@ -58,8 +69,12 @@
           </thead>
           <tbody>
             <tr v-for="r in requests" :key="r.crm_lead_id">
-              <td><span class="tag blue">{{ r.internal_customer_code || `LEAD-${r.crm_lead_id}` }}</span></td>
-              <td><b>{{ r.shop_name }}</b></td>
+              <td>
+                <span class="tag blue">{{ r.internal_customer_code || `LEAD-${r.crm_lead_id}` }}</span>
+              </td>
+              <td>
+                <b>{{ r.shop_name }}</b>
+              </td>
               <td>{{ r.phone || '—' }} · {{ r.shop_type || 'ร้านค้า' }}</td>
               <td>
                 <div>{{ r.province || '—' }} {{ r.district || '' }}</div>
@@ -68,7 +83,7 @@
               <td>{{ r.requested_by || '—' }}</td>
               <td>{{ r.created_at ? new Date(r.created_at).toLocaleString('th-TH') : '—' }}</td>
               <td>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap">
                   <RouterLink
                     v-if="r.customer_master_id"
                     :to="`/customer-360/${r.customer_master_id}`"
@@ -76,9 +91,7 @@
                   >
                     360°
                   </RouterLink>
-                  <button type="button" class="btn primary" @click="openLinkModal(r)">
-                    🔗 เชื่อมบัญชี ERP
-                  </button>
+                  <button type="button" class="btn primary" @click="openLinkModal(r)">🔗 เชื่อมบัญชี ERP</button>
                 </div>
               </td>
             </tr>
@@ -89,17 +102,19 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards" style="padding: 12px">
         <div v-for="r in requests" :key="`req-m-${r.crm_lead_id}`" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
             <strong>{{ r.shop_name }}</strong>
             <span class="tag orange">{{ r.internal_customer_code || `LEAD-${r.crm_lead_id}` }}</span>
           </div>
-          <div class="small muted" style="margin:6px 0">
+          <div class="small muted" style="margin: 6px 0">
             โทร: {{ r.phone || '—' }} · {{ r.province || '—' }} · ขอโดย {{ r.requested_by || '—' }}
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <RouterLink v-if="r.customer_master_id" :to="`/customer-360/${r.customer_master_id}`" class="btn light">360°</RouterLink>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <RouterLink v-if="r.customer_master_id" :to="`/customer-360/${r.customer_master_id}`" class="btn light"
+              >360°</RouterLink
+            >
             <button type="button" class="btn primary" @click="openLinkModal(r)">🔗 เชื่อมบัญชี ERP</button>
           </div>
         </div>
@@ -109,8 +124,8 @@
 
     <!-- Link Existing ERP Account Modal -->
     <BaseModal :open="Boolean(linkingReq)" title="เชื่อมคำขอเปิด ERP กับรหัสลูกค้า Bplus" @close="linkingReq = null">
-      <div v-if="linkingReq" style="display:grid;gap:10px">
-        <div class="notice" style="margin-bottom:0">
+      <div v-if="linkingReq" style="display: grid; gap: 10px">
+        <div class="notice" style="margin-bottom: 0">
           ร้านจาก CRM: <b>{{ linkingReq.shop_name }}</b> ({{ linkingReq.internal_customer_code }})
         </div>
         <div class="field">
@@ -151,7 +166,13 @@ import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { crmGet, crmMutate, invalidateCrmData } from '../composables/useCrmSession.js';
 
-const { data, isLoading, isError, error, refetch: refetchAll } = useQuery({
+const {
+  data,
+  isLoading,
+  isError,
+  error,
+  refetch: refetchAll,
+} = useQuery({
   queryKey: ['crm', 'erp-creation-requests'],
   queryFn: ({ signal }) => crmGet('/customer-master/erp-creation-requests', { signal }),
 });

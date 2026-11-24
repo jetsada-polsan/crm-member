@@ -23,16 +23,16 @@
           v-for="l in laneLeads(lane.id)"
           :key="l.id"
           class="lead"
-          style="cursor:pointer"
+          style="cursor: pointer"
           @click="openDetailDrawer('lead', l.id)"
         >
           <strong>{{ l.shop_name }}</strong>
           <p>{{ l.shop_type || 'ร้านค้า' }} · {{ l.phone || 'ไม่มีเบอร์' }}</p>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap">
             <span class="tag" :class="stageTagClass(l.pipeline_stage)">{{ stageLabel(l.pipeline_stage) }}</span>
             <select
               :value="l.pipeline_stage"
-              style="font-size:13px;padding:6px 34px 6px 12px;min-height:36px;border-radius:12px"
+              style="font-size: 13px; padding: 6px 34px 6px 12px; min-height: 36px; border-radius: 12px"
               @click.stop
               @change.stop="moveStage(l, $event.target.value)"
             >
@@ -40,11 +40,7 @@
             </select>
           </div>
           <div class="lead-actions" @click.stop>
-            <button
-              type="button"
-              class="btn light lead-action-btn"
-              @click="openQuotationModal(l)"
-            >
+            <button type="button" class="btn light lead-action-btn" @click="openQuotationModal(l)">
               📄 ใบเสนอราคา
             </button>
             <button
@@ -58,7 +54,7 @@
           </div>
         </div>
 
-        <div v-if="!laneLeads(lane.id).length" class="small muted" style="text-align:center;padding:24px 8px">
+        <div v-if="!laneLeads(lane.id).length" class="small muted" style="text-align: center; padding: 24px 8px">
           ยังไม่มีรายการในสถานะนี้
         </div>
       </div>
@@ -90,7 +86,7 @@
 
         <!-- Product Search & Quick Add from Bplus ERP -->
         <div class="quote-product-picker">
-          <label class="small muted" style="display:block;margin-bottom:4px">
+          <label class="small muted" style="display: block; margin-bottom: 4px">
             🔍 ค้นหาและดึงรายการสินค้าจาก Bplus ERP (4,208 รายการ)
           </label>
           <div class="row-actions">
@@ -102,8 +98,10 @@
             />
             <select v-model="selectedProductCode" class="filter-search-input" @change="addSelectedErpProduct">
               <option value="">-- เลือกสินค้าจาก Bplus เพื่อเพิ่มลงตาราง --</option>
-              <option v-for="p in (erpProducts || [])" :key="p.erp_product_code" :value="p.erp_product_code">
-                [{{ p.erp_product_code }}] {{ p.product_name }} ({{ p.unit || 'ชิ้น' }} · ฿{{ money(p.default_price || 0) }})
+              <option v-for="p in erpProducts || []" :key="p.erp_product_code" :value="p.erp_product_code">
+                [{{ p.erp_product_code }}] {{ p.product_name }} ({{ p.unit || 'ชิ้น' }} · ฿{{
+                  money(p.default_price || 0)
+                }})
               </option>
             </select>
             <button type="button" class="btn light" @click="addBlankItem">＋ เพิ่มรายการเอง</button>
@@ -111,17 +109,17 @@
         </div>
 
         <!-- Line Items Table -->
-        <div class="table-wrap" style="border:1px solid var(--border);border-radius:12px;margin-top:12px">
+        <div class="table-wrap" style="border: 1px solid var(--border); border-radius: 12px; margin-top: 12px">
           <table class="table">
             <thead>
               <tr>
-                <th style="width:40px">#</th>
+                <th style="width: 40px">#</th>
                 <th>รหัส / รายการสินค้า</th>
-                <th style="width:90px">จำนวน</th>
-                <th style="width:90px">หน่วย</th>
-                <th style="width:120px">ราคา/หน่วย</th>
-                <th style="width:120px;text-align:right">รวม (บาท)</th>
-                <th style="width:44px"></th>
+                <th style="width: 90px">จำนวน</th>
+                <th style="width: 90px">หน่วย</th>
+                <th style="width: 120px">ราคา/หน่วย</th>
+                <th style="width: 120px; text-align: right">รวม (บาท)</th>
+                <th style="width: 44px"></th>
               </tr>
             </thead>
             <tbody>
@@ -131,7 +129,7 @@
                   <input
                     v-model="item.name"
                     placeholder="ชื่อสินค้า / รายละเอียด"
-                    style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:8px"
+                    style="width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px"
                   />
                 </td>
                 <td>
@@ -140,14 +138,14 @@
                     type="number"
                     min="1"
                     step="1"
-                    style="width:76px;padding:6px 8px;border:1px solid var(--border);border-radius:8px"
+                    style="width: 76px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px"
                   />
                 </td>
                 <td>
                   <input
                     v-model="item.unit"
                     placeholder="ชิ้น/ลัง"
-                    style="width:76px;padding:6px 8px;border:1px solid var(--border);border-radius:8px"
+                    style="width: 76px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px"
                   />
                 </td>
                 <td>
@@ -156,10 +154,10 @@
                     type="number"
                     min="0"
                     step="0.01"
-                    style="width:106px;padding:6px 8px;border:1px solid var(--border);border-radius:8px"
+                    style="width: 106px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px"
                   />
                 </td>
-                <td style="text-align:right;font-weight:700">
+                <td style="text-align: right; font-weight: 700">
                   {{ money((Number(item.qty) || 0) * (Number(item.price) || 0)) }}
                 </td>
                 <td>
@@ -167,7 +165,7 @@
                     v-if="quoteDoc.items.length > 1"
                     type="button"
                     class="btn light"
-                    style="min-height:30px;padding:2px 8px"
+                    style="min-height: 30px; padding: 2px 8px"
                     @click="quoteDoc.items.splice(idx, 1)"
                   >
                     ✕
@@ -187,7 +185,7 @@
               rows="3"
               placeholder="เช่น จัดส่งฟรีตามรอบสายรถใบจอง POPSTAR / เครดิตตามเงื่อนไขบริษัท"
             ></textarea>
-            <label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer">
+            <label style="display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer">
               <input v-model="quoteDoc.includeVat" type="checkbox" />
               <span>คำนวณภาษีมูลค่าเพิ่ม (VAT 7%)</span>
             </label>
@@ -205,7 +203,13 @@
                 type="number"
                 min="0"
                 step="1"
-                style="width:110px;text-align:right;padding:4px 8px;border:1px solid var(--border);border-radius:8px"
+                style="
+                  width: 110px;
+                  text-align: right;
+                  padding: 4px 8px;
+                  border: 1px solid var(--border);
+                  border-radius: 8px;
+                "
               />
             </div>
             <div v-if="quoteDoc.includeVat" class="quote-total-line">
@@ -262,7 +266,12 @@ const LANES = [
 
 const queryKey = ['crm', 'pipeline-leads'];
 
-const { data: leadsData, isLoading, isError, error } = useQuery({
+const {
+  data: leadsData,
+  isLoading,
+  isError,
+  error,
+} = useQuery({
   queryKey,
   queryFn: ({ signal }) => crmGet('/leads', { signal }),
 });
@@ -287,8 +296,7 @@ const quoteDoc = ref({
 
 const { data: erpProducts } = useQuery({
   queryKey: computed(() => ['crm', 'quote-products', productSearch.value]),
-  queryFn: ({ signal }) =>
-    crmGet(`/products?limit=60&q=${encodeURIComponent(productSearch.value.trim())}`, { signal }),
+  queryFn: ({ signal }) => crmGet(`/products?limit=60&q=${encodeURIComponent(productSearch.value.trim())}`, { signal }),
   enabled: computed(() => Boolean(quoteLead.value)),
 });
 
@@ -319,7 +327,11 @@ function addSelectedErpProduct() {
   const prod = (erpProducts.value || []).find((p) => p.erp_product_code === selectedProductCode.value);
   if (prod) {
     // Replace initial blank row if empty
-    if (quoteDoc.value.items.length === 1 && !quoteDoc.value.items[0].code && quoteDoc.value.items[0].name === 'สินค้าตัวอย่าง POPSTAR') {
+    if (
+      quoteDoc.value.items.length === 1 &&
+      !quoteDoc.value.items[0].code &&
+      quoteDoc.value.items[0].name === 'สินค้าตัวอย่าง POPSTAR'
+    ) {
       quoteDoc.value.items = [];
     }
     quoteDoc.value.items.push({
@@ -341,12 +353,19 @@ function printQuotationAndMarkQuoted() {
   const lead = quoteLead.value;
   if (!lead) return;
 
-  if (lead.pipeline_stage === 'new_lead' || lead.pipeline_stage === 'contacted' || lead.pipeline_stage === 'interested') {
+  if (
+    lead.pipeline_stage === 'new_lead' ||
+    lead.pipeline_stage === 'contacted' ||
+    lead.pipeline_stage === 'interested'
+  ) {
     moveStage(lead, 'quoted');
   }
 
   const esc = (s) =>
-    String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    String(s ?? '').replace(
+      /[&<>"']/g,
+      (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]
+    );
 
   const rowsHtml = quoteDoc.value.items
     .map(
@@ -458,10 +477,18 @@ function printQuotationAndMarkQuoted() {
 }
 
 function laneLeads(laneId) {
-  if (laneId === 'new') return leadsList.value.filter((l) => l.pipeline_stage === 'new_lead' && l.approval_status !== 'approved');
-  if (laneId === 'follow') return leadsList.value.filter((l) => ['contacted', 'interested', 'quoted', 'follow_up'].includes(l.pipeline_stage));
-  if (laneId === 'visited') return leadsList.value.filter((l) => l.approval_status === 'approved' && !['converted', 'erp_creation_requested', 'erp_match_pending'].includes(l.pipeline_stage));
-  if (laneId === 'erp_pending') return leadsList.value.filter((l) => ['erp_creation_requested', 'erp_match_pending'].includes(l.pipeline_stage));
+  if (laneId === 'new')
+    return leadsList.value.filter((l) => l.pipeline_stage === 'new_lead' && l.approval_status !== 'approved');
+  if (laneId === 'follow')
+    return leadsList.value.filter((l) => ['contacted', 'interested', 'quoted', 'follow_up'].includes(l.pipeline_stage));
+  if (laneId === 'visited')
+    return leadsList.value.filter(
+      (l) =>
+        l.approval_status === 'approved' &&
+        !['converted', 'erp_creation_requested', 'erp_match_pending'].includes(l.pipeline_stage)
+    );
+  if (laneId === 'erp_pending')
+    return leadsList.value.filter((l) => ['erp_creation_requested', 'erp_match_pending'].includes(l.pipeline_stage));
   if (laneId === 'converted') return leadsList.value.filter((l) => l.pipeline_stage === 'converted');
   return [];
 }

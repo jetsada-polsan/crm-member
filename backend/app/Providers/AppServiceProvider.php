@@ -24,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('crm-login', function (Request $request): array {
             $email = strtolower(trim((string) $request->input('email', '')));
+
             return [
                 Limit::perMinute(6)->by('crm-login:acct:'.$request->ip().'|'.$email),
                 Limit::perMinute(20)->by('crm-login:ip:'.$request->ip()),
@@ -34,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
             $ident = ! empty($request->input('email'))
                 ? strtolower(trim((string) $request->input('email', '')))
                 : (string) preg_replace('/\D+/', '', (string) $request->input('phone', ''));
+
             return [
                 Limit::perMinute(6)->by('member-login:acct:'.$request->ip().'|'.$ident),
                 Limit::perMinute(20)->by('member-login:ip:'.$request->ip()),

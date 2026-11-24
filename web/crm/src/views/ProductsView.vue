@@ -59,7 +59,7 @@
           <span class="tag blue">ชุดราคา 0</span>
         </div>
         <div class="kpi-label">อัปเดตราคา Bplus ล่าสุด</div>
-        <div class="kpi-value" style="font-size:17px;line-height:1.45;margin-top:4px">{{ priceSyncLabel }}</div>
+        <div class="kpi-value" style="font-size: 17px; line-height: 1.45; margin-top: 4px">{{ priceSyncLabel }}</div>
         <div class="kpi-foot">ราคาปกติตามรหัสขายและหน่วยนับ</div>
       </div>
     </div>
@@ -89,21 +89,14 @@
         <option :value="200">200 รายการ / หน้า</option>
       </select>
 
-      <button
-        v-if="search || selectedCategory"
-        type="button"
-        class="btn light"
-        @click="resetFilters"
-      >
-        ล้างตัวกรอง
-      </button>
+      <button v-if="search || selectedCategory" type="button" class="btn light" @click="resetFilters">ล้างตัวกรอง</button>
     </div>
 
     <!-- Main Product Catalog Table -->
     <div class="card catalog-table-card">
       <SkeletonBlock v-if="isLoading && !groupedProducts.length" variant="table" :rows="8" />
       <div v-else-if="isError" class="panel-pad">
-        <div class="error" style="margin-bottom:0">โหลดข้อมูลสินค้าและราคาไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</div>
+        <div class="error" style="margin-bottom: 0">โหลดข้อมูลสินค้าและราคาไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</div>
       </div>
 
       <template v-else>
@@ -112,22 +105,22 @@
           <table class="table catalog-table">
             <thead>
               <tr>
-                <th style="width:66px;text-align:center">ลำดับ</th>
-                <th style="min-width:270px">ชื่อสินค้า</th>
-                <th style="min-width:130px">ชื่อหน่วย</th>
-                <th style="min-width:135px">หน่วยใหญ่</th>
-                <th style="min-width:130px;text-align:right">ราคาหน่วยใหญ่</th>
-                <th style="min-width:135px">หน่วยย่อย</th>
-                <th style="min-width:130px;text-align:right">ราคาหน่วยย่อย</th>
+                <th style="width: 66px; text-align: center">ลำดับ</th>
+                <th style="min-width: 270px">ชื่อสินค้า</th>
+                <th style="min-width: 130px">ชื่อหน่วย</th>
+                <th style="min-width: 135px">หน่วยใหญ่</th>
+                <th style="min-width: 130px; text-align: right">ราคาหน่วยใหญ่</th>
+                <th style="min-width: 135px">หน่วยย่อย</th>
+                <th style="min-width: 130px; text-align: right">ราคาหน่วยย่อย</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="item in groupedProducts" :key="item.erp_product_code">
-                <td style="text-align:center">
+                <td style="text-align: center">
                   <span class="row-num-badge">{{ fmt(item.row_no) }}</span>
                 </td>
 
-                <td style="white-space:normal">
+                <td style="white-space: normal">
                   <div class="prod-name-cell">
                     <strong class="prod-title">{{ item.product_name }}</strong>
                     <div class="prod-meta-tags">
@@ -137,7 +130,7 @@
                   </div>
                 </td>
 
-                <td style="white-space:normal">
+                <td style="white-space: normal">
                   <div class="unit-summary-text">{{ item.unit_summary || '—' }}</div>
                   <div v-if="(item.extra_units || []).length" class="extra-units-wrap">
                     <span v-for="(eu, i) in item.extra_units" :key="i" class="extra-unit-chip">
@@ -147,11 +140,14 @@
                 </td>
 
                 <!-- หน่วยใหญ่ -->
-                <td style="white-space:normal">
+                <td style="white-space: normal">
                   <template v-if="item.large_unit">
                     <div class="unit-cell">
                       <span class="unit-name large">{{ item.large_unit.unit }}</span>
-                      <span v-if="item.large_unit.unit_qty && Number(item.large_unit.unit_qty) > 1" class="unit-qty-chip">
+                      <span
+                        v-if="item.large_unit.unit_qty && Number(item.large_unit.unit_qty) > 1"
+                        class="unit-qty-chip"
+                      >
                         ×{{ fmtQty(item.large_unit.unit_qty) }}
                       </span>
                     </div>
@@ -163,17 +159,15 @@
                 </td>
 
                 <!-- ราคาหน่วยใหญ่ -->
-                <td style="text-align:right">
+                <td style="text-align: right">
                   <template v-if="item.large_unit">
-                    <span class="price-pill large">
-                      {{ money(item.large_unit.price) }} ฿
-                    </span>
+                    <span class="price-pill large"> {{ money(item.large_unit.price) }} ฿ </span>
                   </template>
                   <span v-else class="muted">—</span>
                 </td>
 
                 <!-- หน่วยย่อย -->
-                <td style="white-space:normal">
+                <td style="white-space: normal">
                   <template v-if="item.small_unit">
                     <div class="unit-cell">
                       <span class="unit-name small-u">{{ item.small_unit.unit }}</span>
@@ -186,11 +180,9 @@
                 </td>
 
                 <!-- ราคาหน่วยย่อย -->
-                <td style="text-align:right">
+                <td style="text-align: right">
                   <template v-if="item.small_unit">
-                    <span class="price-pill small-u">
-                      {{ money(item.small_unit.price) }} ฿
-                    </span>
+                    <span class="price-pill small-u"> {{ money(item.small_unit.price) }} ฿ </span>
                   </template>
                   <span v-else class="muted">—</span>
                 </td>
@@ -205,12 +197,16 @@
 
         <!-- Mobile Card List -->
         <div class="mob-cards panel-pad">
-          <article v-for="item in groupedProducts" :key="`m-${item.erp_product_code}`" class="card mob-card prod-mob-card">
+          <article
+            v-for="item in groupedProducts"
+            :key="`m-${item.erp_product_code}`"
+            class="card mob-card prod-mob-card"
+          >
             <div class="prod-mob-head">
               <span class="row-num-badge">{{ fmt(item.row_no) }}</span>
-              <div style="flex:1;min-width:0">
+              <div style="flex: 1; min-width: 0">
                 <strong class="prod-title">{{ item.product_name }}</strong>
-                <div class="prod-meta-tags" style="margin-top:4px">
+                <div class="prod-meta-tags" style="margin-top: 4px">
                   <span class="tag gray">{{ item.erp_product_code }}</span>
                   <span v-if="item.category_name" class="tag blue">{{ item.category_name }}</span>
                   <span class="tag gray">หน่วย: {{ item.unit_summary }}</span>
@@ -223,7 +219,7 @@
                 <div class="small muted">หน่วยใหญ่</div>
                 <template v-if="item.large_unit">
                   <strong>{{ item.large_unit.unit }}</strong>
-                  <div class="price-pill large" style="margin-top:4px;display:inline-block">
+                  <div class="price-pill large" style="margin-top: 4px; display: inline-block">
                     {{ money(item.large_unit.price) }} ฿
                   </div>
                 </template>
@@ -234,7 +230,7 @@
                 <div class="small muted">หน่วยย่อย</div>
                 <template v-if="item.small_unit">
                   <strong>{{ item.small_unit.unit }}</strong>
-                  <div class="price-pill small-u" style="margin-top:4px;display:inline-block">
+                  <div class="price-pill small-u" style="margin-top: 4px; display: inline-block">
                     {{ money(item.small_unit.price) }} ฿
                   </div>
                 </template>
@@ -249,15 +245,16 @@
         <!-- Pagination Footer -->
         <div v-if="meta.total > 0" class="pager">
           <div>
-            แสดงลำดับ <b>{{ fmt(meta.from) }} – {{ fmt(meta.to) }}</b> จากทั้งหมด
-            <b>{{ fmt(meta.total) }}</b> รายการ
+            แสดงลำดับ <b>{{ fmt(meta.from) }} – {{ fmt(meta.to) }}</b> จากทั้งหมด <b>{{ fmt(meta.total) }}</b> รายการ
             <span v-if="meta.total !== summary.total_active_skus" class="muted">
               (จากสินค้าเปิดใช้งานทั้งหมด {{ fmt(summary.total_active_skus) }} รายการ)
             </span>
           </div>
           <div class="pager-btns">
             <button type="button" class="btn light" :disabled="page <= 1" @click="page--">← ก่อนหน้า</button>
-            <span class="small" style="font-weight:700;padding:0 6px">หน้า {{ meta.current_page }} / {{ meta.last_page }}</span>
+            <span class="small" style="font-weight: 700; padding: 0 6px"
+              >หน้า {{ meta.current_page }} / {{ meta.last_page }}</span
+            >
             <button type="button" class="btn light" :disabled="page >= meta.last_page" @click="page++">ถัดไป →</button>
           </div>
         </div>
@@ -293,24 +290,34 @@ const { data, isLoading, isError } = useQuery({
 
 const groupedProducts = computed(() => data.value?.grouped_products || []);
 const categories = computed(() => data.value?.categories || []);
-const summary = computed(() => data.value?.summary || {
-  total_active_skus: 0,
-  total_matched_skus: 0,
-  total_price_rows: 0,
-  multi_unit_skus: 0,
-});
-const meta = computed(() => data.value?.meta || {
-  current_page: 1,
-  last_page: 1,
-  per_page: perPage.value,
-  total: 0,
-  from: 0,
-  to: 0,
-});
+const summary = computed(
+  () =>
+    data.value?.summary || {
+      total_active_skus: 0,
+      total_matched_skus: 0,
+      total_price_rows: 0,
+      multi_unit_skus: 0,
+    }
+);
+const meta = computed(
+  () =>
+    data.value?.meta || {
+      current_page: 1,
+      last_page: 1,
+      per_page: perPage.value,
+      total: 0,
+      from: 0,
+      to: 0,
+    }
+);
 
 const priceSyncLabel = computed(() =>
   data.value?.price_synced_at
-    ? new Date(data.value.price_synced_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' })
+    ? new Date(data.value.price_synced_at).toLocaleString('th-TH', {
+        timeZone: 'Asia/Bangkok',
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
     : 'ยังไม่มีข้อมูล'
 );
 

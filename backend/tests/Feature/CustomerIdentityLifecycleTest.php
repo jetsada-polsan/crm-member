@@ -17,11 +17,12 @@ class CustomerIdentityLifecycleTest extends TestCase
     private function staff(string $role, ?string $salesCode = null): StaffUser
     {
         $id = DB::table('staff_users')->insertGetId([
-            'name' => ucfirst($role).' Identity Test', 'email' => uniqid($role). '@identity.test',
+            'name' => ucfirst($role).' Identity Test', 'email' => uniqid($role).'@identity.test',
             'password' => Hash::make('StaffSecret123!'), 'role' => $role,
             'salesperson_code' => $salesCode, 'is_active' => true,
             'created_at' => now(), 'updated_at' => now(),
         ]);
+
         return StaffUser::query()->findOrFail($id);
     }
 

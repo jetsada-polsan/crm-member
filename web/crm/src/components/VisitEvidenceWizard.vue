@@ -21,7 +21,9 @@
     <!-- Step 1: Select Shop / Lead or Quick Create -->
     <div v-if="step === 1" class="wizard-step-panel">
       <h4 class="wizard-step-heading">1. เลือกร้านค้าเป้าหมายที่จะเข้าพบ</h4>
-      <div v-if="planStopId" class="notice">ร้านจากแผน: <strong>{{ selectedSubjectLabel }}</strong></div>
+      <div v-if="planStopId" class="notice">
+        ร้านจากแผน: <strong>{{ selectedSubjectLabel }}</strong>
+      </div>
       <div v-else class="stack-md">
         <!-- Customer Type Segmented Toggle -->
         <div class="subject-kind-tabs" role="tablist" aria-label="ประเภทลูกค้า">
@@ -101,7 +103,7 @@
           <div v-if="subjectKind === 'erp' && erpLoading && !filteredSubjects.length" class="subject-picker-empty">
             กำลังค้นหารายชื่อลูกค้าเดิม...
           </div>
-          <div v-else-if="subjectKind === 'erp' && erpError" class="error" style="margin:8px">
+          <div v-else-if="subjectKind === 'erp' && erpError" class="error" style="margin: 8px">
             ค้นหาร้านไม่สำเร็จ กรุณาลองใหม่อีกครั้ง
           </div>
           <div v-else-if="!filteredSubjects.length" class="subject-picker-empty">
@@ -131,43 +133,62 @@
 
         <!-- Pagination when ERP has multiple pages -->
         <div v-if="subjectKind === 'erp' && (erpData?.meta?.last_page || 1) > 1" class="pager-btns">
-          <button type="button" class="btn light" :disabled="subjectPage <= 1" @click="subjectPage--; subjectId = ''">← ก่อนหน้า</button>
+          <button
+            type="button"
+            class="btn light"
+            :disabled="subjectPage <= 1"
+            @click="
+              subjectPage--;
+              subjectId = '';
+            "
+          >
+            ← ก่อนหน้า
+          </button>
           <span class="small muted">หน้า {{ subjectPage }} / {{ erpData.meta.last_page }}</span>
-          <button type="button" class="btn light" :disabled="subjectPage >= erpData.meta.last_page" @click="subjectPage++; subjectId = ''">ถัดไป →</button>
+          <button
+            type="button"
+            class="btn light"
+            :disabled="subjectPage >= erpData.meta.last_page"
+            @click="
+              subjectPage++;
+              subjectId = '';
+            "
+          >
+            ถัดไป →
+          </button>
         </div>
 
-        <button type="button" class="btn light w-full" @click="openQuickAdd()">
-          ＋ ไม่พบร้านนี้ — สร้างร้านใหม่ด่วน
-        </button>
+        <button type="button" class="btn light w-full" @click="openQuickAdd()">＋ ไม่พบร้านนี้ — สร้างร้านใหม่ด่วน</button>
       </div>
     </div>
 
     <!-- Step 2: Start Visit / Check-in Timestamp -->
-    <div v-else-if="step === 2" class="panel-pad" style="padding:4px 0">
-      <h4 style="margin-top:0">2. เริ่มเข้าพบ (Check-in)</h4>
-      <div class="notice">
-        <strong>ร้านที่เลือก:</strong> {{ selectedSubjectLabel || 'ยังไม่เลือก' }}
-      </div>
+    <div v-else-if="step === 2" class="panel-pad" style="padding: 4px 0">
+      <h4 style="margin-top: 0">2. เริ่มเข้าพบ (Check-in)</h4>
+      <div class="notice"><strong>ร้านที่เลือก:</strong> {{ selectedSubjectLabel || 'ยังไม่เลือก' }}</div>
       <div class="card panel-pad">
-        <p class="small muted" style="margin-top:0">
+        <p class="small muted" style="margin-top: 0">
           ระบบบันทึกเวลาเริ่มเข้าพบจากเครื่องของคุณ และบันทึกเวลาที่ส่งข้อมูลเข้าระบบแยกไว้ด้วย
         </p>
-        <div v-if="deviceRecordedAt" class="success" style="margin-bottom:10px">
+        <div v-if="deviceRecordedAt" class="success" style="margin-bottom: 10px">
           Check-in แล้ว (เวลาเครื่องพนักงาน): <strong>{{ new Date(deviceRecordedAt).toLocaleString('th-TH') }}</strong>
         </div>
-        <button type="button" class="btn primary" style="width:100%" @click="startCheckIn">
+        <button type="button" class="btn primary" style="width: 100%" @click="startCheckIn">
           {{ deviceRecordedAt ? 'อัปเดตเวลาเริ่มเข้าพบใหม่' : '⏱ กดเริ่มเข้าพบ (Check-in)' }}
         </button>
       </div>
     </div>
 
     <!-- Step 3: Request GPS -->
-    <div v-else-if="step === 3" class="panel-pad" style="padding:4px 0">
-      <h4 style="margin-top:0">3. บันทึกพิกัด GPS ประกอบการเข้าพบ</h4>
+    <div v-else-if="step === 3" class="panel-pad" style="padding: 4px 0">
+      <h4 style="margin-top: 0">3. บันทึกพิกัด GPS ประกอบการเข้าพบ</h4>
       <div class="card panel-pad">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px">
           <span class="small">สถานะสิทธิ์ GPS:</span>
-          <span class="tag" :class="gpsPermission === 'granted' ? 'green' : gpsPermission === 'denied' ? 'red' : 'orange'">
+          <span
+            class="tag"
+            :class="gpsPermission === 'granted' ? 'green' : gpsPermission === 'denied' ? 'red' : 'orange'"
+          >
             {{ gpsPermission }}
           </span>
         </div>
@@ -177,20 +198,20 @@
         <div v-else class="notice">
           ยังไม่ได้รับพิกัด GPS (หากพนักงานหรืออุปกรณ์ปฏิเสธสิทธิ์ สามารถดำเนินการต่อได้โดยระบบจะบันทึกสถานะ permission ตามจริง)
         </div>
-        <button type="button" class="btn primary" style="width:100%" :disabled="gpsLoading" @click="requestGps">
+        <button type="button" class="btn primary" style="width: 100%" :disabled="gpsLoading" @click="requestGps">
           📍 {{ gpsLoading ? 'กำลังค้นหาพิกัด…' : gps ? 'ดึงพิกัด GPS ใหม่อีกครั้ง' : 'ขอรับพิกัด GPS ปัจจุบัน' }}
         </button>
-        <p class="small muted" style="margin:10px 0 0">
+        <p class="small muted" style="margin: 10px 0 0">
           หมายเหตุ: พิกัด GPS และภาพถ่ายใช้เป็นข้อมูลอ้างอิงประกอบการทำงานภาคสนามเท่านั้น
         </p>
       </div>
     </div>
 
     <!-- Step 4: Front-of-shop Photo -->
-    <div v-else-if="step === 4" class="panel-pad" style="padding:4px 0">
-      <h4 style="margin-top:0">4. ถ่ายภาพหน้าร้านค้า (Storefront)</h4>
+    <div v-else-if="step === 4" class="panel-pad" style="padding: 4px 0">
+      <h4 style="margin-top: 0">4. ถ่ายภาพหน้าร้านค้า (Storefront)</h4>
       <div class="card panel-pad">
-        <label class="btn primary" style="width:100%;margin-bottom:10px">
+        <label class="btn primary" style="width: 100%; margin-bottom: 10px">
           📷 {{ storefrontPhoto ? 'ถ่ายใหม่ (Retake)' : 'ถ่ายภาพ / เลือกรูปหน้าร้าน' }}
           <input
             type="file"
@@ -202,34 +223,56 @@
         </label>
         <div v-if="storefrontPhoto">
           <img :src="storefrontPhoto.previewUrl" alt="ภาพหน้าร้าน" class="photo-preview" />
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;flex-wrap:wrap">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-top: 8px;
+              gap: 8px;
+              flex-wrap: wrap;
+            "
+          >
             <span class="small muted">
-              {{ storefrontPhoto.width }}×{{ storefrontPhoto.height }}px · {{ formatBytes(storefrontPhoto.compressedSize) }}
-              (ลด {{ storefrontPhoto.savingsPct }}%)
+              {{ storefrontPhoto.width }}×{{ storefrontPhoto.height }}px ·
+              {{ formatBytes(storefrontPhoto.compressedSize) }} (ลด {{ storefrontPhoto.savingsPct }}%)
             </span>
             <button type="button" class="btn danger" @click="clearSlot('storefront')">ลบรูป</button>
           </div>
         </div>
-        <p v-else class="small muted" style="margin:0">ระบบจะย่อและบีบอัดรูปอัตโนมัติบนเครื่องก่อนอัปโหลด</p>
+        <p v-else class="small muted" style="margin: 0">ระบบจะย่อและบีบอัดรูปอัตโนมัติบนเครื่องก่อนอัปโหลด</p>
       </div>
     </div>
 
     <!-- Step 5: Optional Discussion / Product Photo with Consent -->
-    <div v-else-if="step === 5" class="panel-pad" style="padding:4px 0">
-      <h4 style="margin-top:0">5. ภาพสินค้า / การพูดคุยกับลูกค้า (ไม่บังคับ)</h4>
+    <div v-else-if="step === 5" class="panel-pad" style="padding: 4px 0">
+      <h4 style="margin-top: 0">5. ภาพสินค้า / การพูดคุยกับลูกค้า (ไม่บังคับ)</h4>
       <div class="card panel-pad">
-        <div class="field" style="margin-bottom:10px">
+        <div class="field" style="margin-bottom: 10px">
           <label>หมวดภาพ</label>
           <select v-model="secondPhotoCategory">
             <option value="products">สินค้า / ชั้นวาง / คู่แข่ง</option>
             <option value="customer_discussion">ภาพถ่ายร่วมกับลูกค้า (ต้องขอความยินยอม)</option>
           </select>
         </div>
-        <label v-if="secondPhotoCategory === 'customer_discussion'" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;font-size:12px;background:#fff8eb;padding:10px;border-radius:10px;border:1px solid #fde68a">
-          <input v-model="customerConsent" type="checkbox" style="width:auto;margin-top:3px" />
+        <label
+          v-if="secondPhotoCategory === 'customer_discussion'"
+          style="
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            font-size: 12px;
+            background: #fff8eb;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #fde68a;
+          "
+        >
+          <input v-model="customerConsent" type="checkbox" style="width: auto; margin-top: 3px" />
           <span>ยืนยันว่าลูกค้า <b>ได้รับทราบและยินยอม</b> ให้บันทึกภาพถ่ายประกอบการทำงานขายภาคสนามแล้ว</span>
         </label>
-        <label class="btn light" style="width:100%;margin-bottom:10px">
+        <label class="btn light" style="width: 100%; margin-bottom: 10px">
           📸 {{ secondPhoto ? 'ถ่ายรูปนี้ใหม่ (Retake)' : 'แนบภาพเพิ่มเติม' }}
           <input
             type="file"
@@ -241,7 +284,7 @@
         </label>
         <div v-if="secondPhoto">
           <img :src="secondPhoto.previewUrl" alt="ภาพเพิ่มเติม" class="photo-preview" />
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px">
             <span class="small muted">{{ formatBytes(secondPhoto.compressedSize) }}</span>
             <button type="button" class="btn danger" @click="clearSlot('second')">ลบรูป</button>
           </div>
@@ -250,8 +293,8 @@
     </div>
 
     <!-- Step 6: 6-Question Field Visit Survey -->
-    <div v-else-if="step === 6" class="panel-pad" style="padding:4px 0">
-      <h4 style="margin-top:0">6. แบบสอบถามออกตลาด 6 ข้อ</h4>
+    <div v-else-if="step === 6" class="panel-pad" style="padding: 4px 0">
+      <h4 style="margin-top: 0">6. แบบสอบถามออกตลาด 6 ข้อ</h4>
       <div class="form">
         <div class="field span2">
           <label>ข้อ 1: ปัจจุบันลูกค้าซื้อสินค้าจากแหล่งใด / ซัพพลายเออร์ไหน</label>
@@ -277,8 +320,8 @@
     </div>
 
     <!-- Step 7: Outcome, Follow-up & Save -->
-    <div v-else-if="step === 7" class="panel-pad" style="padding:4px 0">
-      <h4 style="margin-top:0">7. สรุปผลการเข้าพบ &amp; งานติดตาม</h4>
+    <div v-else-if="step === 7" class="panel-pad" style="padding: 4px 0">
+      <h4 style="margin-top: 0">7. สรุปผลการเข้าพบ &amp; งานติดตาม</h4>
       <div class="form">
         <div class="field">
           <label>ผลการเข้าพบ *</label>
@@ -300,7 +343,7 @@
         </div>
       </div>
 
-      <div v-if="uploadState.active" style="margin-top:14px">
+      <div v-if="uploadState.active" style="margin-top: 14px">
         <UploadProgressBar
           :percent="uploadState.percent"
           :label="uploadState.label"
@@ -311,18 +354,30 @@
     </div>
 
     <!-- Step 8: Completed Summary -->
-    <div v-else class="panel-pad" style="padding:4px 0">
+    <div v-else class="panel-pad" style="padding: 4px 0">
       <SuccessCheckAnimation
         :title="summary?.savedOffline ? 'เก็บลง Offline Draft Queue แล้ว' : 'บันทึกหลักฐานการเข้าพบเรียบร้อย'"
-        :subtitle="summary?.savedOffline ? 'เมื่ออินเทอร์เน็ตพร้อม กดซิงค์จากแถบ Offline Queue ได้ทันที' : `รหัสเข้าพบ #${summary?.visitId}`"
+        :subtitle="
+          summary?.savedOffline ? 'เมื่ออินเทอร์เน็ตพร้อม กดซิงค์จากแถบ Offline Queue ได้ทันที' : `รหัสเข้าพบ #${summary?.visitId}`
+        "
       />
-      <div v-if="summary" class="card panel-pad" style="margin-top:10px">
-        <div class="minirow"><span>ร้านค้า</span><b>{{ summary.shopLabel }}</b></div>
-        <div class="minirow"><span>เวลาบนเครื่องพนักงาน</span><span>{{ summary.deviceTime || '—' }}</span></div>
-        <div class="minirow"><span>เวลาที่เซิร์ฟเวอร์บันทึก</span><span>{{ summary.serverTime || 'รอซิงค์เมื่อออนไลน์' }}</span></div>
-        <div class="minirow"><span>GPS Permission</span><span class="tag blue">{{ summary.gpsStatus }}</span></div>
-        <div class="minirow"><span>รูปหลักฐานที่แนบ</span><span>{{ summary.photoCount }} รูป</span></div>
-        <div v-if="summary.deduplicated" class="notice" style="margin-top:10px;margin-bottom:0">
+      <div v-if="summary" class="card panel-pad" style="margin-top: 10px">
+        <div class="minirow">
+          <span>ร้านค้า</span><b>{{ summary.shopLabel }}</b>
+        </div>
+        <div class="minirow">
+          <span>เวลาบนเครื่องพนักงาน</span><span>{{ summary.deviceTime || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>เวลาที่เซิร์ฟเวอร์บันทึก</span><span>{{ summary.serverTime || 'รอซิงค์เมื่อออนไลน์' }}</span>
+        </div>
+        <div class="minirow">
+          <span>GPS Permission</span><span class="tag blue">{{ summary.gpsStatus }}</span>
+        </div>
+        <div class="minirow">
+          <span>รูปหลักฐานที่แนบ</span><span>{{ summary.photoCount }} รูป</span>
+        </div>
+        <div v-if="summary.deduplicated" class="notice" style="margin-top: 10px; margin-bottom: 0">
           รายการนี้ซิงค์ซ้ำด้วย client_draft_id แล้ว — ไม่สร้างรายการซ้ำ
         </div>
       </div>
@@ -444,7 +499,11 @@ const { data: leadsData } = useQuery({
   enabled: visitWizardOpen,
 });
 
-const { data: erpData, isFetching: erpLoading, isError: erpError } = useQuery({
+const {
+  data: erpData,
+  isFetching: erpLoading,
+  isError: erpError,
+} = useQuery({
   queryKey: ['crm', 'wizard-customers', debouncedSubjectFilter, purchaseFilter, subjectPage],
   queryFn: ({ signal }) => {
     const effectiveStatus = debouncedSubjectFilter.value ? 'all' : purchaseFilter.value;
@@ -464,27 +523,31 @@ const { data: erpData, isFetching: erpLoading, isError: erpError } = useQuery({
 
 const filteredSubjects = computed(() => {
   const q = subjectFilter.value.trim().toLowerCase();
-  const list = subjectKind.value === 'erp'
-    ? (erpData.value?.data || []).map((c) => ({
-        id: c.id,
-        code: c.erp_customer_code || `ERP-${c.id}`,
-        name: c.customer_name || 'ลูกค้า ERP',
-        meta: [c.phone || 'ไม่มีเบอร์', c.province || ''].filter(Boolean).join(' · '),
-        label: `[${c.erp_customer_code}] ${c.customer_name}`,
-      }))
-    : (leadsData.value || []).map((l) => ({
-        id: l.id,
-        code: l.internal_customer_code || `LEAD-${l.id}`,
-        name: l.shop_name || 'ร้านค้าใหม่',
-        meta: [l.phone || 'ไม่มีเบอร์', l.province || l.district || ''].filter(Boolean).join(' · '),
-        label: `[${l.internal_customer_code || `LEAD-${l.id}`}] ${l.shop_name}`,
-      }));
+  const list =
+    subjectKind.value === 'erp'
+      ? (erpData.value?.data || []).map((c) => ({
+          id: c.id,
+          code: c.erp_customer_code || `ERP-${c.id}`,
+          name: c.customer_name || 'ลูกค้า ERP',
+          meta: [c.phone || 'ไม่มีเบอร์', c.province || ''].filter(Boolean).join(' · '),
+          label: `[${c.erp_customer_code}] ${c.customer_name}`,
+        }))
+      : (leadsData.value || []).map((l) => ({
+          id: l.id,
+          code: l.internal_customer_code || `LEAD-${l.id}`,
+          name: l.shop_name || 'ร้านค้าใหม่',
+          meta: [l.phone || 'ไม่มีเบอร์', l.province || l.district || ''].filter(Boolean).join(' · '),
+          label: `[${l.internal_customer_code || `LEAD-${l.id}`}] ${l.shop_name}`,
+        }));
   if (!q || subjectKind.value === 'erp') return list;
   return list.filter((x) => `${x.code} ${x.name} ${x.meta}`.toLowerCase().includes(q));
 });
 
 const selectedSubjectLabel = computed(
-  () => filteredSubjects.value.find((x) => String(x.id) === String(subjectId.value))?.label || (planStopId.value ? visitWizardTarget.value?.label : '') || ''
+  () =>
+    filteredSubjects.value.find((x) => String(x.id) === String(subjectId.value))?.label ||
+    (planStopId.value ? visitWizardTarget.value?.label : '') ||
+    ''
 );
 
 const canNext = computed(() => {
@@ -495,12 +558,12 @@ const canNext = computed(() => {
 const isDirty = computed(() =>
   Boolean(
     subjectId.value ||
-      deviceRecordedAt.value ||
-      gps.value ||
-      storefrontPhoto.value ||
-      secondPhoto.value ||
-      survey.value.supplier_name ||
-      survey.value.note
+    deviceRecordedAt.value ||
+    gps.value ||
+    storefrontPhoto.value ||
+    secondPhoto.value ||
+    survey.value.supplier_name ||
+    survey.value.note
   )
 );
 
@@ -710,7 +773,11 @@ async function submitEvidence() {
       filesToSend.push({ slot: storefrontPhoto.value, category: 'storefront', consent: true });
     }
     if (secondPhoto.value) {
-      filesToSend.push({ slot: secondPhoto.value, category: secondPhotoCategory.value, consent: customerConsent.value });
+      filesToSend.push({
+        slot: secondPhoto.value,
+        category: secondPhotoCategory.value,
+        consent: customerConsent.value,
+      });
     }
 
     for (let i = 0; i < filesToSend.length; i++) {
@@ -957,9 +1024,13 @@ function finishAndClose() {
     font-size: 14px;
     line-height: 1.55;
   }
-  .panel-pad .field label { font-size: 14px; }
+  .panel-pad .field label {
+    font-size: 14px;
+  }
   .panel-pad input,
   .panel-pad select,
-  .panel-pad textarea { font-size: 16px; }
+  .panel-pad textarea {
+    font-size: 16px;
+  }
 }
 </style>

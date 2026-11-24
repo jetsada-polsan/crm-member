@@ -16,19 +16,19 @@
 
     <!-- CUSTOMER MASTER DETAIL (Separated Identity Architecture) -->
     <template v-else-if="detailModal.kind === 'master' && data">
-      <div class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="card panel-pad" style="margin-bottom: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap">
           <span class="tag blue">{{ data.internal_customer.internal_customer_code }}</span>
           <span class="tag" :class="data.internal_customer.link_status === 'linked' ? 'green' : 'orange'">
             {{ data.internal_customer.link_status === 'linked' ? 'เชื่อม ERP แล้ว' : 'ข้อมูล CRM (ยังไม่เปิดหน้าบัญชี ERP)' }}
           </span>
         </div>
-        <h4 style="margin:10px 0 4px">{{ data.internal_customer.display_name }}</h4>
+        <h4 style="margin: 10px 0 4px">{{ data.internal_customer.display_name }}</h4>
         <div class="small muted">
           โทร: {{ data.internal_customer.phone || '—' }} · {{ data.internal_customer.shop_type || 'ร้านค้า' }} ·
           {{ data.internal_customer.province || data.internal_customer.district || 'ยังไม่ระบุพื้นที่' }}
         </div>
-        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap">
           <button
             v-if="data.erp_customer"
             type="button"
@@ -45,104 +45,180 @@
           >
             📸 บันทึกเข้าพบร้านค้านี้
           </button>
-          <RouterLink
-            :to="`/customer-360/${detailModal.id}`"
-            class="btn light"
-            @click="closeDetailDrawer()"
-          >
+          <RouterLink :to="`/customer-360/${detailModal.id}`" class="btn light" @click="closeDetailDrawer()">
             🔍 เปิดหน้า Customer 360°
           </RouterLink>
         </div>
       </div>
 
-      <div v-if="isManager && data.crm_lead && !data.erp_customer" class="card panel-pad" style="margin-bottom:14px">
-        <strong style="display:block;margin-bottom:8px">ผูกกับลูกค้า ERP ที่ซิงก์เข้ามาแล้ว</strong>
-        <p class="small muted">ใส่ Source และรหัสลูกหนี้จาก Bplus ที่แอดมินสร้างเอง ระบบจะตรวจคู่ Source + ERP Code ก่อนบันทึกการผูก</p>
+      <div v-if="isManager && data.crm_lead && !data.erp_customer" class="card panel-pad" style="margin-bottom: 14px">
+        <strong style="display: block; margin-bottom: 8px">ผูกกับลูกค้า ERP ที่ซิงก์เข้ามาแล้ว</strong>
+        <p class="small muted">
+          ใส่ Source และรหัสลูกหนี้จาก Bplus ที่แอดมินสร้างเอง ระบบจะตรวจคู่ Source + ERP Code ก่อนบันทึกการผูก
+        </p>
         <div class="form">
           <div class="field"><label>ERP Source</label><input v-model="erpLinkForm.source_system" maxlength="32" /></div>
-          <div class="field"><label>ERP Customer Code</label><input v-model="erpLinkForm.erp_customer_code" maxlength="64" /></div>
-          <div class="field span2"><label>หมายเหตุการยืนยัน</label><input v-model="erpLinkForm.note" maxlength="1000" /></div>
-          <div class="field span2"><button type="button" class="btn primary" :disabled="linkBusy || !erpLinkForm.erp_customer_code" @click="linkErp">{{ linkBusy ? 'กำลังตรวจและผูก...' : 'ยืนยันผูก ERP' }}</button></div>
+          <div class="field">
+            <label>ERP Customer Code</label><input v-model="erpLinkForm.erp_customer_code" maxlength="64" />
+          </div>
+          <div class="field span2">
+            <label>หมายเหตุการยืนยัน</label><input v-model="erpLinkForm.note" maxlength="1000" />
+          </div>
+          <div class="field span2">
+            <button
+              type="button"
+              class="btn primary"
+              :disabled="linkBusy || !erpLinkForm.erp_customer_code"
+              @click="linkErp"
+            >
+              {{ linkBusy ? 'กำลังตรวจและผูก...' : 'ยืนยันผูก ERP' }}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div v-if="isManager && data.internal_customer" class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div v-if="isManager && data.internal_customer" class="card panel-pad" style="margin-bottom: 14px">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
           <button type="button" class="btn light" @click="loadAuditHistory">ดูประวัติการผูก</button>
-          <button v-if="data.erp_customer" type="button" class="btn danger" :disabled="linkBusy" @click="unlinkErp">ยกเลิกการผูก ERP</button>
+          <button v-if="data.erp_customer" type="button" class="btn danger" :disabled="linkBusy" @click="unlinkErp">
+            ยกเลิกการผูก ERP
+          </button>
         </div>
-        <div v-if="auditHistory.length" style="margin-top:12px">
+        <div v-if="auditHistory.length" style="margin-top: 12px">
           <div v-for="entry in auditHistory" :key="entry.id" class="minirow">
-            <span><b>{{ entry.action }}</b><div class="small muted">{{ entry.actor_name || 'System' }} · {{ entry.created_at }}</div></span>
+            <span
+              ><b>{{ entry.action }}</b>
+              <div class="small muted">{{ entry.actor_name || 'System' }} · {{ entry.created_at }}</div></span
+            >
             <span class="small">{{ entry.changes?.erp_customer_code || entry.changes?.note || '' }}</span>
           </div>
         </div>
       </div>
 
       <!-- 1. ERP Customer Mirror (Read-Only) -->
-      <div class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="card panel-pad" style="margin-bottom: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
           <strong>1. ทะเบียนลูกค้า ERP (Read-Only Mirror)</strong>
           <span class="tag gray">BPLUS SYNC</span>
         </div>
         <template v-if="data.erp_customer">
-          <div class="minirow"><span>รหัสลูกค้า ERP</span><b>{{ data.erp_customer.erp_customer_code }}</b></div>
-          <div class="minirow"><span>ชื่อในระบบ Bplus</span><span>{{ data.erp_customer.customer_name }}</span></div>
-          <div class="minirow"><span>พนักงานขาย ERP</span><span>{{ data.erp_customer.salesperson_name || data.erp_customer.salesperson_code || '—' }}</span></div>
-          <div class="minirow"><span>ยอดซื้อรวมก่อน VAT</span><b>{{ fmt(data.sales_summary?.gross_purchase_before_vat) }} ฿</b></div>
-          <div class="minirow"><span>ยอดคืนก่อน VAT</span><b style="color:var(--red)">−{{ fmt(data.sales_summary?.return_amount_before_vat) }} ฿</b></div>
-          <div class="minirow"><span>ยอดซื้อสุทธิหลังหักคืน</span><b style="color:var(--green)">{{ fmt(data.sales_summary?.net_purchase_before_vat) }} ฿</b></div>
-          <div class="minirow"><span>บิลขาย / ใบคืน</span><span>{{ fmt(data.sales_summary?.sale_invoice_count) }} / {{ fmt(data.sales_summary?.return_count) }}</span></div>
-          <div class="minirow"><span>วันที่ซื้อล่าสุด</span><span>{{ data.sales_summary?.last_purchase_at ? new Date(data.sales_summary.last_purchase_at).toLocaleDateString('th-TH') : '—' }}</span></div>
+          <div class="minirow">
+            <span>รหัสลูกค้า ERP</span><b>{{ data.erp_customer.erp_customer_code }}</b>
+          </div>
+          <div class="minirow">
+            <span>ชื่อในระบบ Bplus</span><span>{{ data.erp_customer.customer_name }}</span>
+          </div>
+          <div class="minirow">
+            <span>พนักงานขาย ERP</span
+            ><span>{{ data.erp_customer.salesperson_name || data.erp_customer.salesperson_code || '—' }}</span>
+          </div>
+          <div class="minirow">
+            <span>ยอดซื้อรวมก่อน VAT</span><b>{{ fmt(data.sales_summary?.gross_purchase_before_vat) }} ฿</b>
+          </div>
+          <div class="minirow">
+            <span>ยอดคืนก่อน VAT</span
+            ><b style="color: var(--red)">−{{ fmt(data.sales_summary?.return_amount_before_vat) }} ฿</b>
+          </div>
+          <div class="minirow">
+            <span>ยอดซื้อสุทธิหลังหักคืน</span
+            ><b style="color: var(--green)">{{ fmt(data.sales_summary?.net_purchase_before_vat) }} ฿</b>
+          </div>
+          <div class="minirow">
+            <span>บิลขาย / ใบคืน</span
+            ><span
+              >{{ fmt(data.sales_summary?.sale_invoice_count) }} / {{ fmt(data.sales_summary?.return_count) }}</span
+            >
+          </div>
+          <div class="minirow">
+            <span>วันที่ซื้อล่าสุด</span
+            ><span>{{
+              data.sales_summary?.last_purchase_at
+                ? new Date(data.sales_summary.last_purchase_at).toLocaleDateString('th-TH')
+                : '—'
+            }}</span>
+          </div>
           <div class="minirow">
             <span>KPI สินค้าก่อน VAT (หักหมวดบริการ)</span>
-            <b style="color:var(--green)">{{ fmt(data.sales_summary?.primary_sales_before_vat || 0) }} ฿</b>
+            <b style="color: var(--green)">{{ fmt(data.sales_summary?.primary_sales_before_vat || 0) }} ฿</b>
           </div>
         </template>
-        <div v-else class="small muted">
-          ยังไม่เชื่อมกับลูกค้า ERP (การสร้างร้านใหม่ใน CRM จะไม่สร้างข้อมูลเข้า Bplus อัตโนมัติ)
-        </div>
+        <div v-else class="small muted">ยังไม่เชื่อมกับลูกค้า ERP (การสร้างร้านใหม่ใน CRM จะไม่สร้างข้อมูลเข้า Bplus อัตโนมัติ)</div>
       </div>
 
-      <CustomerPurchaseHistory v-if="data.erp_customer" :customer-id="data.erp_customer.id" style="margin-bottom:14px" />
+      <CustomerPurchaseHistory
+        v-if="data.erp_customer"
+        :customer-id="data.erp_customer.id"
+        style="margin-bottom: 14px"
+      />
 
-      <div v-if="data.follow_up_tasks?.length" class="card panel-pad" style="margin-bottom:14px">
+      <div v-if="data.follow_up_tasks?.length" class="card panel-pad" style="margin-bottom: 14px">
         <strong>งานติดตามลูกค้า</strong>
         <div v-for="task in data.follow_up_tasks" :key="task.id" class="minirow">
-          <span>{{ task.title }}<div class="small muted">กำหนด {{ task.due_date || 'ยังไม่กำหนด' }}</div></span>
+          <span
+            >{{ task.title }}
+            <div class="small muted">กำหนด {{ task.due_date || 'ยังไม่กำหนด' }}</div></span
+          >
           <span class="tag" :class="task.status === 'completed' ? 'green' : 'orange'">{{ task.status }}</span>
         </div>
       </div>
 
       <!-- 2. CRM Lead & Acquisition -->
-      <div v-if="data.crm_lead" class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div v-if="data.crm_lead" class="card panel-pad" style="margin-bottom: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
           <strong>2. ข้อมูล CRM / แผนที่ / การติดตาม</strong>
-          <span class="tag" :class="stageTagClass(data.crm_lead.pipeline_stage)">{{ stageLabel(data.crm_lead.pipeline_stage) }}</span>
+          <span class="tag" :class="stageTagClass(data.crm_lead.pipeline_stage)">{{
+            stageLabel(data.crm_lead.pipeline_stage)
+          }}</span>
         </div>
-        <div class="minirow"><span>ผู้ติดต่อ</span><span>{{ data.crm_lead.contact_name || '—' }}</span></div>
-        <div class="minirow"><span>LINE</span><span>{{ data.crm_lead.line_contact || '—' }}</span></div>
-        <div class="minirow"><span>แหล่งที่ซื้อ</span><span>{{ data.crm_lead.supplier_source || '—' }}</span></div>
-        <div class="minirow"><span>หมวดสินค้า</span><span>{{ data.crm_lead.product_categories || '—' }}</span></div>
-        <div class="minirow"><span>พิกัด GPS (รักษาแยกจาก ERP Sync)</span><span>{{ data.crm_location ? `${data.crm_location.latitude}, ${data.crm_location.longitude}` : 'ยังไม่ปักหมุด' }}</span></div>
-        <div v-for="loc in data.crm_locations || []" :key="loc.id" class="small muted">พิกัดเดิม #{{ loc.id }}: {{ loc.latitude }}, {{ loc.longitude }} · {{ loc.source }}</div>
-        <button type="button" class="btn light" style="margin-top:8px" @click="openDetailDrawer('lead', data.crm_lead.id)">
+        <div class="minirow">
+          <span>ผู้ติดต่อ</span><span>{{ data.crm_lead.contact_name || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>LINE</span><span>{{ data.crm_lead.line_contact || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>แหล่งที่ซื้อ</span><span>{{ data.crm_lead.supplier_source || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>หมวดสินค้า</span><span>{{ data.crm_lead.product_categories || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>พิกัด GPS (รักษาแยกจาก ERP Sync)</span
+          ><span>{{
+            data.crm_location ? `${data.crm_location.latitude}, ${data.crm_location.longitude}` : 'ยังไม่ปักหมุด'
+          }}</span>
+        </div>
+        <div v-for="loc in data.crm_locations || []" :key="loc.id" class="small muted">
+          พิกัดเดิม #{{ loc.id }}: {{ loc.latitude }}, {{ loc.longitude }} · {{ loc.source }}
+        </div>
+        <button
+          type="button"
+          class="btn light"
+          style="margin-top: 8px"
+          @click="openDetailDrawer('lead', data.crm_lead.id)"
+        >
           แก้ไขข้อมูล Lead / อนุมัติ / เชื่อม ERP →
         </button>
       </div>
 
       <!-- 3. Member & Loyalty Account -->
-      <div class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="card panel-pad" style="margin-bottom: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
           <strong>3. บัญชี Member &amp; คะแนนสะสม</strong>
           <span class="tag" :class="data.member_link?.verification_status === 'verified' ? 'green' : 'gray'">
             {{ data.member_link?.verification_status || 'ยังไม่เชื่อมบัญชี' }}
           </span>
         </div>
         <template v-if="data.member_link">
-          <div class="minirow"><span>ชื่อสมาชิก</span><b>{{ data.member_link.member_name }}</b></div>
-          <div class="minirow"><span>เบอร์/อีเมลสมาชิก</span><span>{{ data.member_link.member_phone || data.member_link.member_email }}</span></div>
-          <div class="minirow"><span>คะแนนสะสมในระบบ</span><b>{{ fmt(data.member_link.loyalty_points_balance) }} แต้ม</b></div>
+          <div class="minirow">
+            <span>ชื่อสมาชิก</span><b>{{ data.member_link.member_name }}</b>
+          </div>
+          <div class="minirow">
+            <span>เบอร์/อีเมลสมาชิก</span><span>{{ data.member_link.member_phone || data.member_link.member_email }}</span>
+          </div>
+          <div class="minirow">
+            <span>คะแนนสะสมในระบบ</span><b>{{ fmt(data.member_link.loyalty_points_balance) }} แต้ม</b>
+          </div>
         </template>
         <div v-else class="small muted">
           ยังไม่มีบัญชี Member ที่ผ่านการตรวจสอบและยืนยัน (เบอร์โทรตรงกันอย่างเดียวจะไม่ถือว่ายืนยันสิทธิ์อัตโนมัติ)
@@ -151,8 +227,10 @@
 
       <!-- 4. Visits Evidence Timeline -->
       <div class="card panel-pad">
-        <strong style="display:block;margin-bottom:8px">4. ประวัติการเข้าพบ &amp; หลักฐานภาคสนาม ({{ data.visits?.length || 0 }})</strong>
-        <div v-for="v in data.visits || []" :key="v.id" class="minirow" style="align-items:flex-start">
+        <strong style="display: block; margin-bottom: 8px"
+          >4. ประวัติการเข้าพบ &amp; หลักฐานภาคสนาม ({{ data.visits?.length || 0 }})</strong
+        >
+        <div v-for="v in data.visits || []" :key="v.id" class="minirow" style="align-items: flex-start">
           <div>
             <b>{{ new Date(v.visited_at).toLocaleString('th-TH') }}</b>
             <div class="small muted">
@@ -160,9 +238,15 @@
             </div>
             <div v-if="v.follow_up_action" class="small">ติดตาม: {{ v.follow_up_action }}</div>
           </div>
-          <div style="display:flex;gap:6px;align-items:center">
+          <div style="display: flex; gap: 6px; align-items: center">
             <span class="tag blue">{{ v.result }}</span>
-            <button v-if="v.photo_count > 0" type="button" class="btn light" style="padding:4px 8px" @click="viewVisitPhotos(v.id)">
+            <button
+              v-if="v.photo_count > 0"
+              type="button"
+              class="btn light"
+              style="padding: 4px 8px"
+              @click="viewVisitPhotos(v.id)"
+            >
               🖼 ดูรูป
             </button>
           </div>
@@ -173,26 +257,56 @@
 
     <!-- ERP CUSTOMER DETAIL -->
     <template v-else-if="detailModal.kind === 'erp' && data">
-      <div class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="card panel-pad" style="margin-bottom: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap">
           <span class="tag gray">{{ data.customer.erp_customer_code }}</span>
           <button type="button" class="btn primary" @click="launchVisit('erp', data.customer.id)">
             📸 บันทึกเข้าพบลูกค้านี้
           </button>
         </div>
-        <h4 style="margin:10px 0 6px">{{ data.customer.customer_name }}</h4>
-        <div class="minirow"><span>ยอดซื้อรวมก่อน VAT</span><b>{{ fmt(data.sales_summary?.gross_purchase_before_vat) }} ฿</b></div>
-        <div class="minirow"><span>ยอดคืนก่อน VAT</span><b style="color:var(--red)">−{{ fmt(data.sales_summary?.return_amount_before_vat) }} ฿</b></div>
-        <div class="minirow"><span>ยอดซื้อสุทธิหลังหักคืน</span><b style="color:var(--green)">{{ fmt(data.sales_summary?.net_purchase_before_vat) }} ฿</b></div>
-        <div class="minirow"><span>บิลขาย / ใบคืน</span><span>{{ fmt(data.sales_summary?.sale_invoice_count) }} / {{ fmt(data.sales_summary?.return_count) }}</span></div>
-        <div class="minirow"><span>วันที่ซื้อล่าสุด</span><span>{{ data.sales_summary?.last_purchase_at ? new Date(data.sales_summary.last_purchase_at).toLocaleDateString('th-TH') : '—' }}</span></div>
-        <div class="minirow"><span>เบอร์โทรศัพท์</span><span>{{ data.customer.phone || '—' }}</span></div>
-        <div class="minirow"><span>พื้นที่</span><span>{{ data.customer.province || '—' }}</span></div>
-        <div class="minirow"><span>พนักงานขาย</span><span>{{ data.customer.salesperson_name || data.customer.salesperson_code || '—' }}</span></div>
-        <div class="minirow"><span>วงเงินเครดิต</span><span>{{ fmt(data.customer.credit_limit) }} ฿ ({{ data.customer.credit_term_days || 0 }} วัน)</span></div>
+        <h4 style="margin: 10px 0 6px">{{ data.customer.customer_name }}</h4>
+        <div class="minirow">
+          <span>ยอดซื้อรวมก่อน VAT</span><b>{{ fmt(data.sales_summary?.gross_purchase_before_vat) }} ฿</b>
+        </div>
+        <div class="minirow">
+          <span>ยอดคืนก่อน VAT</span
+          ><b style="color: var(--red)">−{{ fmt(data.sales_summary?.return_amount_before_vat) }} ฿</b>
+        </div>
+        <div class="minirow">
+          <span>ยอดซื้อสุทธิหลังหักคืน</span
+          ><b style="color: var(--green)">{{ fmt(data.sales_summary?.net_purchase_before_vat) }} ฿</b>
+        </div>
+        <div class="minirow">
+          <span>บิลขาย / ใบคืน</span
+          ><span>{{ fmt(data.sales_summary?.sale_invoice_count) }} / {{ fmt(data.sales_summary?.return_count) }}</span>
+        </div>
+        <div class="minirow">
+          <span>วันที่ซื้อล่าสุด</span
+          ><span>{{
+            data.sales_summary?.last_purchase_at
+              ? new Date(data.sales_summary.last_purchase_at).toLocaleDateString('th-TH')
+              : '—'
+          }}</span>
+        </div>
+        <div class="minirow">
+          <span>เบอร์โทรศัพท์</span><span>{{ data.customer.phone || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>พื้นที่</span><span>{{ data.customer.province || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>พนักงานขาย</span
+          ><span>{{ data.customer.salesperson_name || data.customer.salesperson_code || '—' }}</span>
+        </div>
+        <div class="minirow">
+          <span>วงเงินเครดิต</span
+          ><span>{{ fmt(data.customer.credit_limit) }} ฿ ({{ data.customer.credit_term_days || 0 }} วัน)</span>
+        </div>
         <div class="minirow">
           <span>ยอดซื้อสุทธิ ERP ก่อน VAT</span>
-          <b style="color:var(--green)">{{ fmt(data.sales_summary?.net_purchase_before_vat ?? data.total_posted_net) }} ฿</b>
+          <b style="color: var(--green)"
+            >{{ fmt(data.sales_summary?.net_purchase_before_vat ?? data.total_posted_net) }} ฿</b
+          >
         </div>
       </div>
       <CustomerPurchaseHistory :customer-id="data.customer.id" />
@@ -200,11 +314,29 @@
 
     <!-- CRM LEAD DETAIL + EDIT + PHOTOS + REVIEW -->
     <template v-else-if="detailModal.kind === 'lead' && data">
-      <div class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
-          <span class="tag" :class="stageTagClass(data.lead.pipeline_stage)">{{ stageLabel(data.lead.pipeline_stage) }}</span>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button v-if="!data.lead.converted_erp_customer_id" type="button" class="btn light" @click="requestErpCreation">ขอเปิดรหัสลูกหนี้</button>
+      <div class="card panel-pad" style="margin-bottom: 14px">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 8px;
+            flex-wrap: wrap;
+          "
+        >
+          <span class="tag" :class="stageTagClass(data.lead.pipeline_stage)">{{
+            stageLabel(data.lead.pipeline_stage)
+          }}</span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <button
+              v-if="!data.lead.converted_erp_customer_id"
+              type="button"
+              class="btn light"
+              @click="requestErpCreation"
+            >
+              ขอเปิดรหัสลูกหนี้
+            </button>
             <button type="button" class="btn primary" @click="launchVisit('lead', data.lead.id)">บันทึกเข้าพบ</button>
           </div>
         </div>
@@ -227,13 +359,16 @@
               <option v-for="p in PIPELINE_STAGES" :key="p.id" :value="p.id">{{ p.label }}</option>
             </select>
           </div>
-          <div class="field"><label>ติดตามถัดไป</label><NiceDateInput v-model="leadForm.next_follow_up_date" placeholder="เลือกวันติดตามถัดไป..." /></div>
+          <div class="field">
+            <label>ติดตามถัดไป</label
+            ><NiceDateInput v-model="leadForm.next_follow_up_date" placeholder="เลือกวันติดตามถัดไป..." />
+          </div>
           <div class="field span2"><label>แหล่งที่ซื้อสินค้า</label><input v-model="leadForm.supplier_source" /></div>
           <div class="field span2"><label>หมวดสินค้าที่ใช้</label><input v-model="leadForm.product_categories" /></div>
           <div class="field span2"><label>ที่อยู่</label><textarea v-model="leadForm.address" rows="2" /></div>
           <div class="field span2"><label>หมายเหตุ</label><textarea v-model="leadForm.notes" rows="2" /></div>
           <div class="field span2">
-            <button type="submit" class="btn primary" style="width:100%" :disabled="savingLead">
+            <button type="submit" class="btn primary" style="width: 100%" :disabled="savingLead">
               {{ savingLead ? 'กำลังบันทึก...' : 'บันทึกการแก้ไขข้อมูล Lead' }}
             </button>
           </div>
@@ -241,26 +376,42 @@
       </div>
 
       <!-- Lead Photos & Compression Upload -->
-      <div class="card panel-pad" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="card panel-pad" style="margin-bottom: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px">
           <strong>ภาพถ่ายร้านค้า ({{ data.photos?.length || 0 }})</strong>
-          <label class="btn light" style="cursor:pointer;margin:0">
+          <label class="btn light" style="cursor: pointer; margin: 0">
             📷 เพิ่มรูปหน้าร้าน
-            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden @change="uploadLeadPhoto" />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              hidden
+              @change="uploadLeadPhoto"
+            />
           </label>
         </div>
-        <div v-if="photoUploadPct > 0" style="margin-bottom:10px">
+        <div v-if="photoUploadPct > 0" style="margin-bottom: 10px">
           <UploadProgressBar :percent="photoUploadPct" label="กำลังอัปโหลดภาพหน้าร้าน..." />
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px">
           <button
             v-for="(p, idx) in data.photos || []"
             :key="p.id"
             type="button"
-            style="border:1px solid var(--border);border-radius:10px;padding:0;overflow:hidden;background:#f8fafc"
+            style="
+              border: 1px solid var(--border);
+              border-radius: 10px;
+              padding: 0;
+              overflow: hidden;
+              background: #f8fafc;
+            "
             @click="openLeadGallery(idx)"
           >
-            <img :src="`/api/crm/lead-photos/${p.id}?inline=1`" alt="ภาพร้าน" style="width:100%;height:88px;object-fit:cover;display:block" />
+            <img
+              :src="`/api/crm/lead-photos/${p.id}?inline=1`"
+              alt="ภาพร้าน"
+              style="width: 100%; height: 88px; object-fit: cover; display: block"
+            />
           </button>
         </div>
         <div v-if="!(data.photos || []).length" class="small muted">ยังไม่มีภาพหน้าร้าน</div>
@@ -268,7 +419,7 @@
 
       <!-- Manager Review & ERP Linking -->
       <div v-if="isManager" class="card panel-pad">
-        <strong style="display:block;margin-bottom:8px">อนุมัติ Lead &amp; เชื่อมรหัสลูกค้า ERP (เฉพาะผู้จัดการ)</strong>
+        <strong style="display: block; margin-bottom: 8px">อนุมัติ Lead &amp; เชื่อมรหัสลูกค้า ERP (เฉพาะผู้จัดการ)</strong>
         <form class="form" @submit.prevent="submitReview">
           <div class="field">
             <label>ผลการอนุมัติ</label>
@@ -367,7 +518,10 @@ watch(data, (d) => {
 });
 
 const leadDirty = computed(
-  () => detailModal.value.kind === 'lead' && Boolean(leadSnapshot.value) && JSON.stringify(leadForm.value) !== leadSnapshot.value
+  () =>
+    detailModal.value.kind === 'lead' &&
+    Boolean(leadSnapshot.value) &&
+    JSON.stringify(leadForm.value) !== leadSnapshot.value
 );
 
 const drawerTitle = computed(() => {
@@ -438,9 +592,10 @@ async function linkErp() {
   try {
     const res = await crmGet(`/customers?paginate=1&per_page=15&q=${encodeURIComponent(rawCode)}`);
     const rows = res?.data || [];
-    const exact = rows.find(
-      (c) => String(c.erp_customer_code || '').toUpperCase() === rawCode.toUpperCase() || String(c.id) === rawCode
-    ) || rows[0];
+    const exact =
+      rows.find(
+        (c) => String(c.erp_customer_code || '').toUpperCase() === rawCode.toUpperCase() || String(c.id) === rawCode
+      ) || rows[0];
     if (!exact?.id) {
       toast.error('ไม่พบรหัสลูกค้า ERP นี้ในระบบ Mirror (กรุณา Sync จาก Bplus ก่อน)');
       return;
@@ -460,11 +615,18 @@ async function linkErp() {
 }
 
 async function unlinkErp() {
-  const ok = await askConfirm({ title: 'ยกเลิกการผูก ERP', message: 'ประวัติ CRM จะยังอยู่ และสมาชิกต้องยืนยันสิทธิ์ใหม่ก่อนเปิดข้อมูล ERP', confirmLabel: 'ยกเลิกการผูก', tone: 'danger' });
+  const ok = await askConfirm({
+    title: 'ยกเลิกการผูก ERP',
+    message: 'ประวัติ CRM จะยังอยู่ และสมาชิกต้องยืนยันสิทธิ์ใหม่ก่อนเปิดข้อมูล ERP',
+    confirmLabel: 'ยกเลิกการผูก',
+    tone: 'danger',
+  });
   if (!ok) return;
   linkBusy.value = true;
   try {
-    await crmMutate(`/customer-master/${data.value.internal_customer.id}/unlink-erp`, 'POST', { note: 'ผู้ดูแลยกเลิกการผูกจาก Customer 360' });
+    await crmMutate(`/customer-master/${data.value.internal_customer.id}/unlink-erp`, 'POST', {
+      note: 'ผู้ดูแลยกเลิกการผูกจาก Customer 360',
+    });
     toast.success('ยกเลิกการผูกแล้ว');
     invalidateCrmData(['leads', 'master', 'customers']);
     await refetch();
@@ -478,7 +640,12 @@ async function unlinkErp() {
 async function loadAuditHistory() {
   try {
     const rows = await crmGet(`/customer-master/${data.value.internal_customer.id}/audit`);
-    auditHistory.value = Array.isArray(rows) ? rows.map((row) => ({ ...row, changes: typeof row.changes === 'string' ? JSON.parse(row.changes || '{}') : row.changes || {} })) : [];
+    auditHistory.value = Array.isArray(rows)
+      ? rows.map((row) => ({
+          ...row,
+          changes: typeof row.changes === 'string' ? JSON.parse(row.changes || '{}') : row.changes || {},
+        }))
+      : [];
   } catch (err) {
     toast.error('โหลดประวัติไม่สำเร็จ', err);
   }

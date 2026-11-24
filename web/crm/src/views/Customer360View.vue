@@ -1,19 +1,9 @@
 <template>
   <div>
-    <PageHeader
-      title="ข้อมูลลูกค้าแบบละเอียด"
-      subtitle="ดูข้อมูลร้าน ยอดซื้อใน ERP ประวัติเข้าพบ และสถานะสมาชิกได้ในหน้าเดียว"
-    >
+    <PageHeader title="ข้อมูลลูกค้าแบบละเอียด" subtitle="ดูข้อมูลร้าน ยอดซื้อใน ERP ประวัติเข้าพบ และสถานะสมาชิกได้ในหน้าเดียว">
       <template #secondary>
         <RouterLink to="/customers" class="btn">← กลับรายการลูกค้า</RouterLink>
-        <button
-          v-if="selectedMasterId"
-          type="button"
-          class="btn light"
-          @click="refetchDetail"
-        >
-          ⟳ รีเฟรช
-        </button>
+        <button v-if="selectedMasterId" type="button" class="btn light" @click="refetchDetail">⟳ รีเฟรช</button>
       </template>
       <template v-if="detail?.erp_customer || detail?.crm_lead" #primary>
         <button
@@ -36,24 +26,16 @@
     </PageHeader>
 
     <!-- Searchable Customer Master Picker -->
-    <div class="card panel-pad" style="margin-bottom:16px">
-      <div class="head-filter" style="margin-bottom:0">
+    <div class="card panel-pad" style="margin-bottom: 16px">
+      <div class="head-filter" style="margin-bottom: 0">
         <input
           v-model="pickerSearch"
           class="filter-search-input"
           placeholder="ค้นหา Customer Master เพื่อดู 360° (ชื่อร้าน, รหัส CRM, รหัส ERP, เบอร์โทร)..."
         />
-        <select
-          :value="selectedMasterId || ''"
-          class="filter-search-input"
-          @change="selectMaster($event.target.value)"
-        >
+        <select :value="selectedMasterId || ''" class="filter-search-input" @change="selectMaster($event.target.value)">
           <option value="">-- เลือกลูกค้าจากรายการ --</option>
-          <option
-            v-for="item in pickerRows"
-            :key="item.customer_master_id"
-            :value="String(item.customer_master_id)"
-          >
+          <option v-for="item in pickerRows" :key="item.customer_master_id" :value="String(item.customer_master_id)">
             {{ item.internal_customer_code }} · {{ item.display_name }}
             {{ item.erp_customer_code ? `(${item.erp_customer_code})` : '(Lead Only)' }}
           </option>
@@ -62,8 +44,8 @@
     </div>
 
     <div v-if="!selectedMasterId" class="card panel-pad">
-      <h3 style="margin:0 0 8px">เลือกลูกค้าเพื่อเปิดมุมมอง Customer 360°</h3>
-      <p class="small muted" style="margin:0 0 14px">
+      <h3 style="margin: 0 0 8px">เลือกลูกค้าเพื่อเปิดมุมมอง Customer 360°</h3>
+      <p class="small muted" style="margin: 0 0 14px">
         คลิกรายการด้านล่างเพื่อดูยอดขายสุทธิจาก Bplus ERP, ประวัติเข้าพบ, หลักฐานภาพถ่าย และ Audit History
       </p>
       <div class="table-wrap desktop-table-only">
@@ -82,10 +64,12 @@
             <tr
               v-for="item in pickerRows"
               :key="item.customer_master_id"
-              style="cursor:pointer"
+              style="cursor: pointer"
               @click="selectMaster(item.customer_master_id)"
             >
-              <td><span class="tag blue">{{ item.internal_customer_code }}</span></td>
+              <td>
+                <span class="tag blue">{{ item.internal_customer_code }}</span>
+              </td>
               <td>
                 <b>{{ item.display_name }}</b>
                 <div class="small muted">{{ item.phone || '—' }} · {{ item.province || '—' }}</div>
@@ -100,7 +84,9 @@
                 </span>
                 <span v-else class="tag green">ERP Direct</span>
               </td>
-              <td><b>{{ fmt(item.total_sales_net) }} ฿</b></td>
+              <td>
+                <b>{{ fmt(item.total_sales_net) }} ฿</b>
+              </td>
               <td>
                 <button type="button" class="btn light" @click.stop="selectMaster(item.customer_master_id)">
                   เปิด 360°
@@ -117,11 +103,11 @@
           class="card mob-card"
           @click="selectMaster(item.customer_master_id)"
         >
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
             <strong>{{ item.display_name }}</strong>
             <span class="tag blue">{{ item.internal_customer_code }}</span>
           </div>
-          <div class="small muted" style="margin-top:4px">
+          <div class="small muted" style="margin-top: 4px">
             ERP: {{ item.erp_customer_code || 'ยังไม่เชื่อม' }} · ยอดสุทธิ {{ fmt(item.total_sales_net) }} ฿
           </div>
         </div>
@@ -133,42 +119,33 @@
 
     <template v-else-if="detail">
       <!-- Top Identity Summary Banner -->
-      <div class="card panel-pad" style="margin-bottom:16px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div class="card panel-pad" style="margin-bottom: 16px">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap">
           <div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px">
               <span class="tag blue">{{ detail.internal_customer.internal_customer_code }}</span>
-              <span
-                class="tag"
-                :class="detail.erp_customer ? 'green' : 'orange'"
-              >
+              <span class="tag" :class="detail.erp_customer ? 'green' : 'orange'">
                 {{ detail.erp_customer ? `ERP: ${detail.erp_customer.erp_customer_code}` : 'ยังไม่เชื่อม ERP' }}
               </span>
-              <span
-                v-if="detail.crm_lead"
-                class="tag"
-                :class="stageTagClass(detail.crm_lead.pipeline_stage)"
-              >
+              <span v-if="detail.crm_lead" class="tag" :class="stageTagClass(detail.crm_lead.pipeline_stage)">
                 {{ stageLabel(detail.crm_lead.pipeline_stage) }}
               </span>
-              <span
-                class="tag"
-                :class="detail.member_link?.verification_status === 'verified' ? 'purple' : 'gray'"
-              >
+              <span class="tag" :class="detail.member_link?.verification_status === 'verified' ? 'purple' : 'gray'">
                 Member: {{ detail.member_link?.verification_status || 'ยังไม่ผูก' }}
               </span>
             </div>
-            <h3 style="margin:0 0 4px">{{ detail.internal_customer.display_name }}</h3>
+            <h3 style="margin: 0 0 4px">{{ detail.internal_customer.display_name }}</h3>
             <div class="small muted">
-              โทร: {{ detail.internal_customer.phone || '—' }} ·
-              {{ detail.internal_customer.shop_type || 'ร้านค้า' }} ·
+              โทร: {{ detail.internal_customer.phone || '—' }} · {{ detail.internal_customer.shop_type || 'ร้านค้า' }} ·
               {{ detail.internal_customer.province || detail.internal_customer.district || 'ไม่ระบุจังหวัด' }}
             </div>
           </div>
 
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
             <button
-              v-if="detail.crm_lead && !detail.erp_customer && detail.crm_lead.pipeline_stage !== 'erp_creation_requested'"
+              v-if="
+                detail.crm_lead && !detail.erp_customer && detail.crm_lead.pipeline_stage !== 'erp_creation_requested'
+              "
               type="button"
               class="btn light"
               :disabled="actionBusy"
@@ -205,24 +182,45 @@
         </div>
       </div>
 
-      <section v-if="detail.erp_customer" class="card panel-pad" style="margin-bottom:16px">
-        <h3 style="margin:0 0 12px">ยอดซื้อและประวัติบิลตามช่วงวันที่</h3>
+      <section v-if="detail.erp_customer" class="card panel-pad" style="margin-bottom: 16px">
+        <h3 style="margin: 0 0 12px">ยอดซื้อและประวัติบิลตามช่วงวันที่</h3>
         <CustomerPurchaseHistory :customer-id="detail.erp_customer.id" />
       </section>
 
       <!-- 4 Separated Domains Grid -->
-      <div class="kpis customer-domains" style="margin-bottom:16px">
+      <div class="kpis customer-domains" style="margin-bottom: 16px">
         <div class="card panel-pad">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
             <strong>1. ข้อมูลลูกค้า ERP</strong>
             <span class="tag gray">MIRROR</span>
           </div>
           <template v-if="detail.erp_customer">
-            <div class="minirow"><span>รหัส ERP</span><b>{{ detail.erp_customer.erp_customer_code }}</b></div>
-            <div class="minirow"><span>ชื่อใน Bplus</span><span>{{ detail.erp_customer.customer_name }}</span></div>
-            <div class="minirow"><span>พนักงานขาย</span><span>{{ detail.erp_customer.salesperson_name || detail.erp_customer.salesperson_code || '—' }}</span></div>
-            <div class="minirow"><span>บิลขายจริง / ยอดซื้อสุทธิสะสม</span><b>{{ fmt(detail.sales_summary?.sale_invoice_count || 0) }} บิล · {{ fmt(detail.sales_summary?.net_purchase_before_vat || 0) }} ฿</b></div>
-            <div class="minirow"><span>วงเงินเครดิต</span><span>{{ fmt(detail.erp_customer.credit_limit) }} ฿ ({{ detail.erp_customer.credit_term_days || 0 }} วัน)</span></div>
+            <div class="minirow">
+              <span>รหัส ERP</span><b>{{ detail.erp_customer.erp_customer_code }}</b>
+            </div>
+            <div class="minirow">
+              <span>ชื่อใน Bplus</span><span>{{ detail.erp_customer.customer_name }}</span>
+            </div>
+            <div class="minirow">
+              <span>พนักงานขาย</span
+              ><span>{{ detail.erp_customer.salesperson_name || detail.erp_customer.salesperson_code || '—' }}</span>
+            </div>
+            <div class="minirow">
+              <span>บิลขายจริง / ยอดซื้อสุทธิสะสม</span
+              ><b
+                >{{ fmt(detail.sales_summary?.sale_invoice_count || 0) }} บิล ·
+                {{ fmt(detail.sales_summary?.net_purchase_before_vat || 0) }} ฿</b
+              >
+            </div>
+            <div class="minirow">
+              <span>วงเงินเครดิต</span
+              ><span
+                >{{ fmt(detail.erp_customer.credit_limit) }} ฿ ({{
+                  detail.erp_customer.credit_term_days || 0
+                }}
+                วัน)</span
+              >
+            </div>
           </template>
           <div v-else class="small muted">
             ยังไม่ผูกกับลูกค้า Bplus ERP — ข้อมูลภาคสนามถูกเก็บแยกใน CRM Lead และ Internal Master โดยไม่เขียนทับ ERP
@@ -230,49 +228,75 @@
         </div>
 
         <div class="card panel-pad">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
             <strong>2. ข้อมูลร้านและพิกัด</strong>
             <span class="tag blue">FIELD OPS</span>
           </div>
           <template v-if="detail.crm_lead">
-            <div class="minirow"><span>ผู้ติดต่อ</span><span>{{ detail.crm_lead.contact_name || '—' }}</span></div>
-            <div class="minirow"><span>LINE</span><span>{{ detail.crm_lead.line_contact || '—' }}</span></div>
-            <div class="minirow"><span>แหล่งซื้อสินค้า</span><span>{{ detail.crm_lead.supplier_source || '—' }}</span></div>
-            <div class="minirow"><span>หมวดสินค้า</span><span>{{ detail.crm_lead.product_categories || '—' }}</span></div>
-            <div class="minirow"><span>พิกัด GPS</span><span>{{ detail.crm_location ? `${detail.crm_location.latitude}, ${detail.crm_location.longitude}` : 'ยังไม่ปักหมุด' }}</span></div>
+            <div class="minirow">
+              <span>ผู้ติดต่อ</span><span>{{ detail.crm_lead.contact_name || '—' }}</span>
+            </div>
+            <div class="minirow">
+              <span>LINE</span><span>{{ detail.crm_lead.line_contact || '—' }}</span>
+            </div>
+            <div class="minirow">
+              <span>แหล่งซื้อสินค้า</span><span>{{ detail.crm_lead.supplier_source || '—' }}</span>
+            </div>
+            <div class="minirow">
+              <span>หมวดสินค้า</span><span>{{ detail.crm_lead.product_categories || '—' }}</span>
+            </div>
+            <div class="minirow">
+              <span>พิกัด GPS</span
+              ><span>{{
+                detail.crm_location ? `${detail.crm_location.latitude}, ${detail.crm_location.longitude}` : 'ยังไม่ปักหมุด'
+              }}</span>
+            </div>
           </template>
           <div v-else class="small muted">
             ลูกค้า ERP ตรง (ไม่มี CRM Lead ตั้งต้น) · พิกัด CRM:
-            {{ detail.crm_location ? `${detail.crm_location.latitude}, ${detail.crm_location.longitude}` : 'ยังไม่ปักหมุด' }}
+            {{
+              detail.crm_location ? `${detail.crm_location.latitude}, ${detail.crm_location.longitude}` : 'ยังไม่ปักหมุด'
+            }}
           </div>
         </div>
 
         <div class="card panel-pad">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
             <strong>3. ข้อมูลสมาชิก</strong>
             <span class="tag" :class="detail.member_link?.verification_status === 'verified' ? 'green' : 'orange'">
               {{ detail.member_link?.verification_status || 'UNLINKED' }}
             </span>
           </div>
           <template v-if="detail.member_link">
-            <div class="minirow"><span>ชื่อสมาชิก</span><b>{{ detail.member_link.member_name }}</b></div>
-            <div class="minirow"><span>เบอร์/อีเมล</span><span>{{ detail.member_link.member_phone || detail.member_link.member_email || '—' }}</span></div>
-            <div class="minirow"><span>รหัสสมาชิก ERP</span><span>{{ detail.member_link.erp_member_code || '—' }}</span></div>
-            <div class="minirow"><span>คะแนนสะสมใน CRM</span><b>{{ fmt(detail.member_link.loyalty_points_balance || 0) }} แต้ม</b></div>
+            <div class="minirow">
+              <span>ชื่อสมาชิก</span><b>{{ detail.member_link.member_name }}</b>
+            </div>
+            <div class="minirow">
+              <span>เบอร์/อีเมล</span
+              ><span>{{ detail.member_link.member_phone || detail.member_link.member_email || '—' }}</span>
+            </div>
+            <div class="minirow">
+              <span>รหัสสมาชิก ERP</span><span>{{ detail.member_link.erp_member_code || '—' }}</span>
+            </div>
+            <div class="minirow">
+              <span>คะแนนสะสมใน CRM</span><b>{{ fmt(detail.member_link.loyalty_points_balance || 0) }} แต้ม</b>
+            </div>
           </template>
-          <div v-else class="small muted">
-            ยังไม่มีบัญชีสมาชิกที่ผ่านการตรวจสอบและยืนยันตัวตน
-          </div>
+          <div v-else class="small muted">ยังไม่มีบัญชีสมาชิกที่ผ่านการตรวจสอบและยืนยันตัวตน</div>
         </div>
 
         <div class="card panel-pad">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
             <strong>4. งานติดตาม</strong>
             <span class="tag teal">ISOLATED</span>
           </div>
-          <div class="minirow"><span>เข้าพบสะสม</span><b>{{ fmt((detail.visits || []).length) }} ครั้ง</b></div>
-          <div class="minirow"><span>งานติดตามค้าง</span><b>{{ fmt((detail.follow_up_tasks || []).length) }} งาน</b></div>
-          <div class="small muted" style="margin-top:8px">
+          <div class="minirow">
+            <span>เข้าพบสะสม</span><b>{{ fmt((detail.visits || []).length) }} ครั้ง</b>
+          </div>
+          <div class="minirow">
+            <span>งานติดตามค้าง</span><b>{{ fmt((detail.follow_up_tasks || []).length) }} งาน</b>
+          </div>
+          <div class="small muted" style="margin-top: 8px">
             การเข้าพบ ภาพถ่าย และพิกัด GPS เก็บผูกกับ Customer Master ทำให้เปลี่ยนหรือยกเลิกการเชื่อม ERP ได้โดยประวัติไม่สูญหาย
           </div>
         </div>
@@ -281,41 +305,58 @@
       <!-- Visits Timeline + Audit Log Split -->
       <div class="split">
         <div class="card panel-pad">
-          <h3 style="margin:0 0 12px">ไทม์ไลน์การเข้าพบ &amp; หลักฐานภาคสนาม ({{ (detail.visits || []).length }})</h3>
+          <h3 style="margin: 0 0 12px">ไทม์ไลน์การเข้าพบ &amp; หลักฐานภาคสนาม ({{ (detail.visits || []).length }})</h3>
           <div v-if="(detail.visits || []).length" class="timeline">
             <div v-for="v in detail.visits" :key="v.id" class="timeline-item">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: flex-start;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                "
+              >
                 <div>
                   <b>{{ v.visited_at ? new Date(v.visited_at).toLocaleString('th-TH') : '—' }}</b>
-                  <div class="small muted">โดย {{ v.staff_name || 'พนักงานขาย' }} · GPS: {{ v.gps_permission_status || '—' }}</div>
+                  <div class="small muted">
+                    โดย {{ v.staff_name || 'พนักงานขาย' }} · GPS: {{ v.gps_permission_status || '—' }}
+                  </div>
                 </div>
-                <div style="display:flex;gap:6px;align-items:center">
+                <div style="display: flex; gap: 6px; align-items: center">
                   <span class="tag blue">{{ v.result || 'visited' }}</span>
                   <button
                     v-if="v.photo_count > 0"
                     type="button"
                     class="btn light"
-                    style="padding:5px 10px"
+                    style="padding: 5px 10px"
                     @click="viewVisitPhotos(v.id)"
                   >
                     🖼 {{ v.photo_count }} รูป
                   </button>
                 </div>
               </div>
-              <div v-if="v.follow_up_action" class="small" style="margin-top:4px">แผนติดตาม: {{ v.follow_up_action }}</div>
-              <div v-if="v.notes" class="small muted" style="margin-top:4px">{{ v.notes }}</div>
+              <div v-if="v.follow_up_action" class="small" style="margin-top: 4px">
+                แผนติดตาม: {{ v.follow_up_action }}
+              </div>
+              <div v-if="v.notes" class="small muted" style="margin-top: 4px">{{ v.notes }}</div>
             </div>
           </div>
           <div v-else class="small muted">ยังไม่มีประวัติเข้าพบร้านค้านี้</div>
         </div>
 
         <div class="card panel-pad">
-          <h3 style="margin:0 0 12px">Audit Log ประวัติเชื่อมตัวตน ({{ (auditLogs || []).length }})</h3>
-          <div v-for="log in auditLogs || []" :key="log.id" class="minirow" style="align-items:flex-start">
+          <h3 style="margin: 0 0 12px">Audit Log ประวัติเชื่อมตัวตน ({{ (auditLogs || []).length }})</h3>
+          <div v-for="log in auditLogs || []" :key="log.id" class="minirow" style="align-items: flex-start">
             <div>
               <b>{{ log.action }}</b>
-              <div class="small muted">{{ log.actor_name || 'System' }} · {{ log.created_at ? new Date(log.created_at).toLocaleString('th-TH') : '' }}</div>
-              <div v-if="log.changes" class="small muted" style="word-break:break-word">{{ JSON.stringify(log.changes) }}</div>
+              <div class="small muted">
+                {{ log.actor_name || 'System' }} ·
+                {{ log.created_at ? new Date(log.created_at).toLocaleString('th-TH') : '' }}
+              </div>
+              <div v-if="log.changes" class="small muted" style="word-break: break-word">
+                {{ JSON.stringify(log.changes) }}
+              </div>
             </div>
             <span class="tag gray">#{{ log.id }}</span>
           </div>
@@ -326,11 +367,11 @@
 
     <!-- Manager Manual ERP Link Modal -->
     <BaseModal :open="linkErpModalOpen" title="เชื่อม CRM Lead กับลูกค้า ERP" @close="linkErpModalOpen = false">
-      <div class="field" style="margin-bottom:10px">
+      <div class="field" style="margin-bottom: 10px">
         <label>ค้นหาลูกค้า ERP จาก Bplus Mirror</label>
         <input v-model="erpSearch" placeholder="พิมพ์ชื่อร้านหรือรหัสลูกค้า ERP..." />
       </div>
-      <div class="field" style="margin-bottom:10px">
+      <div class="field" style="margin-bottom: 10px">
         <label>เลือกลูกค้า ERP *</label>
         <select v-model="selectedErpCustomerId">
           <option value="">-- เลือกลูกค้า ERP --</option>

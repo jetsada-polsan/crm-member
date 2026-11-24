@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="โปรไฟล์ & ข้อมูลค้างส่ง"
-      subtitle="ข้อมูลของคุณ ปุ่มลัดงานออกตลาด และรายการที่บันทึกไว้ตอนไม่มีเน็ต"
-    >
+    <PageHeader title="โปรไฟล์ & ข้อมูลค้างส่ง" subtitle="ข้อมูลของคุณ ปุ่มลัดงานออกตลาด และรายการที่บันทึกไว้ตอนไม่มีเน็ต">
       <template #secondary>
         <button type="button" class="btn light" @click="openVisitWizard()">📸 บันทึกเข้าพบ</button>
       </template>
@@ -12,36 +9,49 @@
       </template>
     </PageHeader>
 
-    <div class="card panel-pad" style="margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <div class="card panel-pad" style="margin-bottom: 16px">
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-bottom: 10px;
+        "
+      >
         <div>
-          <h3 style="margin:0">ทางลัดปฏิบัติการภาคสนาม (Touch-Optimized)</h3>
+          <h3 style="margin: 0">ทางลัดปฏิบัติการภาคสนาม (Touch-Optimized)</h3>
           <small class="muted">ใช้งานได้รวดเร็วทั้งบน iPad และสมาร์ตโฟนในพื้นที่หน้างาน</small>
         </div>
         <span class="tag blue">{{ offlineDrafts.length }} Offline Drafts</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
-        <RouterLink to="/quick-add" class="btn primary" style="min-height:46px">➕ Quick Add Store</RouterLink>
-        <RouterLink to="/visits" class="btn light" style="min-height:46px">📸 บันทึกเข้าพบร้านค้า</RouterLink>
-        <RouterLink to="/plans" class="btn" style="min-height:46px">📅 แผนออกตลาด</RouterLink>
-        <RouterLink to="/followups" class="btn" style="min-height:46px">✅ งานติดตามผล</RouterLink>
-        <RouterLink to="/map" class="btn" style="min-height:46px">🗺️ แผนที่ &amp; ปักหมุด</RouterLink>
-        <RouterLink to="/customer-360" class="btn" style="min-height:46px">🔍 Customer 360°</RouterLink>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px">
+        <RouterLink to="/quick-add" class="btn primary" style="min-height: 46px">➕ Quick Add Store</RouterLink>
+        <RouterLink to="/visits" class="btn light" style="min-height: 46px">📸 บันทึกเข้าพบร้านค้า</RouterLink>
+        <RouterLink to="/plans" class="btn" style="min-height: 46px">📅 แผนออกตลาด</RouterLink>
+        <RouterLink to="/followups" class="btn" style="min-height: 46px">✅ งานติดตามผล</RouterLink>
+        <RouterLink to="/map" class="btn" style="min-height: 46px">🗺️ แผนที่ &amp; ปักหมุด</RouterLink>
+        <RouterLink to="/customer-360" class="btn" style="min-height: 46px">🔍 Customer 360°</RouterLink>
       </div>
     </div>
 
     <div class="split">
       <div class="card panel-pad">
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
-          <div class="avatar" style="width:50px;height:50px;font-size:20px">{{ userInitial }}</div>
+        <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 14px">
+          <div class="avatar" style="width: 50px; height: 50px; font-size: 20px">{{ userInitial }}</div>
           <div>
-            <h3 style="margin:0">{{ me?.name }}</h3>
+            <h3 style="margin: 0">{{ me?.name }}</h3>
             <div class="small muted">{{ me?.email }}</div>
-            <span class="tag blue" style="margin-top:4px">{{ me?.role }} {{ me?.salesperson_code ? `(${me.salesperson_code})` : '' }}</span>
+            <span class="tag blue" style="margin-top: 4px"
+              >{{ me?.role }} {{ me?.salesperson_code ? `(${me.salesperson_code})` : '' }}</span
+            >
           </div>
         </div>
-        <div style="display:grid;gap:10px">
-          <button type="button" class="btn light" @click="uiState.commandPaletteOpen = true">⌘ เปิด Command Palette (Ctrl/Cmd+K)</button>
+        <div style="display: grid; gap: 10px">
+          <button type="button" class="btn light" @click="uiState.commandPaletteOpen = true">
+            ⌘ เปิด Command Palette (Ctrl/Cmd+K)
+          </button>
           <RouterLink to="/reports" class="btn">📊 ดูรายงานการขาย &amp; รายงานเข้าพบ</RouterLink>
           <RouterLink v-if="isManager" to="/erp-requests" class="btn">📨 คิวขอเปิดบัญชี ERP</RouterLink>
           <RouterLink v-if="isManager" to="/matching" class="btn">🔗 จับคู่ลูกค้า ERP Matching</RouterLink>
@@ -54,9 +64,9 @@
       </div>
 
       <div class="card panel-pad">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px">
           <div>
-            <h3 style="margin:0">Offline Draft Queue ({{ offlineDrafts.length }})</h3>
+            <h3 style="margin: 0">Offline Draft Queue ({{ offlineDrafts.length }})</h3>
             <small class="muted">ซิงค์ข้อมูลเข้าพบที่บันทึกไว้ระหว่างอับสัญญาณ</small>
           </div>
           <button

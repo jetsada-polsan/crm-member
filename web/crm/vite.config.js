@@ -14,7 +14,8 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/leaflet')) return 'vendor-leaflet';
-          if (id.includes('node_modules/vue-router') || id.includes('node_modules/@tanstack')) return 'vendor-router-query';
+          if (id.includes('node_modules/vue-router') || id.includes('node_modules/@tanstack'))
+            return 'vendor-router-query';
           if (id.includes('node_modules/vue')) return 'vendor-vue';
         },
       },

@@ -37,12 +37,30 @@ export function pinTypeMeta(pin) {
     return { kind: 'erp', label: 'ลูกค้า ERP', tag: 'blue', color: '#2f63e8', code: pin.erp_customer_code || 'ERP' };
   }
   if (pin?.converted_erp_customer_id) {
-    return { kind: 'converted', label: 'Lead เชื่อม ERP แล้ว', tag: 'purple', color: '#7c3aed', code: `LEAD-${pin.crm_lead_id || ''}` };
+    return {
+      kind: 'converted',
+      label: 'Lead เชื่อม ERP แล้ว',
+      tag: 'purple',
+      color: '#7c3aed',
+      code: `LEAD-${pin.crm_lead_id || ''}`,
+    };
   }
   if (pin?.approval_status === 'approved') {
-    return { kind: 'approved', label: 'Lead อนุมัติแล้ว', tag: 'green', color: '#0cab7e', code: `LEAD-${pin.crm_lead_id || ''}` };
+    return {
+      kind: 'approved',
+      label: 'Lead อนุมัติแล้ว',
+      tag: 'green',
+      color: '#0cab7e',
+      code: `LEAD-${pin.crm_lead_id || ''}`,
+    };
   }
-  return { kind: 'pending', label: 'Lead รออนุมัติ', tag: 'orange', color: '#ed9b2d', code: `LEAD-${pin.crm_lead_id || ''}` };
+  return {
+    kind: 'pending',
+    label: 'Lead รออนุมัติ',
+    tag: 'orange',
+    color: '#ed9b2d',
+    code: `LEAD-${pin.crm_lead_id || ''}`,
+  };
 }
 
 export function photoCategoryMeta(category) {
@@ -76,7 +94,9 @@ export function pinLightboxItems(pin) {
   return (pin?.photos || []).map((photo) => {
     const cat = photoCategoryMeta(photo.category);
     return {
-      src: photo.url || (photo.kind === 'lead' ? `/api/crm/lead-photos/${photo.id}?inline=1` : `/api/crm/photos/${photo.id}?inline=1`),
+      src:
+        photo.url ||
+        (photo.kind === 'lead' ? `/api/crm/lead-photos/${photo.id}?inline=1` : `/api/crm/photos/${photo.id}?inline=1`),
       title: `${name} · ${cat.label}`,
       category: `${cat.icon} ${cat.label}`,
       capturedAt: formatThaiDateTime(photo.captured_at),

@@ -48,11 +48,31 @@ export const CRM_ROUTES = [
   { path: '/visits', name: 'visits', component: viewLoaders.visits, meta: { label: 'ออกตลาด' } },
   { path: '/plans', name: 'plans', component: viewLoaders.plans, meta: { label: 'แผนออกตลาด' } },
   { path: '/followups', name: 'followups', component: viewLoaders.followups, meta: { label: 'งานติดตามผล' } },
-  { path: '/erp-requests', name: 'erp-requests', component: viewLoaders['erp-requests'], meta: { label: 'คำขอเปิดรหัส ERP', adminOnly: true } },
-  { path: '/matching', name: 'matching', component: viewLoaders.matching, meta: { label: 'จับคู่ลูกค้ากับ ERP', adminOnly: true } },
-  { path: '/erp-customers', name: 'erp-customers', component: viewLoaders['erp-customers'], meta: { label: 'ลูกค้าใน ERP' } },
+  {
+    path: '/erp-requests',
+    name: 'erp-requests',
+    component: viewLoaders['erp-requests'],
+    meta: { label: 'คำขอเปิดรหัส ERP', adminOnly: true },
+  },
+  {
+    path: '/matching',
+    name: 'matching',
+    component: viewLoaders.matching,
+    meta: { label: 'จับคู่ลูกค้ากับ ERP', adminOnly: true },
+  },
+  {
+    path: '/erp-customers',
+    name: 'erp-customers',
+    component: viewLoaders['erp-customers'],
+    meta: { label: 'ลูกค้าใน ERP' },
+  },
   { path: '/sync', name: 'sync', component: viewLoaders.sync, meta: { label: 'สถานะดึงข้อมูล ERP', adminOnly: true } },
-  { path: '/members', name: 'members', component: viewLoaders.members, meta: { label: 'ทะเบียนสมาชิก', adminOnly: true } },
+  {
+    path: '/members',
+    name: 'members',
+    component: viewLoaders.members,
+    meta: { label: 'ทะเบียนสมาชิก', adminOnly: true },
+  },
   { path: '/line-inbox', name: 'line-inbox', component: viewLoaders['line-inbox'], meta: { label: 'แชทลูกค้า LINE OA' } },
   {
     path: '/member-registration',
@@ -68,11 +88,32 @@ export const CRM_ROUTES = [
   },
   { path: '/loyalty', name: 'loyalty', component: viewLoaders.loyalty, meta: { label: 'กติกาแต้ม', adminOnly: true } },
   { path: '/rewards', name: 'rewards', component: viewLoaders.rewards, meta: { label: 'ของรางวัล', adminOnly: true } },
-  { path: '/member', name: 'member', component: viewLoaders.member, meta: { label: 'สมาชิก & คะแนน', adminOnly: true, hiddenInNav: true } },
+  {
+    path: '/member',
+    name: 'member',
+    component: viewLoaders.member,
+    meta: { label: 'สมาชิก & คะแนน', adminOnly: true, hiddenInNav: true },
+  },
   { path: '/reports', name: 'reports', component: viewLoaders.reports, meta: { label: 'รายงานยอดขาย' } },
-  { path: '/presentation/visits', name: 'visit-presentation', component: () => import('./views/VisitPresentationView.vue'), meta: { label: 'นำเสนอออกตลาด', presentation: true, hiddenInNav: true } },
-  { path: '/settings', name: 'settings', component: viewLoaders.settings, meta: { label: 'ตั้งค่า & ผู้ใช้งาน', adminOnly: true } },
-  { path: '/health-check', alias: ['/api-status', '/health'], name: 'health-check', component: viewLoaders['health-check'], meta: { label: 'สถานะระบบ & API', adminOnly: true } },
+  {
+    path: '/presentation/visits',
+    name: 'visit-presentation',
+    component: () => import('./views/VisitPresentationView.vue'),
+    meta: { label: 'นำเสนอออกตลาด', presentation: true, hiddenInNav: true },
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: viewLoaders.settings,
+    meta: { label: 'ตั้งค่า & ผู้ใช้งาน', adminOnly: true },
+  },
+  {
+    path: '/health-check',
+    alias: ['/api-status', '/health'],
+    name: 'health-check',
+    component: viewLoaders['health-check'],
+    meta: { label: 'สถานะระบบ & API', adminOnly: true },
+  },
   { path: '/more', name: 'more', component: viewLoaders.more, meta: { label: 'เพิ่มเติม', hiddenInNav: true } },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ];
@@ -113,7 +154,11 @@ export function prefetchRouteView(name, { withData = false } = {}) {
     });
   } else if (name === 'customers') {
     crmQueryClient.prefetchQuery({
-      queryKey: ['crm', 'master', { page: 1, perPage: 25, q: '', masterFilter: 'all', erpStatus: 'all', leadStage: '' }],
+      queryKey: [
+        'crm',
+        'master',
+        { page: 1, perPage: 25, q: '', masterFilter: 'all', erpStatus: 'all', leadStage: '' },
+      ],
       queryFn: ({ signal }) => crmGet('/customer-master?paginate=1&page=1&per_page=25&filter=all', { signal }),
     });
   } else if (name === 'pipeline') {

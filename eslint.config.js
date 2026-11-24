@@ -4,13 +4,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: [
-      '**/dist/**',
-      '**/node_modules/**',
-      'backend/**',
-      'sync-agent/**',
-      'tools/**',
-    ],
+    ignores: ['**/dist/**', '**/node_modules/**', 'backend/**', 'sync-agent/**', 'tools/**'],
   },
   js.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
@@ -30,6 +24,9 @@ export default [
       'vue/max-attributes-per-line': 'off',
       'vue/singleline-html-element-content-newline': 'off',
       'vue/html-self-closing': 'off',
+      // Prettier owns template layout; these two rules fight its output.
+      'vue/html-indent': 'off',
+      'vue/html-closing-bracket-newline': 'off',
       'vue/attributes-order': 'warn',
     },
   },

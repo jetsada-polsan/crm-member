@@ -16,12 +16,15 @@
 
     <!-- Authenticated SPA Workspace -->
     <div v-else class="app app-flat">
-      <div
-        :class="['sidebar-shade', { open: mobileSidebarOpen }]"
-        @click="mobileSidebarOpen = false"
-      ></div>
+      <div :class="['sidebar-shade', { open: mobileSidebarOpen }]" @click="mobileSidebarOpen = false"></div>
       <aside :class="['sidebar', { open: mobileSidebarOpen }]" aria-label="เมนูหลัก POPSTAR Connect">
-        <button type="button" class="logo logo-refresh" aria-label="รีเฟรชหน้าปัจจุบัน" title="รีเฟรชหน้าปัจจุบัน" @click="refreshCurrentPage">
+        <button
+          type="button"
+          class="logo logo-refresh"
+          aria-label="รีเฟรชหน้าปัจจุบัน"
+          title="รีเฟรชหน้าปัจจุบัน"
+          @click="refreshCurrentPage"
+        >
           <img class="logo-mark logo-image" src="/favicon.svg" alt="" />
           <span class="logo-text">
             <span class="logo-title">POPSTAR <span>Connect</span></span>
@@ -35,8 +38,14 @@
           :offline-draft-count="offlineDrafts.length"
           @prefetch="(name) => prefetchRouteView(name, { withData: true })"
           @navigate="mobileSidebarOpen = false"
-          @open-visit="mobileSidebarOpen = false; openVisitWizard()"
-          @open-quick-add="mobileSidebarOpen = false; openQuickAdd()"
+          @open-visit="
+            mobileSidebarOpen = false;
+            openVisitWizard();
+          "
+          @open-quick-add="
+            mobileSidebarOpen = false;
+            openQuickAdd();
+          "
         />
 
         <div class="sidebar-bottom">
@@ -51,13 +60,7 @@
               </template>
             </small>
           </div>
-          <button
-            type="button"
-            class="logout-btn"
-            title="ออกจากระบบ"
-            aria-label="ออกจากระบบ"
-            @click="handleLogout"
-          >
+          <button type="button" class="logout-btn" title="ออกจากระบบ" aria-label="ออกจากระบบ" @click="handleLogout">
             ⏻
           </button>
         </div>
@@ -139,12 +142,7 @@
             >
               ☁️
             </button>
-            <RouterLink
-              v-if="!showMobileBack && isManager"
-              to="/sync"
-              class="topbtn"
-              aria-label="สถานะซิงก์ Push API"
-            >
+            <RouterLink v-if="!showMobileBack && isManager" to="/sync" class="topbtn" aria-label="สถานะซิงก์ Push API">
               🔄
             </RouterLink>
             <button
@@ -183,9 +181,7 @@
               </KeepAlive>
             </Transition>
           </RouterView>
-          <footer class="footer">
-            POPSTAR Connect · เชื่อมทีมขาย ร้านค้า และสมาชิก ไว้ในที่เดียว
-          </footer>
+          <footer class="footer">POPSTAR Connect · เชื่อมทีมขาย ร้านค้า และสมาชิก ไว้ในที่เดียว</footer>
         </main>
       </div>
 
@@ -220,11 +216,7 @@
       </nav>
 
       <!-- Center (+) Bottom Sheet: Primary actions + quick jumps -->
-      <MobileBottomSheet
-        :open="mobileQuickOpen"
-        title="ทำรายการด่วน (มือเดียว)"
-        @close="mobileQuickOpen = false"
-      >
+      <MobileBottomSheet :open="mobileQuickOpen" title="ทำรายการด่วน (มือเดียว)" @close="mobileQuickOpen = false">
         <div class="sheet-two-actions">
           <button
             type="button"
@@ -237,11 +229,7 @@
               <small>ถ่ายรูปและบันทึกพิกัดร้านค้า</small>
             </div>
           </button>
-          <button
-            type="button"
-            class="quick-tile sheet-big-btn"
-            @click="runMobileAction(openQuickAdd)"
-          >
+          <button type="button" class="quick-tile sheet-big-btn" @click="runMobileAction(openQuickAdd)">
             <span class="quick-icon" aria-hidden="true">🏪</span>
             <div>
               <strong>เพิ่มร้านใหม่</strong>
@@ -266,7 +254,11 @@
           <button
             type="button"
             class="sheet-mini-link"
-            @click="runMobileAction(() => { uiState.commandPaletteOpen = true; })"
+            @click="
+              runMobileAction(() => {
+                uiState.commandPaletteOpen = true;
+              })
+            "
           >
             <span>🔍</span>
             <span>ค้นหาเมนู</span>
@@ -325,11 +317,7 @@ import VisitEvidenceWizard from './components/VisitEvidenceWizard.vue';
 import CustomerDetailDrawer from './components/CustomerDetailDrawer.vue';
 import CrmSidebarNav from './components/CrmSidebarNav.vue';
 
-import {
-  CRM_NAV_GROUPS,
-  filterNavGroups,
-  findNavMetaByRouteName,
-} from './navigation.js';
+import { CRM_NAV_GROUPS, filterNavGroups, findNavMetaByRouteName } from './navigation.js';
 import { CRM_ROUTES, prefetchRouteView, scheduleIdlePrefetch } from './router.js';
 import {
   authChecked,
@@ -381,13 +369,9 @@ const mobileGreetingSub = computed(() => {
   return `POPSTAR · ${roleLabel.value}`;
 });
 
-const activeNavMeta = computed(() =>
-  findNavMetaByRouteName(visibleNavGroups.value, String(route.name || ''))
-);
+const activeNavMeta = computed(() => findNavMetaByRouteName(visibleNavGroups.value, String(route.name || '')));
 
-const pageTitle = computed(
-  () => activeNavMeta.value?.item?.label || route.meta?.label || 'POPSTAR Connect'
-);
+const pageTitle = computed(() => activeNavMeta.value?.item?.label || route.meta?.label || 'POPSTAR Connect');
 
 const PRIMARY_BOTTOM_TAB_PATHS = new Set(['/dashboard', '/customers', '/visits']);
 
@@ -398,7 +382,9 @@ const isMoreSectionActive = computed(() => {
 });
 
 const showMobileBack = computed(() => {
-  return route.path !== '/dashboard' && route.path !== '/customers' && route.path !== '/visits' && route.path !== '/more';
+  return (
+    route.path !== '/dashboard' && route.path !== '/customers' && route.path !== '/visits' && route.path !== '/more'
+  );
 });
 
 function handleMobileBack() {
@@ -415,7 +401,9 @@ function runMobileNav(path) {
 }
 
 const commandItems = computed(() => {
-  const routes = CRM_ROUTES.filter((r) => r.name && !r.meta?.hiddenInNav && (!r.meta?.adminOnly || isManager.value)).map((r) => {
+  const routes = CRM_ROUTES.filter(
+    (r) => r.name && !r.meta?.hiddenInNav && (!r.meta?.adminOnly || isManager.value)
+  ).map((r) => {
     const meta = findNavMetaByRouteName(CRM_NAV_GROUPS, r.name);
     return {
       id: `route:${r.name}`,
@@ -527,13 +515,41 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.logo-refresh { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 10px; }
-.logo-refresh:hover { background: #f0f9ff; }
-.logo-refresh:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }
-.logo-image { display: block; padding: 0; object-fit: contain; }
-.logo-text { display: block; }
-.logo-title { display: block; color: #0f172a; font-size: 17px; line-height: 1.2; letter-spacing: .2px; font-weight: 700; white-space: nowrap; }
-.logo-title span { color: #0284c7; }
+.logo-refresh {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.logo-refresh:hover {
+  background: #f0f9ff;
+}
+.logo-refresh:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
+}
+.logo-image {
+  display: block;
+  padding: 0;
+  object-fit: contain;
+}
+.logo-text {
+  display: block;
+}
+.logo-title {
+  display: block;
+  color: #0f172a;
+  font-size: 17px;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.logo-title span {
+  color: #0284c7;
+}
 .mobile-menu-btn,
 .mobile-back-btn,
 .mobile-app-avatar,

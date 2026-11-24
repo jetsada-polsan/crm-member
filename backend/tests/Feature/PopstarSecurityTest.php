@@ -6,6 +6,7 @@ use App\Models\MemberAccount;
 use App\Models\StaffUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -291,9 +292,9 @@ class PopstarSecurityTest extends TestCase
             'email' => 'cross-staff@popstar.local',
             'password' => 'StaffStrongPass#2026!',
         ])->assertOk()
-          ->assertJsonPath('portal', 'crm')
-          ->assertJsonPath('redirect_path', '/dashboard')
-          ->assertJsonPath('role', 'sales');
+            ->assertJsonPath('portal', 'crm')
+            ->assertJsonPath('redirect_path', '/dashboard')
+            ->assertJsonPath('role', 'sales');
         $this->assertNotSame($oldSessionId, session()->getId());
 
         // Staff guard cannot access Member endpoints
@@ -311,9 +312,9 @@ class PopstarSecurityTest extends TestCase
             'password_confirmation' => 'MemberStrongPass#2026!',
             'consent' => true,
         ])->assertStatus(201)
-          ->assertJsonPath('portal', 'member')
-          ->assertJsonPath('redirect_path', '/overview')
-          ->assertJsonPath('identity_status', 'member_verification_pending');
+            ->assertJsonPath('portal', 'member')
+            ->assertJsonPath('redirect_path', '/overview')
+            ->assertJsonPath('identity_status', 'member_verification_pending');
         $memberId = $reg->json('id');
 
         // Logout staff & authenticate strictly as member
@@ -343,7 +344,7 @@ class PopstarSecurityTest extends TestCase
 
     public function test_login_rate_limiters_are_isolated_between_member_and_crm_portals(): void
     {
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
         DB::table('staff_users')->insert([
             'name' => 'Rate Limit Staff',
@@ -374,6 +375,6 @@ class PopstarSecurityTest extends TestCase
             'email' => 'ratelimit-staff@popstar.local',
             'password' => 'StaffRatePass#2026!',
         ])->assertOk()
-          ->assertJsonPath('portal', 'crm');
+            ->assertJsonPath('portal', 'crm');
     }
 }

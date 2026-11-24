@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="บัตรสมาชิกของฉัน"
-      subtitle="แต้มคงเหลือ ยอดซื้อ และสิทธิพิเศษของคุณ"
-    >
+    <PageHeader title="บัตรสมาชิกของฉัน" subtitle="แต้มคงเหลือ ยอดซื้อ และสิทธิพิเศษของคุณ">
       <template #secondary>
         <RouterLink to="/invoices" class="btn light">🧾 ประวัติยอดซื้อ</RouterLink>
         <RouterLink to="/binding" class="btn">🔗 ผูกบัญชี LINE &amp; ร้านค้า</RouterLink>
@@ -14,7 +11,7 @@
     </PageHeader>
 
     <!-- Primary Hero: Digital Member Card + Points Balance + Redeem Rewards CTA -->
-    <div class="dash-grid" style="margin-bottom:18px">
+    <div class="dash-grid" style="margin-bottom: 18px">
       <div class="digital-member-card">
         <div class="member-card-head">
           <span class="small">บัตรสมาชิก POPSTAR Connect</span>
@@ -38,9 +35,7 @@
               <div class="member-points-num">{{ fmt(pointsData.erp_point_balance) }}</div>
             </div>
           </div>
-          <RouterLink to="/rewards" class="btn member-card-cta">
-            🎁 แลกของรางวัล
-          </RouterLink>
+          <RouterLink to="/rewards" class="btn member-card-cta"> 🎁 แลกของรางวัล </RouterLink>
         </div>
       </div>
 
@@ -53,7 +48,8 @@
           <div class="kpi-label">บิลขายจริงที่เชื่อมแล้ว</div>
           <div class="kpi-value">{{ isMemberVerified ? fmt(me?.purchase_summary?.sale_invoice_count || 0) : '—' }}</div>
           <div v-if="isMemberVerified" class="kpi-foot">
-            ซื้อ {{ fmt(me?.purchase_summary?.gross_purchase_before_vat) }} ฿ · คืน {{ fmt(me?.purchase_summary?.return_amount_before_vat) }} ฿
+            ซื้อ {{ fmt(me?.purchase_summary?.gross_purchase_before_vat) }} ฿ · คืน
+            {{ fmt(me?.purchase_summary?.return_amount_before_vat) }} ฿
           </div>
           <div class="kpi-foot">{{ isMemberVerified ? `ยอดรวม ${fmt(totalNetSales)} ฿` : 'รอทีมงานอนุมัติสิทธิ์' }}</div>
         </div>
@@ -66,7 +62,7 @@
             </span>
           </div>
           <div class="kpi-label">บัญชี LINE</div>
-          <div class="kpi-value" style="font-size:16px;padding-top:6px">
+          <div class="kpi-value" style="font-size: 16px; padding-top: 6px">
             {{ me?.line_binding?.line_display_name || (me?.line_binding ? 'เชื่อมต่อแล้ว' : 'ยังไม่เชื่อม LINE') }}
           </div>
           <div class="kpi-foot">รับแจ้งเตือนบิลและแต้มทาง LINE</div>
@@ -75,8 +71,8 @@
     </div>
 
     <!-- Verification Progress / Unverified Banner -->
-    <div class="card panel-pad" style="margin-bottom:18px">
-      <div class="stepper" style="margin-bottom:12px">
+    <div class="card panel-pad" style="margin-bottom: 18px">
+      <div class="stepper" style="margin-bottom: 12px">
         <div class="step-pill done">1. สมัครบัญชีสมาชิก</div>
         <div :class="['step-pill', me?.line_binding ? 'done' : 'active']">
           2. ผูก LINE ({{ me?.line_binding ? 'ผูกแล้ว' : 'ยังไม่ผูก' }})
@@ -89,7 +85,7 @@
         </div>
       </div>
 
-      <div v-if="!isMemberVerified" class="notice" style="margin-bottom:0">
+      <div v-if="!isMemberVerified" class="notice" style="margin-bottom: 0">
         <strong>บัญชียังรอการยืนยันเจ้าของร้าน:</strong>
         กรุณาส่งคำขอยืนยันในหน้า <RouterLink to="/binding"><b>ผูกบัญชี LINE &amp; ร้านค้า</b></RouterLink>
         เพื่อให้ทีม POPSTAR ตรวจสอบก่อนเปิดดูยอดซื้อและใช้แต้มสะสม
@@ -98,8 +94,8 @@
 
     <div v-if="isMemberVerified" class="middle">
       <div class="card panel-pad">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="margin:0">ประวัติยอดซื้อล่าสุด</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
+          <h3 style="margin: 0">ประวัติยอดซื้อล่าสุด</h3>
           <RouterLink to="/invoices" class="small">ดูทั้งหมด →</RouterLink>
         </div>
         <div v-if="loadingInv"><SkeletonBlock variant="list" :rows="4" /></div>
@@ -120,8 +116,8 @@
       </div>
 
       <div class="card panel-pad">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h3 style="margin:0">ความเคลื่อนไหวแต้มล่าสุด</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
+          <h3 style="margin: 0">ความเคลื่อนไหวแต้มล่าสุด</h3>
           <RouterLink to="/rewards" class="small">แลกรางวัล →</RouterLink>
         </div>
         <div v-if="loadingPts"><SkeletonBlock variant="list" :rows="4" /></div>

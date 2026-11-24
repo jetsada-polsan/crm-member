@@ -1,7 +1,14 @@
 <template>
   <div class="auth-form-container">
     <div v-if="displayError" class="auth-error" role="alert" aria-live="assertive">
-      <svg class="auth-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <svg
+        class="auth-error-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"
+      >
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8v4m0 4h.01" />
       </svg>
@@ -33,11 +40,7 @@
             inputmode="text"
             class="no-trailing-btn"
             autocomplete="username"
-            :placeholder="
-              roleMode === 'staff'
-                ? 'เช่น B16, 01 หรืออีเมลพนักงาน'
-                : '08x-xxx-xxxx หรือ email@domain.com'
-            "
+            :placeholder="roleMode === 'staff' ? 'เช่น B16, 01 หรืออีเมลพนักงาน' : '08x-xxx-xxxx หรือ email@domain.com'"
             aria-required="true"
             required
           />
@@ -103,7 +106,14 @@
       </div>
 
       <div v-if="showForgotHelp" class="auth-help-box" role="region" aria-label="คำแนะนำการรีเซ็ตรหัสผ่าน">
-        <svg class="auth-help-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+        <svg
+          class="auth-help-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.9"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="12" r="9" />
           <path d="M12 8h.01M11 12h1v4h1" />
         </svg>
@@ -134,13 +144,7 @@
           <path d="M21 12a9 9 0 0 0-9-9" stroke-linecap="round" />
         </svg>
         <span>
-          {{
-            busy
-              ? 'กำลังตรวจสอบสิทธิ์...'
-              : roleMode === 'staff'
-                ? 'เข้าสู่ระบบพนักงาน'
-                : 'เข้าสู่ระบบสมาชิก'
-          }}
+          {{ busy ? 'กำลังตรวจสอบสิทธิ์...' : roleMode === 'staff' ? 'เข้าสู่ระบบพนักงาน' : 'เข้าสู่ระบบสมาชิก' }}
         </span>
         <svg
           v-if="!busy"
@@ -163,13 +167,28 @@
         <span class="auth-bottom-label">ยังไม่มีบัญชีสมาชิกร้านค้า?</span>
         <button type="button" class="auth-link-btn" @click="$emit('open-register')">
           <span>สมัครสมาชิกใหม่</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.1"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <path d="M5 12h14m-6-6 6 6-6 6" />
           </svg>
         </button>
       </template>
       <template v-else>
-        <svg class="auth-bottom-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <svg
+          class="auth-bottom-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          aria-hidden="true"
+        >
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
         <div class="auth-bottom-text">

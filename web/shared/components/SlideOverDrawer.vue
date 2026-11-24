@@ -17,7 +17,7 @@
         <div class="drawer-top">
           <div>
             <h3>{{ title }}</h3>
-            <p v-if="subtitle" class="small muted" style="margin:2px 0 0">{{ subtitle }}</p>
+            <p v-if="subtitle" class="small muted" style="margin: 2px 0 0">{{ subtitle }}</p>
           </div>
           <button class="close" type="button" aria-label="ปิดลิ้นชักรายละเอียด" @click="requestClose">✕</button>
         </div>

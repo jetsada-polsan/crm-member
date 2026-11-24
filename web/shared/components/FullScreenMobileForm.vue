@@ -2,14 +2,7 @@
   <Teleport to="body">
     <Transition name="pop-fade">
       <div v-if="open" class="ui-backdrop ui-fs-wrap" @click.self="requestClose">
-        <section
-          ref="panelRef"
-          class="ui-fs-sheet"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="title"
-          tabindex="-1"
-        >
+        <section ref="panelRef" class="ui-fs-sheet" role="dialog" aria-modal="true" :aria-label="title" tabindex="-1">
           <header class="ui-fs-head">
             <button class="close" type="button" aria-label="ย้อนกลับหรือปิด" @click="requestClose">✕</button>
             <div class="ui-fs-title">

@@ -1,24 +1,13 @@
 <template>
   <div>
-    <PageHeader
-      title="ตั้งค่าผู้ใช้งาน & ระบบ"
-      subtitle="จัดการบัญชีผู้ใช้ สิทธิ์ สายใบจอง และ LINE OA"
-    >
+    <PageHeader title="ตั้งค่าผู้ใช้งาน & ระบบ" subtitle="จัดการบัญชีผู้ใช้ สิทธิ์ สายใบจอง และ LINE OA">
       <template #secondary>
-        <button
-          v-if="!isExecutive"
-          type="button"
-          class="btn"
-          :disabled="syncingAuto"
-          @click="triggerAutoSync"
-        >
+        <button v-if="!isExecutive" type="button" class="btn" :disabled="syncingAuto" @click="triggerAutoSync">
           {{ syncingAuto ? 'กำลังซิงก์...' : '⚡ ซิงก์เซลล์จาก Bplus' }}
         </button>
       </template>
       <template #primary>
-        <button v-if="!isExecutive" type="button" class="btn primary" @click="openCreateModal">
-          ＋ เพิ่มผู้ใช้งาน
-        </button>
+        <button v-if="!isExecutive" type="button" class="btn primary" @click="openCreateModal">＋ เพิ่มผู้ใช้งาน</button>
       </template>
     </PageHeader>
 
@@ -53,174 +42,176 @@
           💬 LINE OA
           <span
             class="tag"
-            :class="data.line_settings?.secret_configured && data.line_settings?.access_token_configured ? 'green' : 'orange'"
+            :class="
+              data.line_settings?.secret_configured && data.line_settings?.access_token_configured ? 'green' : 'orange'
+            "
           >
-            {{ data.line_settings?.secret_configured && data.line_settings?.access_token_configured ? 'เชื่อมแล้ว' : 'รอตั้งค่า' }}
+            {{
+              data.line_settings?.secret_configured && data.line_settings?.access_token_configured
+                ? 'เชื่อมแล้ว'
+                : 'รอตั้งค่า'
+            }}
           </span>
         </button>
       </div>
 
       <template v-if="activeTab === 'users'">
-      <!-- Main User Directory Card -->
-      <div class="card panel-pad mb-md">
-        <div class="staff-head">
-          <div>
-            <h3 style="margin:0">รายชื่อผู้ใช้งาน ({{ filteredUsers.length }})</h3>
-          </div>
-
-          <div class="staff-filter-bar">
-            <div class="role-pills">
-              <button
-                v-for="tab in ROLE_TABS"
-                :key="tab.id"
-                type="button"
-                :class="['role-pill', { active: roleFilter === tab.id }]"
-                @click="roleFilter = tab.id"
-              >
-                {{ tab.label }} ({{ tab.count }})
-              </button>
+        <!-- Main User Directory Card -->
+        <div class="card panel-pad mb-md">
+          <div class="staff-head">
+            <div>
+              <h3 style="margin: 0">รายชื่อผู้ใช้งาน ({{ filteredUsers.length }})</h3>
             </div>
-            <input
-              v-model="searchQuery"
-              type="search"
-              class="staff-search-input"
-              placeholder="ค้นหาชื่อ, B16, อีเมล..."
-            />
-          </div>
-        </div>
 
-        <div class="table-wrap desktop-table-only" style="margin-top:14px">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>ชื่อแสดงในระบบ</th>
-                <th>ชื่อที่ใช้ล็อกอินได้</th>
-                <th>ระดับสิทธิ์</th>
-                <th>สายใบจอง / รหัสเซลล์</th>
-                <th>สถานะ</th>
-                <th style="text-align:right">เปลี่ยนชื่อ / รีเซ็ตรหัสผ่าน</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="u in filteredUsers" :key="u.id">
-                <td>
-                  <b>{{ u.name }}</b>
-                </td>
-                <td style="white-space:normal">
-                  <div class="login-hint-Group">
-                    <code class="login-code-pill">{{ primaryLoginHint(u) }}</code>
-                    <span class="small muted">{{ u.email }}</span>
-                  </div>
-                </td>
-                <td>
-                  <span
-                    class="tag"
-                    :class="u.role === 'admin' ? 'purple' : u.role === 'executive' ? 'orange' : u.role === 'manager' ? 'blue' : 'green'"
-                  >
-                    {{ roleBadgeLabel(u.role) }}
-                  </span>
-                </td>
-                <td style="white-space:normal">
-                  <div v-if="(u.reservation_doc_types_list || []).length || u.salesperson_code" class="doc-chip-row">
-                    <span
-                      v-for="doc in u.reservation_doc_types_list || []"
-                      :key="doc"
-                      class="tag orange"
-                    >
-                      ใบจอง {{ doc }}
-                    </span>
-                    <span v-if="u.salesperson_code" class="tag blue">
-                      รหัสเซลล์ {{ u.salesperson_code }}
-                    </span>
-                  </div>
-                  <span v-else class="small muted">ดูได้ทุกสาย</span>
-                </td>
-                <td>
-                  <span class="tag" :class="u.is_active ? 'green' : 'red'">
-                    {{ u.is_active ? 'เปิดใช้งาน' : 'ระงับ' }}
-                  </span>
-                </td>
-                <td style="text-align:right">
-                  <div v-if="!isExecutive" class="row-action-btns">
-                    <button type="button" class="btn light row-btn" @click="openEditModal(u)">
-                      ✏️ เปลี่ยนชื่อ / สิทธิ์
-                    </button>
-                    <button type="button" class="btn row-btn" @click="openResetPasswordModal(u)">
-                      🔑 รีเซ็ตรหัสผ่าน
-                    </button>
-                  </div>
-                  <span v-else class="small muted">ดูอย่างเดียว</span>
-                </td>
-              </tr>
-              <tr v-if="!filteredUsers.length">
-                <td colspan="6" class="placeholder">ไม่พบรายชื่อที่ค้นหา</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Mobile Cards -->
-        <div class="mob-cards" style="margin-top:12px">
-          <div v-for="u in filteredUsers" :key="`um-${u.id}`" class="card mob-card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-              <div>
-                <strong style="font-size:15.5px">{{ u.name }}</strong>
-                <div class="small muted" style="margin-top:2px">
-                  ล็อกอินด้วย: <code class="login-code-pill">{{ primaryLoginHint(u) }}</code> หรือ {{ u.email }}
-                </div>
+            <div class="staff-filter-bar">
+              <div class="role-pills">
+                <button
+                  v-for="tab in ROLE_TABS"
+                  :key="tab.id"
+                  type="button"
+                  :class="['role-pill', { active: roleFilter === tab.id }]"
+                  @click="roleFilter = tab.id"
+                >
+                  {{ tab.label }} ({{ tab.count }})
+                </button>
               </div>
-              <span
-                class="tag"
-                :class="u.role === 'admin' ? 'purple' : u.role === 'executive' ? 'orange' : u.role === 'manager' ? 'blue' : 'green'"
-              >
-                {{ roleBadgeLabel(u.role) }}
-              </span>
+              <input
+                v-model="searchQuery"
+                type="search"
+                class="staff-search-input"
+                placeholder="ค้นหาชื่อ, B16, อีเมล..."
+              />
             </div>
+          </div>
 
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-              <span
-                v-for="doc in u.reservation_doc_types_list || []"
-                :key="doc"
-                class="tag orange"
-              >
-                ใบจอง {{ doc }}
-              </span>
-              <span v-if="u.salesperson_code" class="tag blue">
-                รหัสเซลล์ {{ u.salesperson_code }}
-              </span>
-              <span class="tag" :class="u.is_active ? 'green' : 'red'">
-                {{ u.is_active ? 'เปิดใช้งาน' : 'ระงับ' }}
-              </span>
-            </div>
+          <div class="table-wrap desktop-table-only" style="margin-top: 14px">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>ชื่อแสดงในระบบ</th>
+                  <th>ชื่อที่ใช้ล็อกอินได้</th>
+                  <th>ระดับสิทธิ์</th>
+                  <th>สายใบจอง / รหัสเซลล์</th>
+                  <th>สถานะ</th>
+                  <th style="text-align: right">เปลี่ยนชื่อ / รีเซ็ตรหัสผ่าน</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="u in filteredUsers" :key="u.id">
+                  <td>
+                    <b>{{ u.name }}</b>
+                  </td>
+                  <td style="white-space: normal">
+                    <div class="login-hint-Group">
+                      <code class="login-code-pill">{{ primaryLoginHint(u) }}</code>
+                      <span class="small muted">{{ u.email }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      class="tag"
+                      :class="
+                        u.role === 'admin'
+                          ? 'purple'
+                          : u.role === 'executive'
+                            ? 'orange'
+                            : u.role === 'manager'
+                              ? 'blue'
+                              : 'green'
+                      "
+                    >
+                      {{ roleBadgeLabel(u.role) }}
+                    </span>
+                  </td>
+                  <td style="white-space: normal">
+                    <div v-if="(u.reservation_doc_types_list || []).length || u.salesperson_code" class="doc-chip-row">
+                      <span v-for="doc in u.reservation_doc_types_list || []" :key="doc" class="tag orange">
+                        ใบจอง {{ doc }}
+                      </span>
+                      <span v-if="u.salesperson_code" class="tag blue"> รหัสเซลล์ {{ u.salesperson_code }} </span>
+                    </div>
+                    <span v-else class="small muted">ดูได้ทุกสาย</span>
+                  </td>
+                  <td>
+                    <span class="tag" :class="u.is_active ? 'green' : 'red'">
+                      {{ u.is_active ? 'เปิดใช้งาน' : 'ระงับ' }}
+                    </span>
+                  </td>
+                  <td style="text-align: right">
+                    <div v-if="!isExecutive" class="row-action-btns">
+                      <button type="button" class="btn light row-btn" @click="openEditModal(u)">
+                        ✏️ เปลี่ยนชื่อ / สิทธิ์
+                      </button>
+                      <button type="button" class="btn row-btn" @click="openResetPasswordModal(u)">
+                        🔑 รีเซ็ตรหัสผ่าน
+                      </button>
+                    </div>
+                    <span v-else class="small muted">ดูอย่างเดียว</span>
+                  </td>
+                </tr>
+                <tr v-if="!filteredUsers.length">
+                  <td colspan="6" class="placeholder">ไม่พบรายชื่อที่ค้นหา</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-            <div v-if="!isExecutive" class="mob-card-actions">
-              <button type="button" class="btn light" @click="openEditModal(u)">
-                ✏️ เปลี่ยนชื่อ / แก้ไข
-              </button>
-              <button type="button" class="btn" @click="openResetPasswordModal(u)">
-                🔑 รีเซ็ตรหัสผ่าน
-              </button>
+          <!-- Mobile Cards -->
+          <div class="mob-cards" style="margin-top: 12px">
+            <div v-for="u in filteredUsers" :key="`um-${u.id}`" class="card mob-card">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px">
+                <div>
+                  <strong style="font-size: 15.5px">{{ u.name }}</strong>
+                  <div class="small muted" style="margin-top: 2px">
+                    ล็อกอินด้วย: <code class="login-code-pill">{{ primaryLoginHint(u) }}</code> หรือ {{ u.email }}
+                  </div>
+                </div>
+                <span
+                  class="tag"
+                  :class="
+                    u.role === 'admin'
+                      ? 'purple'
+                      : u.role === 'executive'
+                        ? 'orange'
+                        : u.role === 'manager'
+                          ? 'blue'
+                          : 'green'
+                  "
+                >
+                  {{ roleBadgeLabel(u.role) }}
+                </span>
+              </div>
+
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px">
+                <span v-for="doc in u.reservation_doc_types_list || []" :key="doc" class="tag orange">
+                  ใบจอง {{ doc }}
+                </span>
+                <span v-if="u.salesperson_code" class="tag blue"> รหัสเซลล์ {{ u.salesperson_code }} </span>
+                <span class="tag" :class="u.is_active ? 'green' : 'red'">
+                  {{ u.is_active ? 'เปิดใช้งาน' : 'ระงับ' }}
+                </span>
+              </div>
+
+              <div v-if="!isExecutive" class="mob-card-actions">
+                <button type="button" class="btn light" @click="openEditModal(u)">✏️ เปลี่ยนชื่อ / แก้ไข</button>
+                <button type="button" class="btn" @click="openResetPasswordModal(u)">🔑 รีเซ็ตรหัสผ่าน</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
       </template>
 
       <!-- Available Reservation Routes Directory -->
       <div v-if="activeTab === 'routes'" class="card panel-pad mb-md">
         <div class="staff-head">
           <div>
-            <h3 style="margin:0">สายใบจองใน Bplus ({{ (data.available_reservations || []).length }} สาย)</h3>
+            <h3 style="margin: 0">สายใบจองใน Bplus ({{ (data.available_reservations || []).length }} สาย)</h3>
             <small class="muted">กดที่การ์ดเพื่อปรับการผูกสายใบจองกับเซลล์</small>
           </div>
         </div>
 
-        <div class="res-route-grid" style="margin-top:12px">
-          <div
-            v-for="r in data.available_reservations || []"
-            :key="r.doc_type"
-            class="res-route-card"
-          >
+        <div class="res-route-grid" style="margin-top: 12px">
+          <div v-for="r in data.available_reservations || []" :key="r.doc_type" class="res-route-card">
             <div class="res-route-top">
               <span class="tag orange">ใบจอง {{ r.doc_type }}</span>
               <span class="small muted">{{ fmt(r.customer_count) }} ลูกหนี้ · {{ fmt(r.doc_count) }} ใบจอง</span>
@@ -230,7 +221,9 @@
               <span v-if="r.main_sp_code" class="small muted"> (รหัส {{ r.main_sp_code }})</span>
             </div>
             <div class="res-route-foot">
-              <span class="small">ยอดใบจองสะสม: <b>{{ fmt(r.total_before_vat) }} ฿</b></span>
+              <span class="small"
+                >ยอดใบจองสะสม: <b>{{ fmt(r.total_before_vat) }} ฿</b></span
+              >
               <button v-if="!isExecutive" type="button" class="btn light res-bind-btn" @click="openCreateFromRoute(r)">
                 ✏️ ตั้งค่าสาย {{ r.doc_type }}
               </button>
@@ -240,18 +233,29 @@
       </div>
 
       <!-- LINE Official Account (LINE OA) & Webhook Token Configuration -->
-      <div v-if="activeTab === 'line'" id="line-settings" ref="lineSettingsEl" class="card panel-pad" style="margin-bottom:16px">
+      <div
+        v-if="activeTab === 'line'"
+        id="line-settings"
+        ref="lineSettingsEl"
+        class="card panel-pad"
+        style="margin-bottom: 16px"
+      >
         <div class="staff-head">
           <div>
-            <h3 style="margin:0">💬 ตั้งค่าเชื่อมต่อ LINE Official Account (ผูก LINE สมาชิก &amp; โทเค็น)</h3>
+            <h3 style="margin: 0">💬 ตั้งค่าเชื่อมต่อ LINE Official Account (ผูก LINE สมาชิก &amp; โทเค็น)</h3>
             <small class="muted">
-              นำค่า Channel ID, Channel Secret และ Channel Access Token จาก LINE Developers Console มาวางเพื่อเปิดระบบผูกบัญชีสมาชิกผ่าน LINE
+              นำค่า Channel ID, Channel Secret และ Channel Access Token จาก LINE Developers Console
+              มาวางเพื่อเปิดระบบผูกบัญชีสมาชิกผ่าน LINE
             </small>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
             <span
               class="tag"
-              :class="data.line_settings?.secret_configured && data.line_settings?.access_token_configured ? 'green' : 'orange'"
+              :class="
+                data.line_settings?.secret_configured && data.line_settings?.access_token_configured
+                  ? 'green'
+                  : 'orange'
+              "
             >
               {{
                 data.line_settings?.secret_configured && data.line_settings?.access_token_configured
@@ -259,47 +263,35 @@
                   : '⏳ รอใส่โทเค็นจาก LINE Developers'
               }}
             </span>
-            <span class="tag blue">
-              ผูก LINE แล้ว {{ fmt(data.line_settings?.bound_member_count || 0) }} บัญชี
-            </span>
+            <span class="tag blue"> ผูก LINE แล้ว {{ fmt(data.line_settings?.bound_member_count || 0) }} บัญชี </span>
           </div>
         </div>
 
-        <div class="line-webhook-box" style="margin-top:12px">
+        <div class="line-webhook-box" style="margin-top: 12px">
           <div>
             <span class="small muted">Webhook URL สำหรับนำไปวางใน LINE Developers (Messaging API → Webhook URL):</span>
-            <div style="margin-top:2px">
+            <div style="margin-top: 2px">
               <code class="login-code-pill">{{ fullWebhookUrl }}</code>
             </div>
           </div>
-          <button type="button" class="btn light row-btn" @click="copyWebhookUrl">
-            📋 คัดลอก Webhook URL
-          </button>
+          <button type="button" class="btn light row-btn" @click="copyWebhookUrl">📋 คัดลอก Webhook URL</button>
         </div>
 
-        <form class="form" style="margin-top:14px" @submit.prevent="saveLineConfig">
+        <form class="form" style="margin-top: 14px" @submit.prevent="saveLineConfig">
           <div class="field">
             <label>LINE OA Basic ID (ไอดีแอดเพื่อน เช่น @popstar)</label>
-            <input
-              v-model="lineForm.line_bot_basic_id"
-              :disabled="isExecutive"
-              placeholder="เช่น @popstarfoods"
-            />
+            <input v-model="lineForm.line_bot_basic_id" :disabled="isExecutive" placeholder="เช่น @popstarfoods" />
           </div>
 
           <div class="field">
             <label>Messaging API Channel ID</label>
-            <input
-              v-model="lineForm.line_channel_id"
-              :disabled="isExecutive"
-              placeholder="เช่น 2001234567"
-            />
+            <input v-model="lineForm.line_channel_id" :disabled="isExecutive" placeholder="เช่น 2001234567" />
           </div>
 
           <div class="field">
             <label>
               Channel Secret
-              <span v-if="data.line_settings?.secret_masked" class="tag green" style="margin-left:6px">
+              <span v-if="data.line_settings?.secret_masked" class="tag green" style="margin-left: 6px">
                 บันทึกแล้ว ({{ data.line_settings.secret_masked }})
               </span>
             </label>
@@ -308,25 +300,23 @@
               type="password"
               :disabled="isExecutive"
               autocomplete="new-password"
-              :placeholder="data.line_settings?.secret_configured ? 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน Channel Secret เดิม' : 'วาง Channel Secret จาก LINE Developers...'"
+              :placeholder="
+                data.line_settings?.secret_configured
+                  ? 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน Channel Secret เดิม'
+                  : 'วาง Channel Secret จาก LINE Developers...'
+              "
             />
           </div>
 
           <div class="field">
-            <label>
-              LIFF ID (ถ้ามี สำหรับเปิดหน้าสมาชิกใน LINE)
-            </label>
-            <input
-              v-model="lineForm.line_liff_id"
-              :disabled="isExecutive"
-              placeholder="เช่น 2001234567-AbCdEfGh"
-            />
+            <label> LIFF ID (ถ้ามี สำหรับเปิดหน้าสมาชิกใน LINE) </label>
+            <input v-model="lineForm.line_liff_id" :disabled="isExecutive" placeholder="เช่น 2001234567-AbCdEfGh" />
           </div>
 
           <div class="field span2">
             <label>
               Channel Access Token (Long-lived)
-              <span v-if="data.line_settings?.access_token_masked" class="tag green" style="margin-left:6px">
+              <span v-if="data.line_settings?.access_token_masked" class="tag green" style="margin-left: 6px">
                 บันทึกแล้ว ({{ data.line_settings.access_token_masked }})
               </span>
             </label>
@@ -335,7 +325,11 @@
               type="password"
               :disabled="isExecutive"
               autocomplete="new-password"
-              :placeholder="data.line_settings?.access_token_configured ? 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน Access Token เดิม' : 'วาง Channel Access Token (Long-lived) จากแท็บ Messaging API...'"
+              :placeholder="
+                data.line_settings?.access_token_configured
+                  ? 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน Access Token เดิม'
+                  : 'วาง Channel Access Token (Long-lived) จากแท็บ Messaging API...'
+              "
             />
           </div>
 
@@ -349,7 +343,7 @@
             />
           </div>
 
-          <div v-if="!isExecutive" class="field span2" style="display:flex;justify-content:flex-end">
+          <div v-if="!isExecutive" class="field span2" style="display: flex; justify-content: flex-end">
             <button type="submit" class="btn primary" :disabled="savingLine">
               {{ savingLine ? 'กำลังบันทึกการตั้งค่า LINE...' : '💾 บันทึกโทเค็นและการตั้งค่า LINE OA' }}
             </button>
@@ -431,8 +425,8 @@
         </template>
 
         <div class="field span2">
-          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
-            <input v-model="form.is_active" type="checkbox" style="width:20px;height:20px;min-height:20px" />
+          <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer">
+            <input v-model="form.is_active" type="checkbox" style="width: 20px; height: 20px; min-height: 20px" />
             <span>เปิดใช้งานบัญชีนี้ (หากเอาติ๊กออก ผู้ใช้นี้จะล็อกอินไม่ได้ชั่วคราว)</span>
           </label>
         </div>
@@ -454,29 +448,27 @@
       max-width="480px"
       @close="resetModalOpen = false"
     >
-      <div v-if="resetTarget" style="display:flex;flex-direction:column;gap:14px">
-        <div class="notice" style="margin-bottom:0">
+      <div v-if="resetTarget" style="display: flex; flex-direction: column; gap: 14px">
+        <div class="notice" style="margin-bottom: 0">
           กดปุ่มด้านล่างเพื่อรีเซ็ตกลับเป็นรหัสมาตรฐาน <b>Popstar2026!</b> ในคลิกเดียว หรือพิมพ์รหัสผ่านใหม่ที่ต้องการตั้งให้ผู้ใช้นี้
         </div>
 
         <button
           type="button"
           class="btn light"
-          style="width:100%;justify-content:center"
+          style="width: 100%; justify-content: center"
           :disabled="savingReset"
-          @click="newPassword = 'Popstar2026!'; confirmResetPassword()"
+          @click="
+            newPassword = 'Popstar2026!';
+            confirmResetPassword();
+          "
         >
           ⚡ รีเซ็ตรหัสผ่านเป็น "Popstar2026!" ทันที
         </button>
 
         <div class="field">
           <label>หรือกำหนดรหัสผ่านใหม่เอง (อย่างน้อย 8 ตัวอักษร)</label>
-          <input
-            v-model="newPassword"
-            type="text"
-            minlength="8"
-            placeholder="พิมพ์รหัสผ่านใหม่ที่ต้องการ..."
-          />
+          <input v-model="newPassword" type="text" minlength="8" placeholder="พิมพ์รหัสผ่านใหม่ที่ต้องการ..." />
         </div>
       </div>
 
@@ -503,7 +495,14 @@ import BaseModal from '../../../shared/components/BaseModal.vue';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
-import { crmGet, crmMutate, fmt, invalidateCrmData, isExecutive, refreshSession } from '../composables/useCrmSession.js';
+import {
+  crmGet,
+  crmMutate,
+  fmt,
+  invalidateCrmData,
+  isExecutive,
+  refreshSession,
+} from '../composables/useCrmSession.js';
 
 const route = useRoute();
 const lineSettingsEl = ref(null);
@@ -612,12 +611,7 @@ const filteredUsers = computed(() => {
     if (roleFilter.value === 'executive' && !['executive', 'manager'].includes(u.role)) return false;
     if (roleFilter.value === 'sales' && u.role !== 'sales') return false;
     if (!q) return true;
-    const hay = [
-      u.name,
-      u.email,
-      u.salesperson_code,
-      ...(u.reservation_doc_types_list || []),
-    ]
+    const hay = [u.name, u.email, u.salesperson_code, ...(u.reservation_doc_types_list || [])]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -737,10 +731,7 @@ async function confirmResetPassword() {
     await crmMutate(`/settings/staff/${resetTarget.value.id}`, 'PATCH', {
       password: newPassword.value,
     });
-    toast.success(
-      `รีเซ็ตรหัสผ่านของ "${resetTarget.value.name}" เรียบร้อย`,
-      `รหัสผ่านใหม่คือ: ${newPassword.value}`
-    );
+    toast.success(`รีเซ็ตรหัสผ่านของ "${resetTarget.value.name}" เรียบร้อย`, `รหัสผ่านใหม่คือ: ${newPassword.value}`);
     resetModalOpen.value = false;
     await refetch();
   } catch (err) {
@@ -779,7 +770,7 @@ async function saveStaff() {
       name: form.value.name.trim(),
       email: form.value.email.trim(),
       role: form.value.role,
-      salesperson_code: form.value.role === 'sales' ? (form.value.salesperson_code || null) : null,
+      salesperson_code: form.value.role === 'sales' ? form.value.salesperson_code || null : null,
       reservation_doc_types: form.value.role === 'sales' ? form.value.reservation_doc_types : [],
       is_active: form.value.is_active,
       ...(form.value.password ? { password: form.value.password } : {}),
@@ -809,7 +800,10 @@ async function saveStaff() {
 .kpi-filter-btn {
   text-align: left;
   cursor: pointer;
-  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+  transition:
+    transform 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
 }
 
 .kpi-filter-btn:hover {

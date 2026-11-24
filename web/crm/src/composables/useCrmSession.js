@@ -1,26 +1,11 @@
 import { computed, ref } from 'vue';
-import {
-  apiGet,
-  apiMutate,
-  clearCsrfCache,
-  createAppQueryClient,
-  ensureCsrfToken,
-} from '../../../shared/api/http.js';
+import { apiGet, apiMutate, clearCsrfCache, createAppQueryClient, ensureCsrfToken } from '../../../shared/api/http.js';
 import { toast } from '../../../shared/composables/useUiStore.js';
 import { listOfflineDrafts, removeOfflineDraft } from '../../../shared/utils/offlineDrafts.js';
 
 export const crmQueryClient = createAppQueryClient();
 
-export const SHOP_TYPES = [
-  'หมูกระทะ',
-  'ร้านอาหาร',
-  'ร้านค้าส่ง',
-  'ร้านค้าปลีก',
-  'ร้านขายของชำ',
-  'มินิมาร์ท',
-  'คาเฟ่/เบเกอรี่',
-  'อื่นๆ',
-];
+export const SHOP_TYPES = ['หมูกระทะ', 'ร้านอาหาร', 'ร้านค้าส่ง', 'ร้านค้าปลีก', 'ร้านขายของชำ', 'มินิมาร์ท', 'คาเฟ่/เบเกอรี่', 'อื่นๆ'];
 
 export const PIPELINE_STAGES = [
   { id: 'visited', label: 'เข้าพบแล้ว', tag: 'blue' },
@@ -57,7 +42,8 @@ export const offlineDrafts = ref([]);
 export const offlineSyncing = ref(false);
 
 export const fmt = (n) => Number(n ?? 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
-export const money = (n) => Number(n ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const money = (n) =>
+  Number(n ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const stageLabel = (s) => PIPELINE_STAGES.find((x) => x.id === s)?.label || s;
 export const stageTagClass = (s) => PIPELINE_STAGES.find((x) => x.id === s)?.tag || 'blue';
 
@@ -115,7 +101,9 @@ export async function logoutStaff() {
   }
 }
 
-export function invalidateCrmData(keys = ['dashboard', 'customers', 'leads', 'master', 'visits', 'pins', 'tasks', 'plans']) {
+export function invalidateCrmData(
+  keys = ['dashboard', 'customers', 'leads', 'master', 'visits', 'pins', 'tasks', 'plans']
+) {
   for (const k of keys) {
     crmQueryClient.invalidateQueries({ queryKey: ['crm', k] });
   }

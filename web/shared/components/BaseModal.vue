@@ -14,9 +14,11 @@
           <div class="ui-modal-head">
             <div>
               <h3>{{ title }}</h3>
-              <p v-if="subtitle" class="small muted" style="margin:2px 0 0">{{ subtitle }}</p>
+              <p v-if="subtitle" class="small muted" style="margin: 2px 0 0">{{ subtitle }}</p>
             </div>
-            <button v-if="!persistent" class="close" type="button" aria-label="ปิดหน้าต่าง" @click="requestClose">✕</button>
+            <button v-if="!persistent" class="close" type="button" aria-label="ปิดหน้าต่าง" @click="requestClose">
+              ✕
+            </button>
           </div>
           <div class="ui-modal-body">
             <slot />

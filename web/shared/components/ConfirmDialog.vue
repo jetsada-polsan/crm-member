@@ -5,7 +5,7 @@
         <div
           ref="dialogRef"
           class="ui-modal card"
-          style="max-width:440px"
+          style="max-width: 440px"
           role="alertdialog"
           aria-modal="true"
           :aria-label="uiState.confirm.title"
@@ -15,7 +15,7 @@
             <h3>{{ uiState.confirm.title }}</h3>
             <button class="close" type="button" aria-label="ยกเลิก" @click="resolveConfirm(false)">✕</button>
           </div>
-          <p class="small" style="margin:0 0 18px;line-height:1.6;color:#475569">
+          <p class="small" style="margin: 0 0 18px; line-height: 1.6; color: #475569">
             {{ uiState.confirm.message }}
           </p>
           <div class="ui-modal-foot">

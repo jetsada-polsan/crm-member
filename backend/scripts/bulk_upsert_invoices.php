@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 require __DIR__.'/../vendor/autoload.php';
 $app = require __DIR__.'/../bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app->make(Kernel::class)->bootstrap();
 
+use App\Modules\CRM\CustomerAccess;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 
 $action = $argv[1] ?? '';
@@ -21,7 +23,7 @@ if ($action === '--get-cursor') {
 }
 
 if ($action === '--finalize-staff') {
-    $stats = \App\Modules\CRM\CustomerAccess::syncStaffFromErp();
+    $stats = CustomerAccess::syncStaffFromErp();
     $counts = [
         'invoices' => DB::table('erp_sales_invoices')->count(),
         'items' => DB::table('erp_sales_items')->count(),
@@ -49,6 +51,7 @@ function readTsvRows(string $path): array
     $headerLine = fgets($fh);
     if ($headerLine === false) {
         fclose($fh);
+
         return [];
     }
     if (str_starts_with($headerLine, "\xEF\xBB\xBF")) {

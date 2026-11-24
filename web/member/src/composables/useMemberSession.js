@@ -1,11 +1,5 @@
 import { computed, ref } from 'vue';
-import {
-  apiGet,
-  apiMutate,
-  clearCsrfCache,
-  createAppQueryClient,
-  ensureCsrfToken,
-} from '../../../shared/api/http.js';
+import { apiGet, apiMutate, clearCsrfCache, createAppQueryClient, ensureCsrfToken } from '../../../shared/api/http.js';
 import { toast } from '../../../shared/composables/useUiStore.js';
 
 export const memberQueryClient = createAppQueryClient();
@@ -52,9 +46,7 @@ export async function loginMember({ identifier, password }) {
   clearCsrfCache();
   await ensureCsrfToken('/api/member/csrf');
   const trimmed = String(identifier || '').trim();
-  const payload = trimmed.includes('@')
-    ? { email: trimmed, password }
-    : { phone: trimmed, password };
+  const payload = trimmed.includes('@') ? { email: trimmed, password } : { phone: trimmed, password };
   await memberMutate('/login', 'POST', payload);
   clearCsrfCache();
   await refreshMemberSession();

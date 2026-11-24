@@ -27,7 +27,7 @@ final class LoyaltyController
      */
     public static function calculatePointsForAmount(float $beforeVatAmount, object $rule, string $docCategory = 'sale', string $status = 'posted'): int
     {
-        if (!(bool) ($rule->is_active ?? false)) {
+        if (! (bool) ($rule->is_active ?? false)) {
             return 0;
         }
         if (! in_array($docCategory, ['sale', 'return'], true)
@@ -40,7 +40,7 @@ final class LoyaltyController
         if ((bool) ($rule->exclude_reservation ?? true) && $docCategory === 'reservation') {
             return 0;
         }
-        if ($docCategory === 'return' && !(bool) ($rule->reverse_on_return ?? true)) {
+        if ($docCategory === 'return' && ! (bool) ($rule->reverse_on_return ?? true)) {
             return 0;
         }
 
@@ -64,7 +64,7 @@ final class LoyaltyController
     public static function reverseEntryInTransaction(int $ledgerId, string $reason, ?int $staffId = null): array
     {
         $orig = DB::table('loyalty_points_ledger')->where('id', $ledgerId)->lockForUpdate()->first();
-        if (!$orig) {
+        if (! $orig) {
             return ['ok' => false, 'status' => 404, 'error' => 'Ledger entry not found'];
         }
         if ($orig->entry_type === 'reversal') {
@@ -81,7 +81,7 @@ final class LoyaltyController
         $now = now();
         $revId = DB::table('loyalty_points_ledger')->insertGetId([
             'member_account_id' => $orig->member_account_id,
-            'event_key' => 'REV:' . $ledgerId . ':' . Str::uuid(),
+            'event_key' => 'REV:'.$ledgerId.':'.Str::uuid(),
             'points_delta' => -((int) $orig->points_delta),
             'reason' => $reason,
             'entry_type' => 'reversal',
@@ -90,7 +90,7 @@ final class LoyaltyController
             'reverses_ledger_id' => $ledgerId,
             'rule_id' => $orig->rule_id,
             'created_by_staff_id' => $staffId,
-            'note' => 'Reversal of ledger #' . $ledgerId . ' (' . $orig->event_key . ')',
+            'note' => 'Reversal of ledger #'.$ledgerId.' ('.$orig->event_key.')',
             'created_at' => $now,
         ]);
 
@@ -109,6 +109,7 @@ final class LoyaltyController
             $row->exclude_categories = is_string($row->exclude_categories)
                 ? json_decode($row->exclude_categories, true)
                 : $row->exclude_categories;
+
             return $row;
         });
 
@@ -237,6 +238,7 @@ final class LoyaltyController
                 'status' => 'rejected', 'reviewed_by' => $staff->id, 'reviewed_at' => $now,
                 'review_note' => $d['review_note'] ?? null, 'updated_at' => $now,
             ]);
+
             return response()->json(['ok' => true, 'status' => 'rejected']);
         }
 
@@ -364,6 +366,7 @@ final class LoyaltyController
             if ($customer) {
                 InvoicePointsSynchronizer::syncCustomer($customer->source_system, $customer->erp_customer_code, $now);
             }
+
             return ['link_id' => $linkId, 'customer_master_id' => $master->id, 'erp_customer_id' => $customer?->id];
         });
 
@@ -373,6 +376,7 @@ final class LoyaltyController
             'member_status' => $result['erp_customer_id'] ? 'member_verified' : 'pending_erp',
         ]);
     }
+
     public function ledger(): JsonResponse
     {
         $this->authorizeManager();
@@ -439,7 +443,7 @@ final class LoyaltyController
         ]);
 
         $res = DB::transaction(fn () => self::reverseEntryInTransaction((int) $d['ledger_id'], $d['reason'], $staff->id));
-        if (!$res['ok']) {
+        if (! $res['ok']) {
             return response()->json(['error' => $res['error']], $res['status']);
         }
 
@@ -449,6 +453,7 @@ final class LoyaltyController
     public function rewards(): JsonResponse
     {
         $this->authorizeManager();
+
         return response()->json(DB::table('loyalty_rewards')->orderBy('id')->get());
     }
 
@@ -493,18 +498,18 @@ final class LoyaltyController
 
         $res = DB::transaction(function () use ($id, $d, $staff): array {
             $redemption = DB::table('loyalty_redemptions')->where('id', $id)->lockForUpdate()->first();
-            if (!$redemption) {
+            if (! $redemption) {
                 return ['ok' => false, 'status' => 404, 'error' => 'Redemption not found'];
             }
             if (in_array($redemption->status, ['fulfilled', 'cancelled'], true)) {
-                return ['ok' => false, 'status' => 409, 'error' => 'Redemption already finalized as ' . $redemption->status];
+                return ['ok' => false, 'status' => 409, 'error' => 'Redemption already finalized as '.$redemption->status];
             }
 
             $now = now();
             if ($d['status'] === 'cancelled') {
                 if ($redemption->ledger_entry_id) {
-                    $rev = self::reverseEntryInTransaction((int) $redemption->ledger_entry_id, 'Redemption cancelled: ' . $redemption->voucher_code, $staff->id);
-                    if (!$rev['ok']) {
+                    $rev = self::reverseEntryInTransaction((int) $redemption->ledger_entry_id, 'Redemption cancelled: '.$redemption->voucher_code, $staff->id);
+                    if (! $rev['ok']) {
                         return $rev;
                     }
                 }
@@ -523,7 +528,7 @@ final class LoyaltyController
             return ['ok' => true, 'status' => 200, 'redemption_status' => $d['status']];
         });
 
-        if (!$res['ok']) {
+        if (! $res['ok']) {
             return response()->json(['error' => $res['error']], $res['status']);
         }
 

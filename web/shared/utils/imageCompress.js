@@ -45,9 +45,8 @@ export async function compressImageFile(file, { maxDimension = 1440, quality = 0
   const compressedFile = new File([finalBlob], `${safeBase}.${ext}`, { type: finalBlob.type || mimeType });
   const previewUrl = URL.createObjectURL(compressedFile);
 
-  const savingsPct = originalSize > 0
-    ? Math.max(0, Math.round(((originalSize - compressedFile.size) / originalSize) * 100))
-    : 0;
+  const savingsPct =
+    originalSize > 0 ? Math.max(0, Math.round(((originalSize - compressedFile.size) / originalSize) * 100)) : 0;
 
   return {
     file: compressedFile,

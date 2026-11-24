@@ -1,41 +1,32 @@
 <template>
   <div>
-    <PageHeader
-      title="ผูกบัญชี LINE & ร้านค้า"
-      subtitle="ยืนยันว่าคุณเป็นเจ้าของร้าน เพื่อดูยอดซื้อและสะสมแต้ม (ทีม POPSTAR ตรวจสอบให้)"
-    />
+    <PageHeader title="ผูกบัญชี LINE & ร้านค้า" subtitle="ยืนยันว่าคุณเป็นเจ้าของร้าน เพื่อดูยอดซื้อและสะสมแต้ม (ทีม POPSTAR ตรวจสอบให้)" />
 
     <div class="dash-grid">
       <!-- LINE OA Binding -->
       <div class="card panel-pad">
-        <h3 style="margin-top:0">ผูกบัญชี LINE Official Account</h3>
+        <h3 style="margin-top: 0">ผูกบัญชี LINE Official Account</h3>
         <p class="small muted">สร้างรหัสชั่วคราวสำหรับเชื่อมบัญชี แล้วนำไปส่งในแชท LINE OA ของ POPSTAR</p>
 
         <div v-if="me?.line_binding" class="success">
           <strong>ผูกบัญชี LINE แล้ว:</strong>
           {{ me.line_binding.line_display_name || me.line_binding.line_user_id }}
-          <span class="tag green" style="margin-left:6px">{{ me.line_binding.binding_status }}</span>
+          <span class="tag green" style="margin-left: 6px">{{ me.line_binding.binding_status }}</span>
         </div>
 
         <div v-if="linkToken" class="notice">
           <div>คำสั่งเชื่อมบัญชีใน LINE OA:</div>
-          <strong style="font-size:18px;letter-spacing:1.2px;display:block;margin:6px 0">
+          <strong style="font-size: 18px; letter-spacing: 1.2px; display: block; margin: 6px 0">
             {{ linkToken.command || `LINK:${linkToken.link_code}` }}
           </strong>
           <div class="small muted">หมดอายุ: {{ linkToken.expires_at }}</div>
         </div>
 
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
           <button type="button" class="btn primary" :disabled="lineBusy" @click="requestLineToken">
             {{ lineBusy ? 'กำลังสร้างรหัส...' : '💬 ขอรหัสเชื่อม LINE OA' }}
           </button>
-          <button
-            v-if="me?.line_binding"
-            type="button"
-            class="btn danger"
-            :disabled="lineBusy"
-            @click="unlinkLine"
-          >
+          <button v-if="me?.line_binding" type="button" class="btn danger" :disabled="lineBusy" @click="unlinkLine">
             ยกเลิกการผูก LINE
           </button>
         </div>
@@ -43,10 +34,8 @@
 
       <!-- ERP Customer Verification Request -->
       <div class="card panel-pad">
-        <h3 style="margin-top:0">ส่งคำขอยืนยันความเป็นเจ้าของร้านค้า ERP</h3>
-        <div class="notice">
-          ระบบแยกบัญชีสมาชิกออกจากข้อมูล Leads และบิล ERP เพื่อป้องกันการเปิดข้อมูลการเงินผิดร้าน
-        </div>
+        <h3 style="margin-top: 0">ส่งคำขอยืนยันความเป็นเจ้าของร้านค้า ERP</h3>
+        <div class="notice">ระบบแยกบัญชีสมาชิกออกจากข้อมูล Leads และบิล ERP เพื่อป้องกันการเปิดข้อมูลการเงินผิดร้าน</div>
 
         <form @submit.prevent="submitVerification">
           <div class="formfield">
@@ -67,14 +56,18 @@
           </div>
           <div class="formfield">
             <label>ข้อมูลยืนยันเพิ่มเติม / ชื่อร้าน / สาขา</label>
-            <textarea v-model.trim="verifyForm.evidence_note" rows="2" placeholder="ระบุชื่อร้านค้าหรือพนักงานขายที่ดูแล..."></textarea>
+            <textarea
+              v-model.trim="verifyForm.evidence_note"
+              rows="2"
+              placeholder="ระบุชื่อร้านค้าหรือพนักงานขายที่ดูแล..."
+            ></textarea>
           </div>
-          <button type="submit" class="btn primary" style="width:100%" :disabled="verifyBusy">
+          <button type="submit" class="btn primary" style="width: 100%" :disabled="verifyBusy">
             {{ verifyBusy ? 'กำลังส่งคำขอ...' : '📩 ส่งคำขอยืนยันร้านค้า' }}
           </button>
         </form>
 
-        <div v-if="me?.erp_link || me?.latest_verification_request" style="margin-top:16px">
+        <div v-if="me?.erp_link || me?.latest_verification_request" style="margin-top: 16px">
           <strong class="small">สถานะการเชื่อม ERP ปัจจุบัน:</strong>
           <div v-if="me?.erp_link" class="minirow">
             <div>
@@ -87,7 +80,11 @@
           </div>
           <div v-if="me?.latest_verification_request" class="minirow">
             <div>
-              <strong>คำขอ #{{ me.latest_verification_request.id }} ({{ me.latest_verification_request.requested_customer_code || 'ไม่ระบุรหัส ERP' }})</strong>
+              <strong
+                >คำขอ #{{ me.latest_verification_request.id }} ({{
+                  me.latest_verification_request.requested_customer_code || 'ไม่ระบุรหัส ERP'
+                }})</strong
+              >
               <div class="small muted">{{ me.latest_verification_request.created_at }}</div>
             </div>
             <span class="tag blue">{{ me.latest_verification_request.status }}</span>

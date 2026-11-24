@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="ลูกค้าใน ERP"
-      subtitle="ข้อมูลลูกค้าและยอดขายจาก Bplus (ดูได้อย่างเดียว ถ้าจะแก้ต้องแก้ใน Bplus)"
-    >
+    <PageHeader title="ลูกค้าใน ERP" subtitle="ข้อมูลลูกค้าและยอดขายจาก Bplus (ดูได้อย่างเดียว ถ้าจะแก้ต้องแก้ใน Bplus)">
       <template v-if="isManager" #secondary>
         <RouterLink to="/sync" class="btn light">🔄 สถานะดึงข้อมูล ERP</RouterLink>
       </template>
@@ -13,23 +10,24 @@
     </PageHeader>
 
     <div class="notice">
-      โหมด Read-Only ERP Mirror: รายชื่อลูกค้า รหัส AR และยอดขายมาจากฐานข้อมูล Bplus เท่านั้น หากต้องการเก็บข้อมูลภาคสนามเพิ่มให้เปิดผ่าน CRM Lead หรือบันทึกเข้าพบ
+      โหมด Read-Only ERP Mirror: รายชื่อลูกค้า รหัส AR และยอดขายมาจากฐานข้อมูล Bplus เท่านั้น หากต้องการเก็บข้อมูลภาคสนามเพิ่มให้เปิดผ่าน
+      CRM Lead หรือบันทึกเข้าพบ
     </div>
 
-    <div class="card panel-pad" style="margin-bottom:16px">
-      <div class="head-filter" style="margin-bottom:0">
+    <div class="card panel-pad" style="margin-bottom: 16px">
+      <div class="head-filter" style="margin-bottom: 0">
         <div class="search-input-wrap">
-          <input
-            v-model="searchRaw"
-            type="search"
-            placeholder="ค้นหารหัสลูกค้า ERP (AR...), ชื่อร้าน, จังหวัด, เบอร์โทร..."
-          />
+          <input v-model="searchRaw" type="search" placeholder="ค้นหารหัสลูกค้า ERP (AR...), ชื่อร้าน, จังหวัด, เบอร์โทร..." />
           <button
             v-if="searchRaw"
             type="button"
             class="search-clear-btn"
             aria-label="ล้างคำค้นหา"
-            @click="searchRaw = ''; search = ''; page = 1"
+            @click="
+              searchRaw = '';
+              search = '';
+              page = 1;
+            "
           >
             ✕
           </button>
@@ -65,22 +63,27 @@
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="c in rows"
-              :key="c.id"
-              style="cursor:pointer"
-              @click="openDetailDrawer('erp', c.id)"
-            >
-              <td><span class="tag gray">{{ c.erp_customer_code }}</span></td>
-              <td><b>{{ c.customer_name }}</b></td>
+            <tr v-for="c in rows" :key="c.id" style="cursor: pointer" @click="openDetailDrawer('erp', c.id)">
+              <td>
+                <span class="tag gray">{{ c.erp_customer_code }}</span>
+              </td>
+              <td>
+                <b>{{ c.customer_name }}</b>
+              </td>
               <td>{{ c.province || '—' }} · {{ c.phone || '—' }}</td>
               <td>{{ c.salesperson_name || c.salesperson_code || '—' }}</td>
               <td>{{ fmt(c.sale_invoice_count) }}</td>
-              <td><b>{{ fmt(c.total_sales_net) }} ฿</b></td>
               <td>
-                <div style="display:flex;gap:6px">
-                  <button type="button" class="btn light" @click.stop="openDetailDrawer('erp', c.id)">ดูบิล/รายละเอียด</button>
-                  <button type="button" class="btn primary" @click.stop="openVisitWizard({ kind: 'erp', id: c.id })">📸 เข้าพบ</button>
+                <b>{{ fmt(c.total_sales_net) }} ฿</b>
+              </td>
+              <td>
+                <div style="display: flex; gap: 6px">
+                  <button type="button" class="btn light" @click.stop="openDetailDrawer('erp', c.id)">
+                    ดูบิล/รายละเอียด
+                  </button>
+                  <button type="button" class="btn primary" @click.stop="openVisitWizard({ kind: 'erp', id: c.id })">
+                    📸 เข้าพบ
+                  </button>
                 </div>
               </td>
             </tr>
@@ -92,20 +95,17 @@
       </div>
 
       <div class="mob-cards panel-pad">
-        <div
-          v-for="c in rows"
-          :key="`erp-m-${c.id}`"
-          class="card mob-card"
-          @click="openDetailDrawer('erp', c.id)"
-        >
+        <div v-for="c in rows" :key="`erp-m-${c.id}`" class="card mob-card" @click="openDetailDrawer('erp', c.id)">
           <div class="row-between-start">
-            <strong style="min-width:0;flex:1 1 170px">{{ c.customer_name }}</strong>
+            <strong style="min-width: 0; flex: 1 1 170px">{{ c.customer_name }}</strong>
             <span class="tag gray">{{ c.erp_customer_code }}</span>
           </div>
           <div class="small muted mt-sm">
             {{ c.province || '—' }} · โทร {{ c.phone || '—' }} · {{ fmt(c.sale_invoice_count) }} บิลขายจริง
           </div>
-          <div class="small mt-sm">ยอดซื้อสุทธิ <b>{{ fmt(c.total_sales_net) }} ฿</b></div>
+          <div class="small mt-sm">
+            ยอดซื้อสุทธิ <b>{{ fmt(c.total_sales_net) }} ฿</b>
+          </div>
           <div class="mob-card-actions">
             <button type="button" class="btn light" @click.stop="openDetailDrawer('erp', c.id)">ดูบิล/รายละเอียด</button>
             <button type="button" class="btn primary" @click.stop="openVisitWizard({ kind: 'erp', id: c.id })">
@@ -117,7 +117,10 @@
       </div>
 
       <div class="pager">
-        <span>แสดง {{ rows.length }} จาก {{ fmt(meta.total) }} รายการ (หน้า {{ meta.current_page }} / {{ meta.last_page }})</span>
+        <span
+          >แสดง {{ rows.length }} จาก {{ fmt(meta.total) }} รายการ (หน้า {{ meta.current_page }} /
+          {{ meta.last_page }})</span
+        >
         <div class="pager-btns">
           <button type="button" class="btn" :disabled="page <= 1" @click="page--">← ก่อนหน้า</button>
           <button type="button" class="btn" :disabled="page >= meta.last_page" @click="page++">ถัดไป →</button>
@@ -154,7 +157,11 @@ onUnmounted(() => {
 });
 
 const { data, isLoading, isError, error, refetch } = useQuery({
-  queryKey: computed(() => ['crm', 'erp-customers-page', { page: page.value, perPage: perPage.value, search: search.value, erpStatus: erpStatus.value }]),
+  queryKey: computed(() => [
+    'crm',
+    'erp-customers-page',
+    { page: page.value, perPage: perPage.value, search: search.value, erpStatus: erpStatus.value },
+  ]),
   queryFn: ({ signal }) => {
     const p = new URLSearchParams({
       paginate: '1',

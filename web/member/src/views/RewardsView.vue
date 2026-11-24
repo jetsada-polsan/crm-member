@@ -1,39 +1,36 @@
 <template>
   <div>
-    <PageHeader
-      title="แลกของรางวัล"
-      subtitle="ใช้แต้มแลกของรางวัล และดูคูปองของคุณ"
-    >
+    <PageHeader title="แลกของรางวัล" subtitle="ใช้แต้มแลกของรางวัล และดูคูปองของคุณ">
       <template #secondary>
-        <div class="card" style="padding:10px 16px;display:inline-flex;align-items:center;gap:8px">
+        <div class="card" style="padding: 10px 16px; display: inline-flex; align-items: center; gap: 8px">
           <span>คะแนนของคุณ:</span>
-          <strong style="font-size:18px;color:var(--blue)">
+          <strong style="font-size: 18px; color: var(--blue)">
             {{ isMemberVerified ? fmt(pointsData?.balance || 0) : '🔒 รอยืนยันสิทธิ์' }}
           </strong>
         </div>
       </template>
     </PageHeader>
 
-    <div v-if="!isMemberVerified" class="notice" style="margin-bottom:16px">
+    <div v-if="!isMemberVerified" class="notice" style="margin-bottom: 16px">
       บัญชีที่ยังไม่ผ่านการยืนยันตัวตนร้านค้า จะดูรายการของรางวัลได้แต่ยังไม่สามารถกดแลกของรางวัลจนกว่าผู้ดูแลจะอนุมัติสิทธิ์ ERP
     </div>
 
     <div class="dash-grid">
       <div class="card panel-pad">
-        <h3 style="margin-top:0">รายการของรางวัล</h3>
+        <h3 style="margin-top: 0">รายการของรางวัล</h3>
         <div v-if="loadingRewards"><SkeletonBlock variant="cards" :rows="3" /></div>
         <div v-else-if="!(rewards || []).length" class="placeholder">ยังไม่มีของรางวัลที่เปิดให้แลก</div>
-        <div v-else style="display:grid;gap:12px">
+        <div v-else style="display: grid; gap: 12px">
           <div
             v-for="r in rewards"
             :key="r.id"
             class="card panel-pad"
-            style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"
+            style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap"
           >
             <div>
               <strong>{{ r.title }}</strong> <span class="tag gray">{{ r.reward_code }}</span>
               <div class="small muted">{{ r.description || '-' }}</div>
-              <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+              <div style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap">
                 <span class="tag blue">{{ fmt(r.points_cost) }} คะแนน</span>
                 <span v-if="r.stock_qty != null" class="tag gray">คงเหลือ {{ r.stock_qty }}</span>
               </div>
@@ -41,7 +38,12 @@
             <button
               type="button"
               class="btn primary"
-              :disabled="!isMemberVerified || redeemingId === r.id || (pointsData?.balance || 0) < r.points_cost || (r.stock_qty != null && r.stock_qty <= 0)"
+              :disabled="
+                !isMemberVerified ||
+                redeemingId === r.id ||
+                (pointsData?.balance || 0) < r.points_cost ||
+                (r.stock_qty != null && r.stock_qty <= 0)
+              "
               @click="redeem(r)"
             >
               {{ redeemingId === r.id ? 'กำลังทำรายการ...' : 'แลกรางวัล' }}
@@ -51,7 +53,7 @@
       </div>
 
       <div class="card panel-pad">
-        <h3 style="margin-top:0">ประวัติการแลกรางวัล</h3>
+        <h3 style="margin-top: 0">ประวัติการแลกรางวัล</h3>
         <div v-if="loadingRedemptions"><SkeletonBlock variant="list" :rows="4" /></div>
         <div v-else-if="!(redemptions || []).length" class="placeholder">ยังไม่มีประวัติการแลกรางวัล</div>
         <div v-else>
@@ -76,7 +78,13 @@ import { useQuery } from '@tanstack/vue-query';
 import PageHeader from '../../../shared/components/PageHeader.vue';
 import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
-import { fmt, invalidateMemberData, isMemberVerified, memberGet, memberMutate } from '../composables/useMemberSession.js';
+import {
+  fmt,
+  invalidateMemberData,
+  isMemberVerified,
+  memberGet,
+  memberMutate,
+} from '../composables/useMemberSession.js';
 
 const redeemingId = ref(null);
 
@@ -108,7 +116,10 @@ async function redeem(reward) {
   try {
     const res = await memberMutate(`/rewards/${reward.id}/redeem`, 'POST', {});
     invalidateMemberData(['points', 'redemptions', 'rewards']);
-    toast.success('แลกของรางวัลสำเร็จ', `รหัสคูปอง ${res?.voucher_code || ''} · คงเหลือ ${fmt(res?.remaining_balance ?? 0)} คะแนน`);
+    toast.success(
+      'แลกของรางวัลสำเร็จ',
+      `รหัสคูปอง ${res?.voucher_code || ''} · คงเหลือ ${fmt(res?.remaining_balance ?? 0)} คะแนน`
+    );
   } catch (err) {
     toast.error('แลกรางวัลไม่สำเร็จ', err);
   } finally {

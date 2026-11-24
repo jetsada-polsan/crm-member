@@ -4,6 +4,7 @@ namespace App\Modules\CRM;
 
 use App\Modules\ERPIntegration\SalesRules;
 use App\Modules\LINE\LineConfig;
+use App\Modules\Loyalty\InvoicePointsSynchronizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -1146,7 +1147,7 @@ final class CrmController
             if ($status === 'verified' && $existing->erp_customer_id) {
                 $erpRow = DB::table('erp_customers')->where('id', $existing->erp_customer_id)->first(['source_system', 'erp_customer_code']);
                 if ($erpRow) {
-                    \App\Modules\Loyalty\InvoicePointsSynchronizer::syncCustomer($erpRow->source_system, $erpRow->erp_customer_code, $now);
+                    InvoicePointsSynchronizer::syncCustomer($erpRow->source_system, $erpRow->erp_customer_code, $now);
                 }
             }
         });
@@ -1415,7 +1416,7 @@ final class CrmController
                 if ($autoVerify) {
                     $erpRow = DB::table('erp_customers')->where('id', $erpCustomerId)->first(['source_system', 'erp_customer_code']);
                     if ($erpRow) {
-                        \App\Modules\Loyalty\InvoicePointsSynchronizer::syncCustomer($erpRow->source_system, $erpRow->erp_customer_code, $now);
+                        InvoicePointsSynchronizer::syncCustomer($erpRow->source_system, $erpRow->erp_customer_code, $now);
                     }
                 }
             }

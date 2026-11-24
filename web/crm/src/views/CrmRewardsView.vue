@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="ของรางวัล & คำขอแลก"
-      subtitle="จัดการรายการของรางวัล อนุมัติ และส่งมอบของให้สมาชิก"
-    >
+    <PageHeader title="ของรางวัล & คำขอแลก" subtitle="จัดการรายการของรางวัล อนุมัติ และส่งมอบของให้สมาชิก">
       <template #secondary>
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>
       </template>
@@ -13,8 +10,8 @@
     </PageHeader>
 
     <!-- Redemptions Queue -->
-    <div class="card" style="margin-bottom:16px">
-      <div class="section-head" style="padding:16px 18px 0">
+    <div class="card" style="margin-bottom: 16px">
+      <div class="section-head" style="padding: 16px 18px 0">
         <div>
           <h3>คิวคำขอแลกของรางวัล ({{ (redemptions || []).length }})</h3>
           <small>กดอนุมัติ / ส่งมอบเมื่อแจกของให้ร้านค้า หรือกดยกเลิกเพื่อคืนแต้มให้สมาชิก</small>
@@ -37,18 +34,34 @@
           </thead>
           <tbody>
             <tr v-for="r in redemptions || []" :key="r.id">
-              <td><span class="tag purple">{{ r.voucher_code }}</span></td>
+              <td>
+                <span class="tag purple">{{ r.voucher_code }}</span>
+              </td>
               <td>
                 <b>{{ r.member_name }}</b>
                 <div class="small muted">{{ r.member_phone || '—' }}</div>
               </td>
-              <td><b>{{ r.reward_title }}</b> <span class="small muted">({{ r.reward_code }})</span></td>
+              <td>
+                <b>{{ r.reward_title }}</b> <span class="small muted">({{ r.reward_code }})</span>
+              </td>
               <td>{{ fmt(r.points_spent) }} แต้ม</td>
-              <td><span class="tag" :class="redStatusClass(r.status)">{{ r.status }}</span></td>
+              <td>
+                <span class="tag" :class="redStatusClass(r.status)">{{ r.status }}</span>
+              </td>
               <td>{{ r.created_at ? new Date(r.created_at).toLocaleString('th-TH') : '—' }}</td>
               <td>
-                <div v-if="r.status === 'pending' || r.status === 'approved'" style="display:flex;gap:6px;flex-wrap:wrap">
-                  <button v-if="r.status === 'pending'" type="button" class="btn light" @click="setStatus(r, 'approved')">อนุมัติ</button>
+                <div
+                  v-if="r.status === 'pending' || r.status === 'approved'"
+                  style="display: flex; gap: 6px; flex-wrap: wrap"
+                >
+                  <button
+                    v-if="r.status === 'pending'"
+                    type="button"
+                    class="btn light"
+                    @click="setStatus(r, 'approved')"
+                  >
+                    อนุมัติ
+                  </button>
                   <button type="button" class="btn primary" @click="setStatus(r, 'fulfilled')">ส่งมอบแล้ว</button>
                   <button type="button" class="btn danger" @click="setStatus(r, 'cancelled')">ยกเลิก</button>
                 </div>
@@ -61,17 +74,22 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards" style="padding: 12px">
         <div v-for="r in redemptions || []" :key="`red-m-${r.id}`" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
             <strong>{{ r.reward_title }}</strong>
             <span class="tag" :class="redStatusClass(r.status)">{{ r.status }}</span>
           </div>
-          <div class="small muted" style="margin:6px 0">
+          <div class="small muted" style="margin: 6px 0">
             {{ r.voucher_code }} · โดย {{ r.member_name }} ({{ fmt(r.points_spent) }} แต้ม)
           </div>
-          <div v-if="r.status === 'pending' || r.status === 'approved'" style="display:flex;gap:6px;flex-wrap:wrap">
-            <button v-if="r.status === 'pending'" type="button" class="btn light" @click="setStatus(r, 'approved')">อนุมัติ</button>
+          <div
+            v-if="r.status === 'pending' || r.status === 'approved'"
+            style="display: flex; gap: 6px; flex-wrap: wrap"
+          >
+            <button v-if="r.status === 'pending'" type="button" class="btn light" @click="setStatus(r, 'approved')">
+              อนุมัติ
+            </button>
             <button type="button" class="btn primary" @click="setStatus(r, 'fulfilled')">ส่งมอบแล้ว</button>
             <button type="button" class="btn danger" @click="setStatus(r, 'cancelled')">ยกเลิก</button>
           </div>
@@ -81,7 +99,7 @@
 
     <!-- Rewards Catalog -->
     <div class="card">
-      <div class="section-head" style="padding:16px 18px 0">
+      <div class="section-head" style="padding: 16px 18px 0">
         <div>
           <h3>แคตตาล็อกของรางวัลสมาชิก ({{ (rewards || []).length }})</h3>
           <small>รายการที่แสดงให้สมาชิกแลกบน Member Portal</small>
@@ -102,16 +120,22 @@
           </thead>
           <tbody>
             <tr v-for="rw in rewards || []" :key="rw.id">
-              <td><span class="tag blue">{{ rw.reward_code }}</span></td>
+              <td>
+                <span class="tag blue">{{ rw.reward_code }}</span>
+              </td>
               <td>
                 <b>{{ rw.title }}</b>
                 <div v-if="rw.description" class="small muted">{{ rw.description }}</div>
               </td>
-              <td><b>{{ fmt(rw.points_cost) }} แต้ม</b></td>
+              <td>
+                <b>{{ fmt(rw.points_cost) }} แต้ม</b>
+              </td>
               <td>{{ fmt(rw.stock_qty) }}</td>
-              <td><span class="tag" :class="rw.is_active ? 'green' : 'gray'">{{ rw.is_active ? 'เปิดให้แลก' : 'ปิด' }}</span></td>
+              <td>
+                <span class="tag" :class="rw.is_active ? 'green' : 'gray'">{{ rw.is_active ? 'เปิดให้แลก' : 'ปิด' }}</span>
+              </td>
             </tr>
-              <tr v-if="!(rewards || []).length">
+            <tr v-if="!(rewards || []).length">
               <td colspan="5" class="placeholder">ยังไม่มีของรางวัลในรายการ</td>
             </tr>
           </tbody>
@@ -119,11 +143,11 @@
       </div>
       <div v-if="!rewardsLoading" class="mob-cards panel-pad">
         <div v-for="rw in rewards || []" :key="`rwm-${rw.id}`" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
             <strong>{{ rw.title }}</strong>
             <span class="tag" :class="rw.is_active ? 'green' : 'gray'">{{ rw.is_active ? 'เปิดให้แลก' : 'ปิด' }}</span>
           </div>
-          <div class="small muted" style="margin-top:6px">
+          <div class="small muted" style="margin-top: 6px">
             {{ rw.reward_code }} · ใช้ {{ fmt(rw.points_cost) }} แต้ม · คงเหลือ {{ fmt(rw.stock_qty) }}
           </div>
         </div>
@@ -184,12 +208,20 @@ const newReward = ref({
   is_active: true,
 });
 
-const { data: rewards, isLoading: rewardsLoading, refetch: refetchRewards } = useQuery({
+const {
+  data: rewards,
+  isLoading: rewardsLoading,
+  refetch: refetchRewards,
+} = useQuery({
   queryKey: ['crm', 'loyalty-rewards'],
   queryFn: ({ signal }) => crmGet('/loyalty/rewards', { signal }),
 });
 
-const { data: redemptions, isLoading: redLoading, refetch: refetchRedemptions } = useQuery({
+const {
+  data: redemptions,
+  isLoading: redLoading,
+  refetch: refetchRedemptions,
+} = useQuery({
   queryKey: ['crm', 'loyalty-redemptions'],
   queryFn: ({ signal }) => crmGet('/loyalty/redemptions', { signal }),
 });

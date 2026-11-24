@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="กติกาการให้แต้ม"
-      subtitle="ตั้งเงื่อนไขให้แต้มจากบิลขาย หักแต้มเมื่อมีใบลดหนี้ และดูประวัติแต้ม"
-    >
+    <PageHeader title="กติกาการให้แต้ม" subtitle="ตั้งเงื่อนไขให้แต้มจากบิลขาย หักแต้มเมื่อมีใบลดหนี้ และดูประวัติแต้ม">
       <template #secondary>
         <button type="button" class="btn" @click="refetchAll">⟳ รีเฟรช</button>
       </template>
@@ -13,8 +10,8 @@
     </PageHeader>
 
     <!-- Loyalty Rules -->
-    <div class="card" style="margin-bottom:16px">
-      <div class="section-head" style="padding:16px 18px 0">
+    <div class="card" style="margin-bottom: 16px">
+      <div class="section-head" style="padding: 16px 18px 0">
         <div>
           <h3>กติกาการคำนวณคะแนน ({{ (rules || []).length }})</h3>
           <small>อิงยอดซื้อสุทธิก่อน VAT และยกเว้นใบจอง 207 / ยกเลิกบิล</small>
@@ -37,7 +34,9 @@
           </thead>
           <tbody>
             <tr v-for="r in rules || []" :key="r.id">
-              <td><span class="tag blue">{{ r.rule_code }}</span></td>
+              <td>
+                <span class="tag blue">{{ r.rule_code }}</span>
+              </td>
               <td>
                 <b>{{ r.name }}</b>
                 <div v-if="r.description" class="small muted">{{ r.description }}</div>
@@ -68,13 +67,13 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards" style="padding: 12px">
         <div v-for="r in rules || []" :key="`rm-${r.id}`" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
             <strong>{{ r.name }}</strong>
             <span class="tag" :class="r.is_active ? 'green' : 'gray'">{{ r.is_active ? 'ใช้งาน' : 'ปิด' }}</span>
           </div>
-          <div class="small muted" style="margin:6px 0">
+          <div class="small muted" style="margin: 6px 0">
             {{ r.rule_code }} · {{ fmt(r.baht_per_point) }} ฿ = {{ fmt(r.points_per_unit) }} แต้ม
           </div>
           <button type="button" class="btn light" @click="toggleRule(r)">
@@ -86,7 +85,7 @@
 
     <!-- Loyalty Points Ledger -->
     <div class="card">
-      <div class="section-head" style="padding:16px 18px 0">
+      <div class="section-head" style="padding: 16px 18px 0">
         <div>
           <h3>สมุดบัญชีคะแนน (Points Ledger · {{ (ledger || []).length }} รายการล่าสุด)</h3>
           <small>รายการทุกบรรทัดตรวจสอบย้อนกลับได้ และสามารถ Reverse รายการที่ผิดพลาดได้ 1 ครั้งต่อรายการ</small>
@@ -109,13 +108,17 @@
           </thead>
           <tbody>
             <tr v-for="l in ledger || []" :key="l.id">
-              <td><span class="tag gray">#{{ l.id }}</span></td>
+              <td>
+                <span class="tag gray">#{{ l.id }}</span>
+              </td>
               <td>{{ l.created_at ? new Date(l.created_at).toLocaleString('th-TH') : '—' }}</td>
               <td>
                 <b>{{ l.member_name }}</b>
                 <div class="small muted">{{ l.member_email || `Member #${l.member_account_id}` }}</div>
               </td>
-              <td><span class="tag blue">{{ l.entry_type }}</span></td>
+              <td>
+                <span class="tag blue">{{ l.entry_type }}</span>
+              </td>
               <td>
                 <b :style="{ color: Number(l.points_delta) >= 0 ? 'var(--green)' : 'var(--red)' }">
                   {{ Number(l.points_delta) > 0 ? `+${fmt(l.points_delta)}` : fmt(l.points_delta) }}
@@ -127,14 +130,10 @@
               </td>
               <td>
                 <span v-if="l.is_reversed" class="tag red">ถูก Reverse แล้ว</span>
-                <span v-else-if="l.reverses_ledger_id" class="tag purple">Reversal ของ #{{ l.reverses_ledger_id }}</span>
-                <button
-                  v-else
-                  type="button"
-                  class="btn danger"
-                  style="padding:6px 10px"
-                  @click="reverseEntry(l)"
+                <span v-else-if="l.reverses_ledger_id" class="tag purple"
+                  >Reversal ของ #{{ l.reverses_ledger_id }}</span
                 >
+                <button v-else type="button" class="btn danger" style="padding: 6px 10px" @click="reverseEntry(l)">
                   ↺ Reverse
                 </button>
               </td>
@@ -146,22 +145,20 @@
         </table>
       </div>
 
-      <div class="mob-cards" style="padding:12px">
+      <div class="mob-cards" style="padding: 12px">
         <div v-for="l in ledger || []" :key="`lm-${l.id}`" class="card mob-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
             <strong>{{ l.member_name }}</strong>
             <b :style="{ color: Number(l.points_delta) >= 0 ? 'var(--green)' : 'var(--red)' }">
               {{ Number(l.points_delta) > 0 ? `+${fmt(l.points_delta)}` : fmt(l.points_delta) }} แต้ม
             </b>
           </div>
-          <div class="small muted" style="margin:6px 0">
-            #{{ l.id }} · {{ l.entry_type }} · {{ l.reason }}
-          </div>
+          <div class="small muted" style="margin: 6px 0">#{{ l.id }} · {{ l.entry_type }} · {{ l.reason }}</div>
           <button
             v-if="!l.is_reversed && !l.reverses_ledger_id"
             type="button"
             class="btn danger"
-            style="padding:6px 10px"
+            style="padding: 6px 10px"
             @click="reverseEntry(l)"
           >
             ↺ Reverse
@@ -198,8 +195,9 @@
           <input v-model="newRule.description" placeholder="ไม่รวมใบจอง 207 และหักแต้มเมื่อลดหนี้ 308" />
         </div>
       </form>
-      <div class="notice" style="margin-top:12px">
-        กติกาใหม่จะเริ่มต้นเป็นปิดไว้ ประวัติซื้อแสดงตามใบขายจริงและใบคืนแยกจากคะแนนสะสม ขณะนี้ข้อมูลที่ซิงก์ยังไม่มีหลักฐานการชำระเงิน จึงอย่าเปิดกติกาจนกว่าจะยืนยันนโยบายการให้แต้มของบริษัท
+      <div class="notice" style="margin-top: 12px">
+        กติกาใหม่จะเริ่มต้นเป็นปิดไว้ ประวัติซื้อแสดงตามใบขายจริงและใบคืนแยกจากคะแนนสะสม ขณะนี้ข้อมูลที่ซิงก์ยังไม่มีหลักฐานการชำระเงิน
+        จึงอย่าเปิดกติกาจนกว่าจะยืนยันนโยบายการให้แต้มของบริษัท
       </div>
       <template #footer="{ requestClose }">
         <button type="button" class="btn" @click="requestClose">ยกเลิก</button>
@@ -235,12 +233,20 @@ const newRule = ref({
   is_active: false,
 });
 
-const { data: rules, isLoading: rulesLoading, refetch: refetchRules } = useQuery({
+const {
+  data: rules,
+  isLoading: rulesLoading,
+  refetch: refetchRules,
+} = useQuery({
   queryKey: ['crm', 'loyalty-rules'],
   queryFn: ({ signal }) => crmGet('/loyalty/rules', { signal }),
 });
 
-const { data: ledger, isLoading: ledgerLoading, refetch: refetchLedger } = useQuery({
+const {
+  data: ledger,
+  isLoading: ledgerLoading,
+  refetch: refetchLedger,
+} = useQuery({
   queryKey: ['crm', 'loyalty-ledger'],
   queryFn: ({ signal }) => crmGet('/loyalty/ledger', { signal }),
 });

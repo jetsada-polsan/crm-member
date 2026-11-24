@@ -1,18 +1,37 @@
 <template>
   <Teleport to="body">
     <Transition name="pop-fade">
-      <div v-if="open && currentItem" class="ui-lightbox" role="dialog" aria-modal="true" aria-label="ดูรูปภาพหลักฐาน" @click.self="$emit('close')">
+      <div
+        v-if="open && currentItem"
+        class="ui-lightbox"
+        role="dialog"
+        aria-modal="true"
+        aria-label="ดูรูปภาพหลักฐาน"
+        @click.self="$emit('close')"
+      >
         <div class="ui-lightbox-bar">
           <div>
             <strong>{{ currentItem.title || currentItem.category || 'ภาพหลักฐาน' }}</strong>
-            <span v-if="items.length > 1" class="small" style="margin-left:8px;opacity:.8">({{ index + 1 }} / {{ items.length }})</span>
+            <span v-if="items.length > 1" class="small" style="margin-left: 8px; opacity: 0.8"
+              >({{ index + 1 }} / {{ items.length }})</span
+            >
           </div>
           <button class="close" type="button" aria-label="ปิดภาพขยาย" @click="$emit('close')">✕</button>
         </div>
         <div class="ui-lightbox-stage">
-          <button v-if="items.length > 1" type="button" class="ui-lightbox-nav prev" aria-label="ก่อนหน้า" @click="step(-1)">‹</button>
+          <button
+            v-if="items.length > 1"
+            type="button"
+            class="ui-lightbox-nav prev"
+            aria-label="ก่อนหน้า"
+            @click="step(-1)"
+          >
+            ‹
+          </button>
           <img :src="currentItem.src" :alt="currentItem.title || 'หลักฐานภาพถ่าย'" class="ui-lightbox-img" />
-          <button v-if="items.length > 1" type="button" class="ui-lightbox-nav next" aria-label="ถัดไป" @click="step(1)">›</button>
+          <button v-if="items.length > 1" type="button" class="ui-lightbox-nav next" aria-label="ถัดไป" @click="step(1)">
+            ›
+          </button>
         </div>
         <div class="ui-lightbox-meta">
           <span v-if="currentItem.category" class="tag blue">{{ currentItem.category }}</span>

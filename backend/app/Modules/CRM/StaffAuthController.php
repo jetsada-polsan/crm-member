@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\CRM;
 
 use Illuminate\Http\JsonResponse;

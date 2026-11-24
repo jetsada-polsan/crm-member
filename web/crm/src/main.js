@@ -5,7 +5,4 @@ import { router } from './router.js';
 import { crmQueryClient } from './composables/useCrmSession.js';
 import '../../shared/base.css';
 
-createApp(App)
-  .use(router)
-  .use(VueQueryPlugin, { queryClient: crmQueryClient })
-  .mount('#app');
+createApp(App).use(router).use(VueQueryPlugin, { queryClient: crmQueryClient }).mount('#app');

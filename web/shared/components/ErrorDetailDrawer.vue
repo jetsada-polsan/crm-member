@@ -6,7 +6,7 @@
     @close="closeErrorDetail"
   >
     <template v-if="err">
-      <div class="error" style="margin-bottom:14px">
+      <div class="error" style="margin-bottom: 14px">
         <strong>{{ err.message }}</strong>
       </div>
       <div class="minirow">
@@ -22,8 +22,8 @@
         <span class="small muted">{{ err.timestamp }}</span>
       </div>
 
-      <div v-if="validationList.length" style="margin-top:16px">
-        <strong class="small" style="display:block;margin-bottom:8px">รายการข้อมูลที่ไม่ถูกต้อง:</strong>
+      <div v-if="validationList.length" style="margin-top: 16px">
+        <strong class="small" style="display: block; margin-bottom: 8px">รายการข้อมูลที่ไม่ถูกต้อง:</strong>
         <ul class="ui-err-list">
           <li v-for="(item, idx) in validationList" :key="idx">
             <b>{{ item.field }}:</b> {{ item.msg }}
@@ -31,7 +31,7 @@
         </ul>
       </div>
 
-      <div class="notice" style="margin-top:16px">
+      <div class="notice" style="margin-top: 16px">
         คำแนะนำ:
         <span v-if="err.status === 0">ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือข้อมูล Draft Offline ระบบจะเก็บข้อมูลค้างส่งไว้ให้</span>
         <span v-else-if="err.status === 401">Session หมดอายุ กรุณาเข้าสู่ระบบใหม่</span>

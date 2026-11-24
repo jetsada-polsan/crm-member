@@ -1,9 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="จับคู่ลูกค้ากับ ERP"
-      subtitle="ตรวจคู่ที่ระบบแนะนำ แล้วยืนยันเองว่าร้านใหม่คือลูกค้ารายไหนใน ERP"
-    >
+    <PageHeader title="จับคู่ลูกค้ากับ ERP" subtitle="ตรวจคู่ที่ระบบแนะนำ แล้วยืนยันเองว่าร้านใหม่คือลูกค้ารายไหนใน ERP">
       <template #secondary>
         <button type="button" class="btn" @click="refetch">⟳ โหลดใหม่</button>
       </template>
@@ -14,8 +11,8 @@
       </template>
     </PageHeader>
 
-    <div class="card panel-pad" style="margin-bottom:16px">
-      <div class="head-filter" style="margin-bottom:0">
+    <div class="card panel-pad" style="margin-bottom: 16px">
+      <div class="head-filter" style="margin-bottom: 0">
         <button
           v-for="st in STATUSES"
           :key="st.id"
@@ -32,10 +29,19 @@
     <SkeletonBlock v-if="isLoading && !candidates.length" variant="cards" :rows="4" />
     <div v-else-if="isError" class="error">{{ error?.message || 'โหลดรายการจับคู่ไม่สำเร็จ' }}</div>
 
-    <div v-else style="display:grid;gap:12px">
+    <div v-else style="display: grid; gap: 12px">
       <div v-for="c in candidates" :key="c.id" class="card panel-pad">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+          "
+        >
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
             <span class="tag blue">Score: {{ c.score }}</span>
             <span class="tag" :class="statusTag(c.status)">{{ c.status }}</span>
             <span v-for="reason in parseReasons(c.match_reasons)" :key="reason" class="tag purple">{{ reason }}</span>
@@ -43,29 +49,38 @@
           <div class="small muted">Candidate #{{ c.id }}</div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:stretch">
-          <div style="background:var(--blue-soft);border:1px solid var(--border);border-radius:12px;padding:12px">
-            <div class="eyebrow" style="margin-bottom:4px">CRM LEAD</div>
-            <b style="font-size:15px">{{ c.crm_shop_name }}</b>
-            <div class="small muted" style="margin-top:4px">โทร: {{ c.crm_phone || '—' }}</div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+            align-items: stretch;
+          "
+        >
+          <div
+            style="background: var(--blue-soft); border: 1px solid var(--border); border-radius: 12px; padding: 12px"
+          >
+            <div class="eyebrow" style="margin-bottom: 4px">CRM LEAD</div>
+            <b style="font-size: 15px">{{ c.crm_shop_name }}</b>
+            <div class="small muted" style="margin-top: 4px">โทร: {{ c.crm_phone || '—' }}</div>
             <div class="small muted">ที่อยู่: {{ c.crm_address || '—' }}</div>
           </div>
 
-          <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
-            <div class="eyebrow" style="margin-bottom:4px">BPLUS ERP ({{ c.source_system || 'BPLUS' }})</div>
-            <b style="font-size:15px">{{ c.erp_customer_code }} · {{ c.erp_customer_name }}</b>
-            <div class="small muted" style="margin-top:4px">โทร: {{ c.erp_phone || '—' }}</div>
+          <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px">
+            <div class="eyebrow" style="margin-bottom: 4px">BPLUS ERP ({{ c.source_system || 'BPLUS' }})</div>
+            <b style="font-size: 15px">{{ c.erp_customer_code }} · {{ c.erp_customer_name }}</b>
+            <div class="small muted" style="margin-top: 4px">โทร: {{ c.erp_phone || '—' }}</div>
             <div class="small muted">ที่อยู่: {{ c.erp_address || '—' }}</div>
           </div>
         </div>
 
-        <div v-if="c.review_note" class="small muted" style="margin-top:8px">
+        <div v-if="c.review_note" class="small muted" style="margin-top: 8px">
           หมายเหตุล่าสุด ({{ c.reviewed_by_name || 'ผู้ดูแล' }}): {{ c.review_note }}
         </div>
 
         <div
           v-if="c.status === 'pending' || c.status === 'stale'"
-          style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"
+          style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px"
         >
           <button type="button" class="btn primary" :disabled="busyId === c.id" @click="confirmMatch(c)">
             ✓ ยืนยันเป็นร้านเดียวกัน (เชื่อม ERP)
@@ -105,7 +120,8 @@ const busyId = ref(null);
 
 const { data, isLoading, isError, error, refetch } = useQuery({
   queryKey: computed(() => ['crm', 'match-candidates', statusFilter.value]),
-  queryFn: ({ signal }) => crmGet(`/customer-master/match-candidates?status=${encodeURIComponent(statusFilter.value)}`, { signal }),
+  queryFn: ({ signal }) =>
+    crmGet(`/customer-master/match-candidates?status=${encodeURIComponent(statusFilter.value)}`, { signal }),
 });
 
 const candidates = computed(() => data.value || []);

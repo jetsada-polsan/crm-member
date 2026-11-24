@@ -70,17 +70,19 @@ function parseErrorPayload(text, status, retryAfter = null) {
   }
   if (status === 429) {
     const waitSec = Number(retryAfter);
-    message = waitSec > 0
-      ? `พยายามเข้าสู่ระบบหรือส่งคำขอบ่อยเกินไป กรุณารอ ${waitSec} วินาทีแล้วลองใหม่อีกครั้ง`
-      : 'พยายามเข้าสู่ระบบหรือส่งคำขอบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง';
+    message =
+      waitSec > 0
+        ? `พยายามเข้าสู่ระบบหรือส่งคำขอบ่อยเกินไป กรุณารอ ${waitSec} วินาทีแล้วลองใหม่อีกครั้ง`
+        : 'พยายามเข้าสู่ระบบหรือส่งคำขอบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง';
   } else if (!message) {
-    message = status === 401
-      ? 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง (Session หมดอายุ)'
-      : status === 403
-        ? 'คุณไม่มีสิทธิ์ดำเนินการในส่วนนี้'
-        : status === 419
-          ? 'เซสชันความปลอดภัยหมดอายุ ระบบกำลังรีเฟรชโทเค็น'
-          : `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (HTTP ${status || 'Network'})`;
+    message =
+      status === 401
+        ? 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง (Session หมดอายุ)'
+        : status === 403
+          ? 'คุณไม่มีสิทธิ์ดำเนินการในส่วนนี้'
+          : status === 419
+            ? 'เซสชันความปลอดภัยหมดอายุ ระบบกำลังรีเฟรชโทเค็น'
+            : `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (HTTP ${status || 'Network'})`;
   }
   return { parsed, validationErrors, message };
 }
@@ -93,7 +95,11 @@ export async function apiGet(url, { signal } = {}) {
   });
   const text = await res.text();
   if (!res.ok) {
-    const { parsed, validationErrors, message } = parseErrorPayload(text, res.status, res.headers?.get?.('Retry-After'));
+    const { parsed, validationErrors, message } = parseErrorPayload(
+      text,
+      res.status,
+      res.headers?.get?.('Retry-After')
+    );
     throw new ApiError(message, { status: res.status, data: parsed, errors: validationErrors, url, method: 'GET' });
   }
   return text ? JSON.parse(text) : null;
@@ -133,7 +139,11 @@ export async function apiMutate(
   }
 
   if (!res.ok) {
-    const { parsed, validationErrors, message } = parseErrorPayload(text, res.status, res.headers?.get?.('Retry-After'));
+    const { parsed, validationErrors, message } = parseErrorPayload(
+      text,
+      res.status,
+      res.headers?.get?.('Retry-After')
+    );
     throw new ApiError(message, { status: res.status, data: parsed, errors: validationErrors, url, method });
   }
   return text ? JSON.parse(text) : null;
@@ -191,7 +201,9 @@ export async function apiUploadWithProgress(
         xhr.status,
         xhr.getResponseHeader('Retry-After')
       );
-      reject(new ApiError(message, { status: xhr.status, data: parsed, errors: validationErrors, url, method: 'POST' }));
+      reject(
+        new ApiError(message, { status: xhr.status, data: parsed, errors: validationErrors, url, method: 'POST' })
+      );
     };
 
     xhr.send(formData);

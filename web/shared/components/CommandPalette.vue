@@ -40,9 +40,7 @@
               </span>
               <span v-if="item.section" class="tag gray">{{ item.section }}</span>
             </button>
-            <div v-if="!filtered.length" class="placeholder" style="padding:22px">
-              ไม่พบคำสั่งที่ตรงกับ "{{ query }}"
-            </div>
+            <div v-if="!filtered.length" class="placeholder" style="padding: 22px">ไม่พบคำสั่งที่ตรงกับ "{{ query }}"</div>
           </div>
         </div>
       </div>

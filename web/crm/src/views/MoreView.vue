@@ -8,16 +8,26 @@
       <div class="card mob-profile-card">
         <div class="mob-profile-avatar">{{ userInitial }}</div>
         <div class="app-list-body">
-          <strong style="display:block;font-size:15.5px;line-height:1.25">{{ me?.name || 'ผู้ใช้งาน' }}</strong>
+          <strong style="display: block; font-size: 15.5px; line-height: 1.25">{{ me?.name || 'ผู้ใช้งาน' }}</strong>
           <span class="app-list-sub">{{ profileSubtitle }}</span>
         </div>
         <span class="tag green">ออนไลน์</span>
-        <button type="button" class="mob-logout-icon" aria-label="ออกจากระบบ" title="ออกจากระบบ" @click="confirmLogout">⏻</button>
+        <button type="button" class="mob-logout-icon" aria-label="ออกจากระบบ" title="ออกจากระบบ" @click="confirmLogout">
+          ⏻
+        </button>
       </div>
 
-      <div v-if="offlineDrafts.length" class="notice row-between" style="margin-bottom:0">
-        <span>ค้างส่ง <b>{{ offlineDrafts.length }}</b> รายการ</span>
-        <button type="button" class="btn primary" style="min-height:36px;padding:6px 12px;font-size:12.5px" :disabled="offlineSyncing" @click="syncPendingOfflineDrafts">
+      <div v-if="offlineDrafts.length" class="notice row-between" style="margin-bottom: 0">
+        <span
+          >ค้างส่ง <b>{{ offlineDrafts.length }}</b> รายการ</span
+        >
+        <button
+          type="button"
+          class="btn primary"
+          style="min-height: 36px; padding: 6px 12px; font-size: 12.5px"
+          :disabled="offlineSyncing"
+          @click="syncPendingOfflineDrafts"
+        >
           {{ offlineSyncing ? 'กำลังส่ง...' : 'ส่งทันที' }}
         </button>
       </div>
@@ -38,7 +48,9 @@
               <strong class="app-list-title">{{ item.label }}</strong>
               <span v-if="item.desc" class="app-list-sub">{{ item.desc }}</span>
             </div>
-            <span v-if="item.name === 'profile' && offlineDrafts.length > 0" class="tag orange">{{ offlineDrafts.length }}</span>
+            <span v-if="item.name === 'profile' && offlineDrafts.length > 0" class="tag orange">{{
+              offlineDrafts.length
+            }}</span>
             <span v-else class="app-chevron" aria-hidden="true">›</span>
           </RouterLink>
         </div>
@@ -56,7 +68,10 @@
             <div class="more-role-pill">
               <span>{{ roleTitle }}</span>
               <span v-if="me?.salesperson_code" class="more-code-pill">รหัส {{ me.salesperson_code }}</span>
-              <span v-if="Array.isArray(me?.reservation_doc_types) && me.reservation_doc_types.length" class="more-code-pill">
+              <span
+                v-if="Array.isArray(me?.reservation_doc_types) && me.reservation_doc_types.length"
+                class="more-code-pill"
+              >
                 ใบจอง {{ me.reservation_doc_types.join(', ') }}
               </span>
             </div>
@@ -81,7 +96,9 @@
             placeholder="ค้นหาเมนู เช่น แผนที่, ติดตามผล, รายงาน, สมาชิก..."
             autocomplete="off"
           />
-          <button v-if="searchQuery" type="button" class="btn light more-search-clear" @click="searchQuery = ''">ล้าง</button>
+          <button v-if="searchQuery" type="button" class="btn light more-search-clear" @click="searchQuery = ''">
+            ล้าง
+          </button>
         </label>
       </section>
 
@@ -151,7 +168,8 @@ const roleTitle = computed(() => {
 
 const profileSubtitle = computed(() => {
   const docs = Array.isArray(me.value?.reservation_doc_types) ? me.value.reservation_doc_types : [];
-  if (docs.length) return `สาย ${docs.join(', ')}${me.value?.salesperson_code ? ` · รหัส ${me.value.salesperson_code}` : ''}`;
+  if (docs.length)
+    return `สาย ${docs.join(', ')}${me.value?.salesperson_code ? ` · รหัส ${me.value.salesperson_code}` : ''}`;
   if (me.value?.salesperson_code) return `รหัสเซลล์ ${me.value.salesperson_code}`;
   return `${roleTitle.value} · POPSTAR Connect`;
 });
@@ -310,20 +328,96 @@ async function confirmLogout() {
   color: #93c5fd;
 }
 
-.more-profile-info h2 { margin: 0; font-size: 20px; color: #ffffff; }
-.more-profile-info p { margin: 2px 0 0; font-size: 13px; color: #cbd5e1; }
-.more-profile-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.more-profile-btn { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.22); color: #ffffff; }
-.more-logout-btn { background: rgba(244, 63, 94, 0.18); border-color: rgba(251, 113, 133, 0.35); color: #ffe4e6; }
-.more-groups { display: flex; flex-direction: column; gap: 20px; }
-.more-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
-.more-group-badge { width: 36px; height: 36px; border-radius: 11px; background: #e8efff; display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
-.more-group-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); }
-.more-group-sub { margin: 1px 0 0; font-size: 12.5px; color: var(--muted); }
-.more-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.more-tile { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; padding: 14px 15px; min-height: 104px; border-radius: 16px; color: var(--ink); }
-.more-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.more-tile-body { display: flex; flex-direction: column; gap: 2px; }
-.more-tile-label { font-size: 14.5px; font-weight: 700; color: var(--ink); }
-.more-tile-desc { font-size: 12px; color: var(--muted); }
+.more-profile-info h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #ffffff;
+}
+.more-profile-info p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+.more-profile-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.more-profile-btn {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+.more-logout-btn {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: rgba(251, 113, 133, 0.35);
+  color: #ffe4e6;
+}
+.more-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.more-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+.more-group-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: #e8efff;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.more-group-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.more-group-sub {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.more-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.more-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 15px;
+  min-height: 104px;
+  border-radius: 16px;
+  color: var(--ink);
+}
+.more-tile-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.more-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.more-tile-label {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.more-tile-desc {
+  font-size: 12px;
+  color: var(--muted);
+}
 </style>

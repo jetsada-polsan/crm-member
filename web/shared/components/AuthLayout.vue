@@ -22,10 +22,7 @@
                 fill="#fff"
                 d="M18 15h16c9 0 14 4.4 14 12.3S43 40 34 40h-6v10H18zm10 8v9h5.4c3.4 0 5.3-1.6 5.3-4.5S36.8 23 33.4 23z"
               />
-              <path
-                fill="#ffd45a"
-                d="m49 9 1.5 3.1 3.5.5-2.5 2.4.6 3.4-3.1-1.6-3.1 1.6.6-3.4-2.5-2.4 3.5-.5z"
-              />
+              <path fill="#ffd45a" d="m49 9 1.5 3.1 3.5.5-2.5 2.4.6 3.4-3.1-1.6-3.1 1.6.6-3.4-2.5-2.4 3.5-.5z" />
             </svg>
           </div>
           <div class="auth-brand-meta">
@@ -52,7 +49,14 @@
         <ul class="auth-highlights" aria-label="จุดเด่นของระบบ 3 รายการ">
           <li class="auth-highlight-card">
             <div class="auth-highlight-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M12 21s-7-5.6-7-11a7 7 0 1 1 14 0c0 5.4-7 11-7 11Z" />
                 <circle cx="12" cy="10" r="2.5" />
               </svg>
@@ -65,7 +69,14 @@
 
           <li class="auth-highlight-card">
             <div class="auth-highlight-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M3 3v18h18" />
                 <path d="m7 15 4-4 3 3 5-6" />
               </svg>
@@ -78,7 +89,14 @@
 
           <li class="auth-highlight-card">
             <div class="auth-highlight-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 16.8 6.2 19.9l1.1-6.5L2.6 8.8l6.5-.9L12 2z" />
               </svg>
             </div>
@@ -114,10 +132,7 @@
                 fill="#fff"
                 d="M18 15h16c9 0 14 4.4 14 12.3S43 40 34 40h-6v10H18zm10 8v9h5.4c3.4 0 5.3-1.6 5.3-4.5S36.8 23 33.4 23z"
               />
-              <path
-                fill="#ffd45a"
-                d="m49 9 1.5 3.1 3.5.5-2.5 2.4.6 3.4-3.1-1.6-3.1 1.6.6-3.4-2.5-2.4 3.5-.5z"
-              />
+              <path fill="#ffd45a" d="m49 9 1.5 3.1 3.5.5-2.5 2.4.6 3.4-3.1-1.6-3.1 1.6.6-3.4-2.5-2.4 3.5-.5z" />
             </svg>
           </div>
           <div class="auth-mobile-brand-meta">

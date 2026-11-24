@@ -41,14 +41,7 @@
             <strong class="text-ellipsis">{{ me?.name }}</strong>
             <small>{{ me?.phone || me?.email }}</small>
           </div>
-          <button
-            type="button"
-            class="logout-btn"
-            aria-label="ออกจากระบบ"
-            @click="handleLogout"
-          >
-            ⏻
-          </button>
+          <button type="button" class="logout-btn" aria-label="ออกจากระบบ" @click="handleLogout">⏻</button>
         </div>
       </aside>
 
@@ -77,9 +70,7 @@
               </KeepAlive>
             </Transition>
           </RouterView>
-          <footer class="footer">
-            POPSTAR Connect · สะสมแต้ม ดูยอดซื้อ และแลกของรางวัลได้ในที่เดียว
-          </footer>
+          <footer class="footer">POPSTAR Connect · สะสมแต้ม ดูยอดซื้อ และแลกของรางวัลได้ในที่เดียว</footer>
         </main>
       </div>
 
@@ -112,10 +103,7 @@ import ToastContainer from '../../shared/components/ToastContainer.vue';
 import ErrorDetailDrawer from '../../shared/components/ErrorDetailDrawer.vue';
 import PortalAuthScreen from '../../shared/components/PortalAuthScreen.vue';
 import AppBootSplash from '../../shared/components/AppBootSplash.vue';
-import {
-  authenticateStaffPortal,
-  getPortalUrl,
-} from '../../shared/composables/usePortalRedirect.js';
+import { authenticateStaffPortal, getPortalUrl } from '../../shared/composables/usePortalRedirect.js';
 import { prefetchMemberView, scheduleMemberPrefetch } from './router.js';
 import {
   authChecked,

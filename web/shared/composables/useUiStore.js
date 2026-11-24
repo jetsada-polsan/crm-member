@@ -40,9 +40,7 @@ export const toast = {
     return this.push({ title, message, tone: 'warning', duration: 4500 });
   },
   error(title, errOrMessage = '') {
-    const msg = typeof errOrMessage === 'string'
-      ? errOrMessage
-      : errOrMessage?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+    const msg = typeof errOrMessage === 'string' ? errOrMessage : errOrMessage?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
     const errorObj = typeof errOrMessage === 'object' ? errOrMessage : null;
     return this.push({ title, message: msg, tone: 'error', duration: 6000, error: errorObj });
   },

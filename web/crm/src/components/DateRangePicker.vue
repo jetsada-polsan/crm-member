@@ -109,7 +109,9 @@ const displayRange = computed(() =>
   invalid.value
     ? 'เลือกช่วงวันที่'
     : [props.from, props.to]
-        .map((d) => new Date(`${d}T00:00:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }))
+        .map((d) =>
+          new Date(`${d}T00:00:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
+        )
         .join(' – ')
 );
 
@@ -167,7 +169,10 @@ function change(which, value) {
   padding: 5px 10px;
   min-height: 30px;
   cursor: pointer;
-  transition: background-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease,
+    box-shadow 0.14s ease;
 }
 
 .range-pill:hover {
