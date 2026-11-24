@@ -60,12 +60,16 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions.
+    |
+    | Must match the PostgreSQL session timezone (database.connections.pgsql
+    | .timezone). Laravel writes dates as offset-less "Y-m-d H:i:s" strings and
+    | PostgreSQL reads those in its session timezone, so any mismatch shifts
+    | every app-written timestamp. Bplus also sends Bangkok wall-clock times.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => 'Asia/Bangkok',
 
     /*
     |--------------------------------------------------------------------------

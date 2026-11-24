@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Pin the session timezone to app.timezone instead of relying on the server default:
+            // offset-less timestamps from Laravel and Bplus are read in this zone.
+            'timezone' => 'Asia/Bangkok',
         ],
 
         'sqlsrv' => [
