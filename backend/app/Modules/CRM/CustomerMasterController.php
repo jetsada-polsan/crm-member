@@ -254,9 +254,7 @@ final class CustomerMasterController
             foreach (SalesRules::customerActualInvoiceSubquery($codes)->get() as $ir) {
                 $invMap[$ir->source_system.'|'.$ir->erp_customer_code] = $ir;
             }
-            foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
-                $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
-            }
+            $excMap = SalesRules::customerExcludedTotals($codes);
         }
 
         $rows = $rows->map(static function ($row) use ($invMap, $excMap) {

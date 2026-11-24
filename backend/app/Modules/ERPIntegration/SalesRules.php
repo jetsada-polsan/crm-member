@@ -294,6 +294,36 @@ final class SalesRules
     }
 
     /**
+     * Excluded item amounts keyed "source_system|erp_customer_code" for the given customers.
+     *
+     * Reads one cached map of every customer, refreshed after each ERP sync: computing it per
+     * page cost ~200 ms because the largest customers have thousands of invoices to probe.
+     *
+     * @param  list<string>  $customerCodes
+     * @return array<string, float>
+     */
+    public static function customerExcludedTotals(array $customerCodes): array
+    {
+        if ($customerCodes === []) {
+            return [];
+        }
+
+        $all = self::cacheRemember('customer_excluded_totals', 3600, static fn (): array => self::customerExcludedItemsSubquery()
+            ->get()
+            ->mapWithKeys(static fn (object $row): array => [
+                $row->source_system.'|'.$row->erp_customer_code => (float) ($row->excluded_before_vat ?? 0),
+            ])
+            ->all());
+        $wanted = array_flip($customerCodes);
+
+        return array_filter(
+            $all,
+            static fn (string $key): bool => isset($wanted[substr($key, (int) strpos($key, '|') + 1)]),
+            ARRAY_FILTER_USE_KEY
+        );
+    }
+
+    /**
      * Compute aggregate KPI breakdown using Before VAT as primary KPI,
      * separated VAT/Gross verification totals, reservation totals (207),
      * cancelled document counts, and excluded service/packaging deductions.

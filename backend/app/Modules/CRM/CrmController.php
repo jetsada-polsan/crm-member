@@ -153,9 +153,7 @@ final class CrmController
                 foreach (SalesRules::customerActualInvoiceSubquery($codes)->get() as $ir) {
                     $invMap[$ir->source_system.'|'.$ir->erp_customer_code] = $ir;
                 }
-                foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
-                    $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
-                }
+                $excMap = SalesRules::customerExcludedTotals($codes);
             }
             if ($ids !== []) {
                 foreach (DB::table('crm_customer_masters')->whereIn('erp_customer_id', $ids)->select('id', 'erp_customer_id', 'internal_customer_code')->get() as $m) {
@@ -257,12 +255,7 @@ final class CrmController
 
         $attachExcluded = static function ($items) {
             $codes = $items->pluck('erp_customer_code')->filter()->unique()->values()->all();
-            $excMap = [];
-            if ($codes !== []) {
-                foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
-                    $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
-                }
-            }
+            $excMap = SalesRules::customerExcludedTotals($codes);
 
             return $items->map(static function ($row) use ($excMap) {
                 $exc = $excMap[$row->source_system.'|'.$row->erp_customer_code] ?? 0.0;

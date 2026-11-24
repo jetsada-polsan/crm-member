@@ -5,9 +5,12 @@ namespace App\Modules\Core;
 use App\Modules\CRM\CustomerAccess;
 use App\Modules\ERPIntegration\SalesRules;
 use App\Modules\LINE\LineConfig;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -111,36 +114,13 @@ final class SystemHealthController
             'error' => null,
         ];
         if ($lineToken !== '' && ! app()->runningUnitTests()) {
-            $lnT0 = microtime(true);
-            try {
-                $infoRes = Http::withToken($lineToken)->acceptJson()->timeout(5)->get('https://api.line.me/v2/bot/info');
-                $line['latency_ms'] = round((microtime(true) - $lnT0) * 1000, 1);
-                if ($infoRes->successful()) {
-                    $ij = $infoRes->json() ?? [];
-                    $line['ok'] = true;
-                    $line['display_name'] = $ij['displayName'] ?? null;
-                    $line['basic_id'] = $ij['basicId'] ?? $line['basic_id'];
-
-                    $whRes = Http::withToken($lineToken)->acceptJson()->timeout(4)->get('https://api.line.me/v2/bot/channel/webhook/endpoint');
-                    if ($whRes->successful()) {
-                        $wj = $whRes->json() ?? [];
-                        $line['webhook_endpoint'] = $wj['endpoint'] ?? null;
-                        $line['webhook_active'] = (bool) ($wj['active'] ?? false);
-                    }
-                    $qRes = Http::withToken($lineToken)->acceptJson()->timeout(4)->get('https://api.line.me/v2/bot/message/quota');
-                    $uRes = Http::withToken($lineToken)->acceptJson()->timeout(4)->get('https://api.line.me/v2/bot/message/quota/consumption');
-                    if ($qRes->successful()) {
-                        $line['quota_limit'] = $qRes->json('value');
-                    }
-                    if ($uRes->successful()) {
-                        $line['quota_used'] = $uRes->json('totalUsage');
-                    }
-                } else {
-                    $line['error'] = 'LINE API HTTP '.$infoRes->status();
-                }
-            } catch (Throwable $e) {
-                $line['error'] = mb_substr($e->getMessage(), 0, 200);
-            }
+            $remote = Cache::remember(
+                'popstar:line_remote_status:'.sha1($lineToken),
+                self::LINE_STATUS_CACHE_SECONDS,
+                static fn (): array => self::fetchLineRemoteStatus($lineToken)
+            );
+            $remote['basic_id'] ??= $line['basic_id'];
+            $line = array_merge($line, $remote);
         }
 
         // 4. Mirror Freshness & Counts (cached via fast erpCacheVersion)
@@ -192,5 +172,65 @@ final class SystemHealthController
             'recent_runs' => $recentRuns,
             'recent_errors' => $recentErrors,
         ]);
+    }
+
+    /**
+     * Seconds the LINE platform status is reused: the page auto-refreshes every 15 s and
+     * four sequential LINE API calls made every load cost over a second.
+     */
+    private const LINE_STATUS_CACHE_SECONDS = 60;
+
+    /**
+     * Bot info, webhook and message quota from the LINE Messaging API.
+     *
+     * @return array{ok: bool, display_name: ?string, basic_id: ?string, webhook_endpoint: ?string, webhook_active: bool, quota_limit: mixed, quota_used: mixed, latency_ms: ?float, error: ?string}
+     */
+    private static function fetchLineRemoteStatus(string $lineToken): array
+    {
+        $status = [
+            'ok' => false,
+            'display_name' => null,
+            'basic_id' => null,
+            'webhook_endpoint' => null,
+            'webhook_active' => false,
+            'quota_limit' => null,
+            'quota_used' => null,
+            'latency_ms' => null,
+            'error' => null,
+        ];
+        $startedAt = microtime(true);
+        try {
+            $infoRes = Http::withToken($lineToken)->acceptJson()->timeout(5)->get('https://api.line.me/v2/bot/info');
+            $status['latency_ms'] = round((microtime(true) - $startedAt) * 1000, 1);
+            if (! $infoRes->successful()) {
+                $status['error'] = 'LINE API HTTP '.$infoRes->status();
+
+                return $status;
+            }
+            $info = $infoRes->json() ?? [];
+            $status['ok'] = true;
+            $status['display_name'] = $info['displayName'] ?? null;
+            $status['basic_id'] = $info['basicId'] ?? null;
+
+            $responses = Http::pool(static fn (Pool $pool): array => [
+                $pool->as('webhook')->withToken($lineToken)->acceptJson()->timeout(4)->get('https://api.line.me/v2/bot/channel/webhook/endpoint'),
+                $pool->as('quota')->withToken($lineToken)->acceptJson()->timeout(4)->get('https://api.line.me/v2/bot/message/quota'),
+                $pool->as('usage')->withToken($lineToken)->acceptJson()->timeout(4)->get('https://api.line.me/v2/bot/message/quota/consumption'),
+            ]);
+            if ($responses['webhook'] instanceof Response && $responses['webhook']->successful()) {
+                $status['webhook_endpoint'] = $responses['webhook']->json('endpoint');
+                $status['webhook_active'] = (bool) $responses['webhook']->json('active', false);
+            }
+            if ($responses['quota'] instanceof Response && $responses['quota']->successful()) {
+                $status['quota_limit'] = $responses['quota']->json('value');
+            }
+            if ($responses['usage'] instanceof Response && $responses['usage']->successful()) {
+                $status['quota_used'] = $responses['usage']->json('totalUsage');
+            }
+        } catch (Throwable $e) {
+            $status['error'] = mb_substr($e->getMessage(), 0, 200);
+        }
+
+        return $status;
     }
 }
