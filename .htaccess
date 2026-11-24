@@ -4,10 +4,11 @@ Require all granted
 Options -Indexes
 DirectoryIndex index.html
 
-# Passwords / tokens (.env, postgres password file, sync-agent config, backups of them)
-<FilesMatch "^(\.env.*|\.pgpass.*|config\.env.*|.*\.dump|.*\.bak.*)$">
+# Passwords / tokens (.env, postgres password file, sync-agent config, backups of them), logs and archives
+<FilesMatch "^(\.env.*|\.pgpass.*|config\.env.*|.*\.dump|.*\.bak.*|.*\.log|.*\.(zip|rar|7z|sql))$">
     Require all denied
 </FilesMatch>
 
-# Git history, Docker data backups (customer data), sync-agent, Laravel internals
-RedirectMatch 404 ^/popstar-business-platform-v4/(\.git|_docker_backup|sync-agent|backend/(?!public(/|$)))
+# Dot folders (.git, .claude), Docker data backups (customer data), sync-agent, tools, Laravel internals.
+# Matches at any depth so the protection holds whatever this folder is named (crm-member, popstar-business-platform-v4, ...).
+RedirectMatch 404 (?i)/(\.[^/]+|_docker_backup|sync-agent|tools|backend-overlay|backend/(?!public(/|$)))
