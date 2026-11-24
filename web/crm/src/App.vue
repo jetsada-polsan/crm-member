@@ -12,6 +12,9 @@
       :submit-register="handleMemberRegister"
     />
 
+    <!-- Temporary or leaked password: the user must set their own before anything else -->
+    <ForcePasswordChange v-else-if="me?.must_change_password" @logout="handleLogout" />
+
     <RouterView v-else-if="route.meta.presentation" />
 
     <!-- Authenticated SPA Workspace -->
@@ -316,6 +319,7 @@ import QuickAddShopModal from './components/QuickAddShopModal.vue';
 import VisitEvidenceWizard from './components/VisitEvidenceWizard.vue';
 import CustomerDetailDrawer from './components/CustomerDetailDrawer.vue';
 import CrmSidebarNav from './components/CrmSidebarNav.vue';
+import ForcePasswordChange from './components/ForcePasswordChange.vue';
 
 import { CRM_NAV_GROUPS, filterNavGroups, findNavMetaByRouteName } from './navigation.js';
 import { CRM_ROUTES, prefetchRouteView, scheduleIdlePrefetch } from './router.js';

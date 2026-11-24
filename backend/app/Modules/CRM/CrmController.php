@@ -1464,7 +1464,7 @@ final class CrmController
         $autoSyncStats = SalesRules::cacheRemember('settings_auto_sync_staff', 3600, static fn (): array => CustomerAccess::syncStaffFromErp());
 
         $staff = DB::table('staff_users')
-            ->select('id', 'name', 'email', 'role', 'salesperson_code', 'reservation_doc_types', 'is_active', 'created_at')
+            ->select('id', 'name', 'email', 'role', 'salesperson_code', 'reservation_doc_types', 'is_active', 'must_change_password', 'created_at')
             ->orderBy('id')
             ->get()
             ->map(function ($u) {
@@ -1631,6 +1631,7 @@ final class CrmController
             'name' => trim($d['name']),
             'email' => strtolower(trim($d['email'])),
             'password' => bcrypt($d['password']),
+            'must_change_password' => true,
             'role' => $d['role'],
             'salesperson_code' => $spCode,
             'reservation_doc_types' => $resDocTypes,
@@ -1681,8 +1682,11 @@ final class CrmController
         if (array_key_exists('email', $d)) {
             $updates['email'] = strtolower(trim($d['email']));
         }
-        if (! empty($d['password'])) {
+        $passwordReset = ! empty($d['password']);
+        if ($passwordReset) {
             $updates['password'] = bcrypt($d['password']);
+            // A password chosen by someone else is temporary: its owner must replace it at next sign-in.
+            $updates['must_change_password'] = (int) $actor->id !== $id;
         }
         if (array_key_exists('role', $d)) {
             $updates['role'] = $d['role'];
@@ -1710,6 +1714,7 @@ final class CrmController
                 'salesperson_code' => array_key_exists('salesperson_code', $updates) ? $updates['salesperson_code'] : $target->salesperson_code,
                 'reservation_doc_types' => array_key_exists('reservation_doc_types', $updates) ? $updates['reservation_doc_types'] : ($target->reservation_doc_types ?? null),
                 'is_active' => $updates['is_active'] ?? $target->is_active,
+                'password_reset' => $passwordReset,
             ], JSON_UNESCAPED_UNICODE),
             'created_at' => now(),
         ]);
@@ -2337,18 +2342,9 @@ final class CrmController
     {
         $search = trim((string) $request->query('q', ''));
         $limit = max(10, min(150, (int) $request->query('limit', 60)));
-
-        $latestPriceSub = DB::table('erp_sales_items')
-            ->where('unit_price', '>', 0)
-            ->groupBy('erp_product_code')
-            ->select(
-                'erp_product_code',
-                DB::raw('MAX(unit_price) as default_price'),
-                DB::raw('MAX(unit_name) as last_unit_name')
-            );
+        $priceMap = $this->productPriceMap();
 
         $q = DB::table('erp_products as p')
-            ->leftJoinSub($latestPriceSub, 'pr', 'pr.erp_product_code', '=', 'p.erp_product_code')
             ->where(function ($w): void {
                 $w->whereNull('p.category_code')
                     ->orWhereNotIn('p.category_code', ['CC', 'CO', 'AS', 'PK']);
@@ -2364,20 +2360,39 @@ final class CrmController
             });
         }
 
-        $items = $q->select(
-            'p.id',
-            'p.erp_product_code',
-            'p.product_name',
-            DB::raw("COALESCE(NULLIF(p.unit, ''), NULLIF(pr.last_unit_name, ''), 'ชิ้น') as unit"),
-            'p.category_code',
-            'p.category_name',
-            DB::raw('COALESCE(pr.default_price, 0) as default_price')
-        )
-            ->orderByDesc(DB::raw('COALESCE(pr.default_price, 0) > 0'))
+        $items = $q->select('p.id', 'p.erp_product_code', 'p.product_name', 'p.unit', 'p.category_code', 'p.category_name')
             ->orderBy('p.erp_product_code')
-            ->limit($limit)
-            ->get();
+            ->get()
+            ->map(static function (object $product) use ($priceMap): object {
+                $price = $priceMap[$product->erp_product_code] ?? null;
+                $product->unit = ($product->unit ?? '') !== '' ? $product->unit : (($price['unit'] ?? '') !== '' ? $price['unit'] : 'ชิ้น');
+                $product->default_price = $price['price'] ?? 0;
+
+                return $product;
+            })
+            ->sortBy(static fn (object $product): int => $product->default_price > 0 ? 0 : 1)
+            ->take($limit)
+            ->values();
 
         return response()->json($items);
+    }
+
+    /**
+     * Highest sold unit price and last unit name per product, built from ~1M invoice
+     * lines. Cached between ERP syncs so product search stays instant.
+     *
+     * @return array<string, array{price: float, unit: string}>
+     */
+    private function productPriceMap(): array
+    {
+        return SalesRules::cacheRemember('product_price_map', 3600, static fn (): array => DB::table('erp_sales_items')
+            ->where('unit_price', '>', 0)
+            ->groupBy('erp_product_code')
+            ->select('erp_product_code', DB::raw('MAX(unit_price) as default_price'), DB::raw('MAX(unit_name) as last_unit_name'))
+            ->get()
+            ->mapWithKeys(static fn (object $row): array => [
+                (string) $row->erp_product_code => ['price' => (float) $row->default_price, 'unit' => (string) ($row->last_unit_name ?? '')],
+            ])
+            ->all());
     }
 }

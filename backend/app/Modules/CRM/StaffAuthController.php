@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 final class StaffAuthController
 {
@@ -44,7 +45,44 @@ final class StaffAuthController
             'role' => $user->role,
             'salesperson_code' => CustomerAccess::salespersonCode($user),
             'reservation_doc_types' => CustomerAccess::reservationDocTypes($user),
+            'must_change_password' => (bool) $user->must_change_password,
         ]);
+    }
+
+    /**
+     * Staff replace their own password; required after an admin reset or a leaked default password.
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $user = Auth::guard('staff')->user();
+
+        $validated = $request->validate([
+            'current_password' => ['required', 'string', 'current_password:staff'],
+            'password' => ['required', 'string', 'min:10', 'max:120', 'confirmed', 'different:current_password'],
+        ], [
+            'current_password.current_password' => 'รหัสผ่านปัจจุบันไม่ถูกต้อง',
+            'password.different' => 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม',
+            'password.min' => 'รหัสผ่านใหม่ต้องมีอย่างน้อย 10 ตัวอักษร',
+            'password.confirmed' => 'ยืนยันรหัสผ่านใหม่ไม่ตรงกัน',
+        ]);
+
+        $user->forceFill([
+            'password' => Hash::make($validated['password']),
+            'must_change_password' => false,
+        ])->save();
+
+        DB::table('crm_audit_logs')->insert([
+            'entity_type' => 'staff_user',
+            'entity_id' => $user->id,
+            'action' => 'password_changed',
+            'actor_staff_id' => $user->id,
+            'changes' => json_encode(['self_service' => true]),
+            'created_at' => now(),
+        ]);
+
+        $request->session()->regenerate();
+
+        return response()->json(['ok' => true]);
     }
 
     public function logout(Request $request): JsonResponse
@@ -67,6 +105,7 @@ final class StaffAuthController
             'role' => $u->role,
             'salesperson_code' => CustomerAccess::salespersonCode($u),
             'reservation_doc_types' => CustomerAccess::reservationDocTypes($u),
+            'must_change_password' => (bool) $u->must_change_password,
         ]);
     }
 

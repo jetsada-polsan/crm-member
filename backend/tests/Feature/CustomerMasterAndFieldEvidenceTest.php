@@ -453,7 +453,16 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $repB16 = StaffUser::findOrFail($createRes['id']);
         $this->actingAs($repB16, 'staff');
 
+        // The admin-chosen password is temporary: the rep must replace it before using the CRM.
+        $this->getJson('/api/crm/dashboard')->assertStatus(423);
+        $this->postJson('/api/crm/me/password', [
+            'current_password' => 'SecretPass123!',
+            'password' => 'RepOwnPassword-16',
+            'password_confirmation' => 'RepOwnPassword-16',
+        ])->assertOk();
+
         $meRes = $this->getJson('/api/crm/me')->assertOk()->json();
+        $this->assertFalse($meRes['must_change_password']);
         $this->assertSame(['B16'], $meRes['reservation_doc_types']);
 
         $repCustomers = $this->getJson('/api/crm/customers')->assertOk()->json();
@@ -499,14 +508,31 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         $syncRes = $this->postJson('/api/crm/settings/staff/auto-sync', [])->assertOk()->json();
         $this->assertGreaterThanOrEqual(1, (int) $syncRes['created']);
 
-        // Auto-provisioned salesperson 16 can log in directly using reservation code "B33" and sees ONLY B33 (8,000)
+        // Auto-provisioned accounts get no usable password: the old shared default must not work.
+        $b33Id = (int) DB::table('staff_users')->where('email', 'b33@popstar.local')->value('id');
+        $siaId = (int) DB::table('staff_users')->where('email', 'sia@popstar.local')->value('id');
+        $this->assertGreaterThan(0, $b33Id);
+        $this->assertGreaterThan(0, $siaId);
+        $this->patchJson("/api/crm/settings/staff/{$b33Id}", ['password' => 'TempB33-Reset'])->assertOk();
+        $this->patchJson("/api/crm/settings/staff/{$siaId}", ['password' => 'TempSia-Reset'])->assertOk();
+
         Auth::guard('staff')->logout();
+        $this->postJson('/api/crm/login', ['email' => 'B33', 'password' => 'Popstar2026!'])->assertStatus(422);
+
+        // Salesperson 16 signs in with reservation code "B33" and the admin's temporary password, then must replace it
         $this->postJson('/api/crm/login', [
             'email' => 'B33',
-            'password' => 'Popstar2026!',
+            'password' => 'TempB33-Reset',
         ])->assertOk()
             ->assertJsonPath('salesperson_code', '16')
-            ->assertJsonPath('reservation_doc_types', ['B33']);
+            ->assertJsonPath('reservation_doc_types', ['B33'])
+            ->assertJsonPath('must_change_password', true);
+        $this->getJson('/api/crm/dashboard')->assertStatus(423);
+        $this->postJson('/api/crm/me/password', [
+            'current_password' => 'TempB33-Reset',
+            'password' => 'B33-OwnPassword',
+            'password_confirmation' => 'B33-OwnPassword',
+        ])->assertOk();
 
         $b33Dash = $this->getJson('/api/crm/dashboard')->assertOk()->json();
         $this->assertSame(1, (int) $b33Dash['customers']);
@@ -521,8 +547,16 @@ class CustomerMasterAndFieldEvidenceTest extends TestCase
         Auth::guard('staff')->logout();
         $this->postJson('/api/crm/login', [
             'email' => 'เสี่ย',
-            'password' => 'Popstar2026!',
+            'password' => 'TempSia-Reset',
         ])->assertOk()
+            ->assertJsonPath('must_change_password', true);
+        // Read-only executives may still change their own password.
+        $this->postJson('/api/crm/me/password', [
+            'current_password' => 'TempSia-Reset',
+            'password' => 'Sia-OwnPassword',
+            'password_confirmation' => 'Sia-OwnPassword',
+        ])->assertOk();
+        $this->getJson('/api/crm/me')->assertOk()
             ->assertJsonPath('role', 'executive');
 
         $execDash = $this->getJson('/api/crm/dashboard')->assertOk()->json();

@@ -19,4 +19,14 @@ final class StaffUser extends Authenticatable
     ];
 
     protected $hidden = ['password'];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'must_change_password' => 'boolean',
+        ];
+    }
 }
