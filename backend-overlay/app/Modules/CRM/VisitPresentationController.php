@@ -1,0 +1,167 @@
+<?php
+
+namespace App\Modules\CRM;
+
+use App\Modules\ERPIntegration\SalesRules;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+
+final class VisitPresentationController
+{
+    public function data(Request $request): JsonResponse
+    {
+        $filters = $request->validate([
+            'from' => ['required', 'date_format:Y-m-d'],
+            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'staff_id' => ['nullable', 'integer', 'exists:staff_users,id'],
+            'route_code' => ['nullable', 'string', 'max:32'],
+        ]);
+        $start = Carbon::parse($filters['from'], 'Asia/Bangkok')->startOfDay();
+        $end = Carbon::parse($filters['to'], 'Asia/Bangkok')->addDay()->startOfDay();
+        abort_if($start->diffInDays($end) > 31, 422, 'ช่วงรายงานไม่เกิน 31 วัน');
+        // PostgreSQL stores timestamps with time zones and its session may be in
+        // Asia/Bangkok; keep the offset in query bindings. SQLite test dates are
+        // stored as local wall-clock strings without an offset.
+        $isPostgres = DB::connection()->getDriverName() === 'pgsql';
+        $fromBound = $isPostgres ? $start->toIso8601String() : $start->format('Y-m-d H:i:s');
+        $toBound = $isPostgres ? $end->toIso8601String() : $end->format('Y-m-d H:i:s');
+
+        $user = Auth::guard('staff')->user();
+        $isManager = CustomerAccess::isManager($user);
+        $staffId = $isManager ? ($filters['staff_id'] ?? null) : $user->id;
+        if (! $isManager && ! empty($filters['staff_id']) && (int) $filters['staff_id'] !== (int) $user->id) {
+            abort(403);
+        }
+        $selectedStaff = $staffId ? DB::table('staff_users')->where('id', $staffId)->first(['id', 'name', 'salesperson_code']) : null;
+        $routeCode = trim((string) ($filters['route_code'] ?? ''));
+
+        $visitsQuery = DB::table('crm_customer_visits as v')
+            ->leftJoin('staff_users as s', 's.id', '=', 'v.staff_user_id')
+            ->leftJoin('crm_leads as l', 'l.id', '=', 'v.crm_lead_id')
+            ->leftJoin('erp_customers as c', function ($join): void {
+                $join->on('c.id', '=', DB::raw('COALESCE(v.erp_customer_id, l.converted_erp_customer_id)'));
+            })
+            ->where('v.visited_at', '>=', $fromBound)
+            ->where('v.visited_at', '<', $toBound)
+            ->when($staffId, fn ($q) => $q->where('v.staff_user_id', $staffId))
+            ->when($routeCode !== '', fn ($q) => $q->where('c.route_code', $routeCode))
+            ->select('v.id', 'v.visited_at', 'v.plan_stop_id', 'v.erp_customer_id', 'v.crm_lead_id', 'v.staff_user_id', 's.name as staff_name', 'v.result', 'v.shop_type',
+                'v.shop_phone', 'v.supplier_name', 'v.product_types', 'v.customer_issues', 'v.customer_feedback',
+                'v.follow_up_action', 'v.follow_up_date', 'v.note', 'c.route_code', 'c.route_name', 'c.erp_customer_code',
+                DB::raw('COALESCE(c.customer_name, l.shop_name) as shop_name'))
+            ->orderBy('v.visited_at')->orderBy('v.id');
+        $visits = $visitsQuery->limit(201)->get();
+        abort_if($visits->count() > 200, 422, 'พบการเข้าพบเกิน 200 รายการ กรุณาลดช่วงวันที่หรือเลือกพนักงาน');
+        $photos = DB::table('crm_visit_photos')->whereIn('visit_id', $visits->pluck('id'))
+            ->select('id', 'visit_id', 'category')->orderBy('id')->get()->groupBy('visit_id');
+        foreach ($visits as $visit) {
+            $visit->photos = ($photos[$visit->id] ?? collect())->take(2)->values();
+        }
+
+        // Only tasks originating from the selected visits are included. Their
+        // status is current, not reconstructed as of a historical report date.
+        $followUps = DB::table('crm_follow_up_tasks as t')
+            ->join('crm_customer_visits as v', 'v.id', '=', 't.visit_id')
+            ->leftJoin('erp_customers as c', 'c.id', '=', 'v.erp_customer_id')
+            ->leftJoin('crm_leads as l', 'l.id', '=', 'v.crm_lead_id')
+            ->whereIn('t.visit_id', $visits->pluck('id'))
+            ->when(! $isManager, fn ($q) => $q->where('t.assigned_to', $user->id))
+            ->select('t.id', 't.visit_id', 't.title', 't.due_date', 't.status', DB::raw('COALESCE(c.customer_name, l.shop_name) as shop_name'))
+            ->orderBy('t.due_date')->orderBy('t.id')->get();
+
+        // Stages and task statuses are current snapshots: the database does not
+        // retain enough history to reconstruct their exact past state.
+        $pipeline = DB::table('crm_leads as l')
+            ->leftJoin('erp_customers as ec', 'ec.id', '=', 'l.converted_erp_customer_id')
+            ->where('l.created_at', '<', $toBound)
+            ->when($staffId, fn ($q) => $q->where('l.owner_staff_id', $staffId))
+            ->when($routeCode !== '', fn ($q) => $q->where('ec.route_code', $routeCode))
+            ->groupBy('l.pipeline_stage')
+            ->select('l.pipeline_stage', DB::raw('COUNT(*) as total'))->orderBy('l.pipeline_stage')->get();
+
+        $planStops = DB::table('crm_visit_plan_stops as ps')
+            ->join('crm_visit_plans as p', 'p.id', '=', 'ps.plan_id')
+            ->leftJoin('erp_customers as ec', 'ec.id', '=', 'ps.erp_customer_id')
+            ->leftJoin('crm_leads as lead', 'lead.id', '=', 'ps.crm_lead_id')
+            ->leftJoin('erp_customers as lec', 'lec.id', '=', 'lead.converted_erp_customer_id')
+            ->whereBetween('p.visit_date', [$filters['from'], $filters['to']])
+            ->when($staffId, fn ($q) => $q->where('p.assigned_to', $staffId))
+            ->when($routeCode !== '', fn ($q) => $q->where(function ($w) use ($routeCode): void {
+                $w->where('ec.route_code', $routeCode)->orWhere('lec.route_code', $routeCode);
+            }))
+            ->select('ps.id')->get();
+        $completedPlanStops = $visits->pluck('plan_stop_id')->filter()->unique()->intersect($planStops->pluck('id'));
+        $nextWeekEnd = Carbon::parse($filters['to'], 'Asia/Bangkok')->addDays(7)->toDateString();
+        $upcomingStops = DB::table('crm_visit_plan_stops as ps')
+            ->join('crm_visit_plans as p', 'p.id', '=', 'ps.plan_id')
+            ->join('staff_users as assigned', 'assigned.id', '=', 'p.assigned_to')
+            ->leftJoin('erp_customers as ec', 'ec.id', '=', 'ps.erp_customer_id')
+            ->leftJoin('crm_leads as lead', 'lead.id', '=', 'ps.crm_lead_id')
+            ->leftJoin('erp_customers as lec', 'lec.id', '=', 'lead.converted_erp_customer_id')
+            ->where('p.visit_date', '>', $filters['to'])->where('p.visit_date', '<=', $nextWeekEnd)
+            ->when($staffId, fn ($q) => $q->where('p.assigned_to', $staffId))
+            ->when($routeCode !== '', fn ($q) => $q->where(function ($w) use ($routeCode): void {
+                $w->where('ec.route_code', $routeCode)->orWhere('lec.route_code', $routeCode);
+            }))
+            ->select('ps.id', 'ps.status', 'ps.stop_order', 'p.visit_date', 'p.route_name', 'assigned.name as staff_name',
+                DB::raw('COALESCE(ec.customer_name, lead.shop_name) as shop_name'))
+            ->orderBy('p.visit_date')->orderBy('p.id')->orderBy('ps.stop_order')->limit(201)->get();
+        abort_if($upcomingStops->count() > 200, 422, 'พบแผนถัดไปเกิน 200 จุด กรุณาเลือกพนักงานหรือสาย');
+
+        // Sales targets are not allocated across dates or routes. A target can
+        // be compared only when a single staff target matches the exact period.
+        $target = null;
+        if ($staffId && $routeCode === '') {
+            $matchingTargets = DB::table('crm_sales_targets')
+                ->where('staff_user_id', $staffId)->whereDate('period_start', $filters['from'])
+                ->whereDate('period_end', $filters['to'])->get(['target_amount', 'target_visits']);
+            if ($matchingTargets->count() === 1) {
+                $target = $matchingTargets->first();
+            }
+        }
+
+        // Sales are attributed using the salesperson recorded on the invoice.
+        // A selected staff member without a confirmed ERP code gets no invented total.
+        $sales = null;
+        $dailySales = [];
+        $salespersonCode = $selectedStaff ? trim((string) $selectedStaff->salesperson_code) : null;
+        if (! $selectedStaff || ($salespersonCode !== '' && $salespersonCode !== '0')) {
+            $salesQuery = DB::table('erp_sales_invoices as inv')
+                ->leftJoin('erp_customers as ec', function ($join): void {
+                    $join->on('ec.source_system', '=', 'inv.source_system')->on('ec.erp_customer_code', '=', 'inv.erp_customer_code');
+                })
+                ->where('inv.sold_at', '>=', $fromBound)
+                ->where('inv.sold_at', '<', $toBound)
+                ->when($selectedStaff, fn ($q) => $q->where('inv.salesperson_code', $salespersonCode))
+                ->when($routeCode !== '', fn ($q) => $q->where('ec.route_code', $routeCode));
+            CustomerAccess::applyInvoiceScope($salesQuery, 'inv', $user);
+            SalesRules::applyActualSalesScope($salesQuery, 'inv');
+            $sales = (clone $salesQuery)->selectRaw("COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as net_before_vat, SUM(CASE WHEN inv.doc_category = 'sale' THEN 1 ELSE 0 END) as sale_count, SUM(CASE WHEN inv.doc_category = 'return' THEN 1 ELSE 0 END) as return_count")->first();
+            $dayExpression = $isPostgres
+                ? "DATE(inv.sold_at AT TIME ZONE 'Asia/Bangkok')"
+                : 'DATE(inv.sold_at)';
+            $dailySales = (clone $salesQuery)->selectRaw("{$dayExpression} as sale_date, COALESCE(SUM(COALESCE(inv.before_vat_amount, inv.net_amount)), 0) as net_before_vat")
+                ->groupByRaw($dayExpression)->orderBy('sale_date')->get();
+        }
+        $staff = DB::table('staff_users')->where('is_active', true)
+            ->when(! $isManager, fn ($q) => $q->where('id', $user->id))
+            ->orderBy('name')->get(['id', 'name']);
+        $latestInvoice = DB::table('erp_sales_invoices as inv');
+        CustomerAccess::applyInvoiceScope($latestInvoice, 'inv', $user);
+        SalesRules::applyActualSalesScope($latestInvoice, 'inv');
+
+        return response()->json([
+            'filters' => ['from' => $filters['from'], 'to' => $filters['to'], 'staff_id' => $staffId, 'route_code' => $routeCode],
+            'staff' => $staff, 'selected_staff' => $selectedStaff ? ['id' => $selectedStaff->id, 'name' => $selectedStaff->name] : null,
+            'visits' => $visits, 'sales' => $sales, 'daily_sales' => $dailySales,
+            'follow_ups' => $followUps, 'pipeline' => $pipeline, 'target' => $target,
+            'plan_summary' => ['planned_stops' => $planStops->count(), 'visited_planned_stops' => $completedPlanStops->count()],
+            'upcoming_stops' => $upcomingStops, 'upcoming_through' => $nextWeekEnd,
+            'latest_invoice_at' => $latestInvoice->max('inv.sold_at'),
+            'sales_note' => 'ยอดขายจริงก่อน VAT จาก ERP mirror หลังหักคืน; วันที่ซิงก์ล่าสุดไม่ได้ยืนยันความครบถ้วน',
+        ]);
+    }
+}

@@ -5,6 +5,7 @@ namespace App\Modules\CRM;
 use App\Modules\ERPIntegration\SalesRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -32,36 +33,33 @@ final class FieldController
 
     private function manager(): bool
     {
-        return in_array($this->user()->role, ['admin', 'manager'], true);
+        return CustomerAccess::isManager($this->user());
     }
 
     private function customerAllowed(int $id): bool
     {
-        $q = DB::table('erp_customers')->where('id', $id);
-        if (!$this->manager()) {
-            $q->where('salesperson_code', $this->user()->salesperson_code ?? '__unassigned__');
-        }
-        return $q->exists();
+        return CustomerAccess::query('c', $this->user())->where('c.id', $id)->exists();
     }
 
     private function leadAllowed(int $id): bool
     {
         $q = DB::table('crm_leads')->where('id', $id);
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $q->where('owner_staff_id', $this->user()->id);
         }
+
         return $q->exists();
     }
 
     private function checkSubject(array $d): void
     {
-        if (((int) !empty($d['erp_customer_id']) + (int) !empty($d['crm_lead_id'])) !== 1) {
+        if (((int) ! empty($d['erp_customer_id']) + (int) ! empty($d['crm_lead_id'])) !== 1) {
             throw ValidationException::withMessages(['customer' => 'Specify exactly one ERP customer or CRM lead']);
         }
-        if (!empty($d['erp_customer_id']) && !$this->customerAllowed((int) $d['erp_customer_id'])) {
+        if (! empty($d['erp_customer_id']) && ! $this->customerAllowed((int) $d['erp_customer_id'])) {
             abort(403);
         }
-        if (!empty($d['crm_lead_id']) && !$this->leadAllowed((int) $d['crm_lead_id'])) {
+        if (! empty($d['crm_lead_id']) && ! $this->leadAllowed((int) $d['crm_lead_id'])) {
             abort(403);
         }
     }
@@ -70,8 +68,9 @@ final class FieldController
     {
         $digits = preg_replace('/\D+/', '', (string) $phone);
         if (str_starts_with($digits, '66') && strlen($digits) >= 10) {
-            $digits = '0' . substr($digits, 2);
+            $digits = '0'.substr($digits, 2);
         }
+
         return $digits;
     }
 
@@ -86,6 +85,7 @@ final class FieldController
         $dLat = deg2rad($lat2 - $lat1);
         $dLon = deg2rad($lon2 - $lon1);
         $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
+
         return (int) round(2 * $earthRadius * asin(min(1.0, sqrt($a))));
     }
 
@@ -146,7 +146,7 @@ final class FieldController
                 $matches[] = [
                     'source' => 'lead',
                     'id' => $row->id,
-                    'code' => 'LEAD-' . $row->id,
+                    'code' => 'LEAD-'.$row->id,
                     'name' => $row->shop_name,
                     'phone' => $row->phone,
                     'district' => $row->district,
@@ -262,7 +262,7 @@ final class FieldController
                     ->on('exc.erp_customer_code', '=', 'ec.erp_customer_code');
             });
 
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $q->where('l.owner_staff_id', $this->user()->id);
         }
 
@@ -283,7 +283,7 @@ final class FieldController
         }
         if ($search = trim((string) $r->query('q', ''))) {
             $likeOp = SalesRules::likeOperator();
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $search) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $search).'%';
             $q->where(function ($w) use ($likeOp, $like) {
                 $w->where('l.shop_name', $likeOp, $like)
                     ->orWhere('l.phone', $likeOp, $like)
@@ -418,7 +418,7 @@ final class FieldController
         ]);
 
         $force = $r->boolean('force_create');
-        if (!$force) {
+        if (! $force) {
             $duplicates = $this->findPotentialDuplicates(
                 $d['shop_name'],
                 $d['phone'] ?? null,
@@ -520,7 +520,7 @@ final class FieldController
         }
 
         $force = filter_var($r->input('force_create', false), FILTER_VALIDATE_BOOLEAN);
-        if (!$force) {
+        if (! $force) {
             $duplicates = $this->findPotentialDuplicates(
                 $d['shop_name'],
                 $d['phone'],
@@ -579,22 +579,21 @@ final class FieldController
             ]);
 
             if ($hasLat) {
-                DB::table('crm_customer_locations')->insert([
-                    'crm_lead_id' => $leadId,
-                    'latitude' => (float) $d['latitude'],
-                    'longitude' => (float) $d['longitude'],
-                    'accuracy_m' => isset($d['accuracy_m']) ? (int) $d['accuracy_m'] : null,
-                    'address' => $d['address'] ?? null,
-                    'source' => $d['pin_source'] ?? 'gps',
-                    'pinned_by' => $userId,
-                    'pinned_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
+                $this->upsertCustomerLocation(
+                    null,
+                    (int) $leadId,
+                    (float) $d['latitude'],
+                    (float) $d['longitude'],
+                    isset($d['accuracy_m']) ? (int) $d['accuracy_m'] : null,
+                    $d['pin_source'] ?? 'gps',
+                    $userId,
+                    $d['address'] ?? null,
+                    $now
+                );
             }
 
             if ($storedPath !== null && $photoMeta !== null) {
-                $finalPath = "leads/{$leadId}/" . basename($storedPath);
+                $finalPath = "leads/{$leadId}/".basename($storedPath);
                 Storage::disk('local')->move($storedPath, $finalPath);
                 $storedPath = $finalPath;
                 DB::table('crm_lead_photos')->insert([
@@ -616,11 +615,11 @@ final class FieldController
                 ]);
             }
 
-            if (!empty($d['follow_up_action']) || !empty($d['next_follow_up_date'])) {
+            if (! empty($d['follow_up_action']) || ! empty($d['next_follow_up_date'])) {
                 DB::table('crm_follow_up_tasks')->insert([
                     'crm_lead_id' => $leadId,
                     'assigned_to' => $userId,
-                    'title' => $d['follow_up_action'] ?? ('ติดตามร้านค้าใหม่: ' . trim($d['shop_name'])),
+                    'title' => $d['follow_up_action'] ?? ('ติดตามร้านค้าใหม่: '.trim($d['shop_name'])),
                     'due_date' => $d['next_follow_up_date'] ?? null,
                     'status' => 'open',
                     'created_at' => $now,
@@ -725,7 +724,7 @@ final class FieldController
                 'updated_at' => now(),
             ]);
 
-            if (!empty($d['follow_up_action'])) {
+            if (! empty($d['follow_up_action'])) {
                 DB::table('crm_follow_up_tasks')->insert([
                     'crm_lead_id' => $id,
                     'assigned_to' => $lead->owner_staff_id,
@@ -748,7 +747,7 @@ final class FieldController
 
     public function reviewLead(Request $r, int $id): JsonResponse
     {
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             abort(403, 'เฉพาะผู้จัดการหรือผู้ดูแลระบบเท่านั้นที่อนุมัติได้');
         }
         $lead = DB::table('crm_leads')->where('id', $id)->first();
@@ -824,7 +823,7 @@ final class FieldController
         }
         $hasLat = isset($d['latitude']) && isset($d['longitude']);
         $file = $r->file('photo');
-        $path = $file->store('leads/' . $id, 'local');
+        $path = $file->store('leads/'.$id, 'local');
         $photoId = DB::table('crm_lead_photos')->insertGetId([
             'crm_lead_id' => $id,
             'storage_path' => $path,
@@ -843,6 +842,7 @@ final class FieldController
             'updated_at' => now(),
         ]);
         $this->recordAudit('crm_lead', $id, 'photo_uploaded', ['photo_id' => $photoId, 'category' => $cat]);
+
         return response()->json(['id' => $photoId, 'category' => $cat], 201);
     }
 
@@ -857,6 +857,7 @@ final class FieldController
                 'Cache-Control' => 'private, max-age=300',
             ]);
         }
+
         return Storage::disk('local')->download($p->storage_path);
     }
 
@@ -881,13 +882,14 @@ final class FieldController
         ]);
 
         $this->recordAudit('crm_lead', $id, 'task_added', ['task_id' => $taskId, 'title' => $d['title']]);
+
         return response()->json(['id' => $taskId], 201);
     }
 
     public function importTemplate()
     {
-        $csv = "\xEF\xBB\xBF" . "shop_name,phone,shop_type,district,address,line_contact,notes\n"
-            . "ร้านตัวอย่าง (ลบแถวนี้ก่อนนำเข้า),0812345678,ร้านขายของชำ,เมือง,123 ถ.ตัวอย่าง,@sample,หมายเหตุ\n";
+        $csv = "\xEF\xBB\xBF"."shop_name,phone,shop_type,district,address,line_contact,notes\n"
+            ."ร้านตัวอย่าง (ลบแถวนี้ก่อนนำเข้า),0812345678,ร้านขายของชำ,เมือง,123 ถ.ตัวอย่าง,@sample,หมายเหตุ\n";
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -909,7 +911,7 @@ final class FieldController
         // Handle UTF-8 BOM or Thai Windows-874/TIS-620 encoding
         if (str_starts_with($raw, "\xEF\xBB\xBF")) {
             $raw = substr($raw, 3);
-        } elseif (!mb_check_encoding($raw, 'UTF-8')) {
+        } elseif (! mb_check_encoding($raw, 'UTF-8')) {
             $raw = mb_convert_encoding($raw, 'UTF-8', 'TIS-620,Windows-874,ISO-8859-1');
         }
 
@@ -936,6 +938,7 @@ final class FieldController
                     return (int) $idx;
                 }
             }
+
             return null;
         };
 
@@ -984,6 +987,7 @@ final class FieldController
                         'shop_name' => $shopName,
                         'reason' => implode(', ', $dups[0]['match_reasons']),
                     ];
+
                     continue;
                 }
 
@@ -1025,18 +1029,85 @@ final class FieldController
         ]);
     }
 
-    public function pins(): JsonResponse
+    private function upsertCustomerLocation(
+        ?int $erpCustomerId,
+        ?int $crmLeadId,
+        float $latitude,
+        float $longitude,
+        ?int $accuracyM,
+        string $source,
+        int $staffUserId,
+        ?string $address = null,
+        ?\DateTimeInterface $timestamp = null,
+        bool $preserveManualPin = false
+    ): void {
+        $now = $timestamp ?? now();
+        $where = $erpCustomerId !== null
+            ? ['erp_customer_id' => $erpCustomerId]
+            : ['crm_lead_id' => $crmLeadId];
+
+        $existing = DB::table('crm_customer_locations')->where($where)->first();
+        if ($existing && $preserveManualPin && in_array($existing->source, ['manual', 'map_link'], true)) {
+            return;
+        }
+
+        $payload = [
+            'erp_customer_id' => $erpCustomerId,
+            'crm_lead_id' => $crmLeadId,
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+            'accuracy_m' => $accuracyM,
+            'source' => $source,
+            'pinned_by' => $staffUserId,
+            'pinned_at' => $now,
+            'updated_at' => $now,
+        ];
+        if ($address !== null) {
+            $payload['address'] = $address;
+        }
+
+        if ($existing) {
+            DB::table('crm_customer_locations')->where('id', $existing->id)->update($payload);
+        } else {
+            DB::table('crm_customer_locations')->insert([
+                ...$payload,
+                'created_at' => $now,
+            ]);
+        }
+    }
+
+    public function mapStaff(): JsonResponse
     {
-        $q = DB::table('crm_customer_locations as l')
+        abort_unless($this->manager(), 403);
+
+        return response()->json(DB::table('staff_users')->where('role', 'sales')->where('is_active', true)
+            ->orderBy('name')->get(['id', 'name']));
+    }
+
+    public function pins(Request $request): JsonResponse
+    {
+        $isManager = $this->manager();
+        $user = $this->user();
+        $filters = $request->validate(['staff_id' => ['nullable', 'integer', 'exists:staff_users,id']]);
+        $scopeUser = $user;
+        if (! empty($filters['staff_id'])) {
+            abort_unless($isManager || (int) $filters['staff_id'] === (int) $user->id, 403);
+            if ($isManager) {
+                $scopeUser = DB::table('staff_users')->where('id', $filters['staff_id'])->where('role', 'sales')->where('is_active', true)->first();
+                abort_unless($scopeUser, 422, 'เลือกพนักงานขายที่ใช้งานอยู่');
+            }
+        }
+        $applyScope = function ($q) use ($scopeUser): void {
+            CustomerAccess::applyActiveCustomerFilter($q, 'c', true);
+            CustomerAccess::applyCustomerAndLeadScope($q, 'c', 'd', $scopeUser);
+        };
+
+        $pinnedQuery = DB::table('crm_customer_locations as l')
             ->leftJoin('erp_customers as c', 'c.id', '=', 'l.erp_customer_id')
             ->leftJoin('crm_leads as d', 'd.id', '=', 'l.crm_lead_id');
-        if (!$this->manager()) {
-            $q->where(function ($w) {
-                $w->where('c.salesperson_code', $this->user()->salesperson_code ?? '__unassigned__')
-                    ->orWhere('d.owner_staff_id', $this->user()->id);
-            });
-        }
-        return response()->json($q->select(
+        $applyScope($pinnedQuery);
+
+        $pins = $pinnedQuery->select(
             'l.id',
             'l.erp_customer_id',
             'l.crm_lead_id',
@@ -1048,12 +1119,281 @@ final class FieldController
             'l.pinned_at',
             'c.customer_name',
             'c.erp_customer_code',
+            'c.phone as erp_phone',
+            'c.province as erp_province',
+            'c.address as erp_address',
+            'c.salesperson_name as erp_salesperson_name',
             'd.shop_name',
             'd.shop_type',
             'd.pipeline_stage',
             'd.approval_status',
-            'd.converted_erp_customer_id'
-        )->limit(1000)->get());
+            'd.converted_erp_customer_id',
+            'd.phone as lead_phone',
+            'd.province as lead_province',
+            'd.district as lead_district',
+            'd.address as lead_address',
+            'd.owner_staff_id as lead_owner_staff_id'
+        )->limit(1000)->get()->all();
+
+        $seen = [];
+        foreach ($pins as $pin) {
+            if ($pin->erp_customer_id !== null) {
+                $seen['erp:'.$pin->erp_customer_id] = true;
+            }
+            if ($pin->crm_lead_id !== null) {
+                $seen['lead:'.$pin->crm_lead_id] = true;
+            }
+        }
+
+        if (count($pins) < 1000) {
+            $visitQuery = DB::table('crm_customer_visits as v')
+                ->leftJoin('erp_customers as c', 'c.id', '=', 'v.erp_customer_id')
+                ->leftJoin('crm_leads as d', 'd.id', '=', 'v.crm_lead_id')
+                ->whereNotNull('v.checkin_latitude')
+                ->whereNotNull('v.checkin_longitude')
+                ->orderByDesc('v.visited_at')
+                ->orderByDesc('v.id');
+            $applyScope($visitQuery);
+
+            $visitPins = $visitQuery->select(
+                'v.id',
+                'v.erp_customer_id',
+                'v.crm_lead_id',
+                'v.checkin_latitude as latitude',
+                'v.checkin_longitude as longitude',
+                'v.checkin_accuracy_m as accuracy_m',
+                DB::raw('NULL as address'),
+                DB::raw("'visit_gps' as source"),
+                DB::raw('COALESCE(v.checkin_at, v.visited_at) as pinned_at'),
+                'c.customer_name',
+                'c.erp_customer_code',
+                'c.phone as erp_phone',
+                'c.province as erp_province',
+                'c.address as erp_address',
+                'c.salesperson_name as erp_salesperson_name',
+                'd.shop_name',
+                'd.shop_type',
+                'd.pipeline_stage',
+                'd.approval_status',
+                'd.converted_erp_customer_id',
+                'd.phone as lead_phone',
+                'd.province as lead_province',
+                'd.district as lead_district',
+                'd.address as lead_address',
+                'd.owner_staff_id as lead_owner_staff_id'
+            )->limit(1000)->get();
+
+            foreach ($visitPins as $vp) {
+                $key = $vp->erp_customer_id !== null
+                    ? 'erp:'.$vp->erp_customer_id
+                    : ($vp->crm_lead_id !== null ? 'lead:'.$vp->crm_lead_id : null);
+                if ($key === null || isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $vp->id = 'visit-'.$vp->id;
+                $pins[] = $vp;
+                if (count($pins) >= 1000) {
+                    break;
+                }
+            }
+        }
+
+        return response()->json($this->enrichPinsWithVisitsAndPhotos($pins, CustomerAccess::isManager($scopeUser), (int) $scopeUser->id));
+    }
+
+    private function enrichPinsWithVisitsAndPhotos(array $pins, bool $isManager, int $userId): array
+    {
+        if ($pins === []) {
+            return [];
+        }
+
+        $erpIds = [];
+        $leadIds = [];
+        $authorizedLeadIds = [];
+        foreach ($pins as $pin) {
+            if ($pin->erp_customer_id !== null) {
+                $erpIds[(int) $pin->erp_customer_id] = true;
+            }
+            if ($pin->crm_lead_id !== null) {
+                $leadId = (int) $pin->crm_lead_id;
+                $leadIds[$leadId] = true;
+                if ($isManager || (int) ($pin->lead_owner_staff_id ?? 0) === $userId) {
+                    $authorizedLeadIds[$leadId] = true;
+                }
+            }
+        }
+
+        $visitCountByKey = [];
+        $latestVisitByKey = [];
+        $visitPinKeys = [];
+
+        if ($erpIds !== [] || $leadIds !== []) {
+            $visits = DB::table('crm_customer_visits as v')
+                ->leftJoin('staff_users as s', 's.id', '=', 'v.staff_user_id')
+                ->where(function ($w) use ($erpIds, $leadIds): void {
+                    if ($erpIds !== []) {
+                        $w->orWhereIn('v.erp_customer_id', array_keys($erpIds));
+                    }
+                    if ($leadIds !== []) {
+                        $w->orWhereIn('v.crm_lead_id', array_keys($leadIds));
+                    }
+                })
+                ->when(! $isManager, fn ($q) => $q->where('v.staff_user_id', $userId))
+                ->select(
+                    'v.id',
+                    'v.erp_customer_id',
+                    'v.crm_lead_id',
+                    'v.visited_at',
+                    'v.checkin_at',
+                    'v.result',
+                    'v.note',
+                    'v.follow_up_action',
+                    'v.follow_up_date',
+                    'v.supplier_name',
+                    'v.product_types',
+                    's.name as staff_name'
+                )
+                ->orderByDesc('v.visited_at')
+                ->orderByDesc('v.id')
+                ->limit(2000)
+                ->get();
+
+            foreach ($visits as $v) {
+                $keys = [];
+                if ($v->erp_customer_id !== null) {
+                    $keys[] = 'erp:'.$v->erp_customer_id;
+                }
+                if ($v->crm_lead_id !== null) {
+                    $keys[] = 'lead:'.$v->crm_lead_id;
+                }
+                foreach ($keys as $k) {
+                    $visitCountByKey[$k] = ($visitCountByKey[$k] ?? 0) + 1;
+                    if (! isset($latestVisitByKey[$k])) {
+                        $latestVisitByKey[$k] = [
+                            'id' => (int) $v->id,
+                            'visited_at' => $v->visited_at,
+                            'checkin_at' => $v->checkin_at,
+                            'result' => $v->result,
+                            'staff_name' => $v->staff_name,
+                            'note' => $v->note,
+                            'follow_up_action' => $v->follow_up_action,
+                            'follow_up_date' => $v->follow_up_date,
+                            'supplier_name' => $v->supplier_name,
+                            'product_types' => $v->product_types,
+                        ];
+                    }
+                    $visitPinKeys[(int) $v->id][] = $k;
+                }
+            }
+        }
+
+        $photosByKey = [];
+        $appendPhoto = static function (string $key, array $photo) use (&$photosByKey): void {
+            $dedup = $photo['kind'].':'.$photo['id'];
+            $photosByKey[$key][$dedup] = $photo;
+        };
+
+        if ($visitPinKeys !== []) {
+            $visitPhotos = DB::table('crm_visit_photos')
+                ->whereIn('visit_id', array_keys($visitPinKeys))
+                ->orderByDesc('captured_at')
+                ->orderByDesc('id')
+                ->limit(3000)
+                ->get();
+
+            foreach ($visitPhotos as $p) {
+                $item = [
+                    'id' => (int) $p->id,
+                    'kind' => 'visit',
+                    'url' => "/api/crm/photos/{$p->id}?inline=1",
+                    'category' => $p->category,
+                    'captured_at' => $p->captured_at ?? $p->created_at,
+                    'consent_confirmed' => (bool) $p->consent_confirmed,
+                    'compressed_on_client' => (bool) ($p->compressed_on_client ?? false),
+                    'latitude' => $p->latitude,
+                    'longitude' => $p->longitude,
+                    'visit_id' => (int) $p->visit_id,
+                ];
+                foreach ($visitPinKeys[(int) $p->visit_id] ?? [] as $k) {
+                    $appendPhoto($k, $item);
+                }
+            }
+        }
+
+        if ($authorizedLeadIds !== []) {
+            $leadPhotos = DB::table('crm_lead_photos')
+                ->whereIn('crm_lead_id', array_keys($authorizedLeadIds))
+                ->orderByDesc('captured_at')
+                ->orderByDesc('id')
+                ->limit(2000)
+                ->get();
+
+            foreach ($leadPhotos as $p) {
+                $appendPhoto('lead:'.$p->crm_lead_id, [
+                    'id' => (int) $p->id,
+                    'kind' => 'lead',
+                    'url' => "/api/crm/lead-photos/{$p->id}?inline=1",
+                    'category' => $p->category,
+                    'captured_at' => $p->captured_at ?? $p->created_at,
+                    'consent_confirmed' => (bool) $p->consent_confirmed,
+                    'compressed_on_client' => (bool) ($p->compressed_on_client ?? false),
+                    'latitude' => $p->latitude,
+                    'longitude' => $p->longitude,
+                    'crm_lead_id' => (int) $p->crm_lead_id,
+                ]);
+            }
+        }
+
+        foreach ($pins as $pin) {
+            $keys = [];
+            if ($pin->erp_customer_id !== null) {
+                $keys[] = 'erp:'.$pin->erp_customer_id;
+            }
+            if ($pin->crm_lead_id !== null) {
+                $keys[] = 'lead:'.$pin->crm_lead_id;
+            }
+
+            $latestVisit = null;
+            $visitCount = 0;
+            $mergedPhotos = [];
+            foreach ($keys as $k) {
+                $visitCount = max($visitCount, $visitCountByKey[$k] ?? 0);
+                if ($latestVisit === null && isset($latestVisitByKey[$k])) {
+                    $latestVisit = $latestVisitByKey[$k];
+                }
+                foreach ($photosByKey[$k] ?? [] as $dedup => $photo) {
+                    $mergedPhotos[$dedup] = $photo;
+                }
+            }
+
+            $photoList = array_values($mergedPhotos);
+            usort($photoList, static fn ($a, $b) => strcmp((string) ($b['captured_at'] ?? ''), (string) ($a['captured_at'] ?? '')) ?: ($b['id'] <=> $a['id']));
+
+            $pin->phone = $pin->erp_phone ?? $pin->lead_phone ?? null;
+            $pin->province = $pin->erp_province ?? $pin->lead_province ?? null;
+            $pin->district = $pin->lead_district ?? null;
+            $pin->shop_address = $pin->address ?? $pin->lead_address ?? $pin->erp_address ?? null;
+            $pin->salesperson_name = $pin->erp_salesperson_name ?? null;
+            $pin->visit_count = $visitCount;
+            $pin->latest_visit = $latestVisit;
+            $pin->photo_count = count($photoList);
+            $pin->photos = array_slice($photoList, 0, 12);
+
+            unset(
+                $pin->erp_phone,
+                $pin->erp_province,
+                $pin->erp_address,
+                $pin->erp_salesperson_name,
+                $pin->lead_phone,
+                $pin->lead_province,
+                $pin->lead_district,
+                $pin->lead_address,
+                $pin->lead_owner_staff_id
+            );
+        }
+
+        return $pins;
     }
 
     public function storePin(Request $r): JsonResponse
@@ -1068,75 +1408,291 @@ final class FieldController
             'source' => ['required', Rule::in(['gps', 'manual', 'map_link'])],
         ]);
         $this->checkSubject($d);
-        $where = !empty($d['erp_customer_id'])
-            ? ['erp_customer_id' => $d['erp_customer_id']]
-            : ['crm_lead_id' => $d['crm_lead_id']];
-        DB::table('crm_customer_locations')->updateOrInsert($where, [
-            ...$d,
-            'pinned_by' => $this->user()->id,
-            'pinned_at' => now(),
-            'updated_at' => now(),
-        ]);
-        if (!empty($d['crm_lead_id'])) {
+        $this->upsertCustomerLocation(
+            ! empty($d['erp_customer_id']) ? (int) $d['erp_customer_id'] : null,
+            ! empty($d['crm_lead_id']) ? (int) $d['crm_lead_id'] : null,
+            (float) $d['latitude'],
+            (float) $d['longitude'],
+            isset($d['accuracy_m']) ? (int) $d['accuracy_m'] : null,
+            $d['source'],
+            $this->user()->id,
+            $d['address'] ?? null
+        );
+        if (! empty($d['crm_lead_id'])) {
             $this->recordAudit('crm_lead', (int) $d['crm_lead_id'], 'pin_updated', [
                 'latitude' => $d['latitude'],
                 'longitude' => $d['longitude'],
                 'source' => $d['source'],
             ]);
         }
+
         return response()->json(['ok' => true]);
     }
 
     public function plans(Request $r): JsonResponse
     {
-        $q = DB::table('crm_visit_plans');
-        if (!$this->manager()) {
-            $q->where('assigned_to', $this->user()->id);
+        $q = DB::table('crm_visit_plans as p')
+            ->leftJoin('staff_users as s', 's.id', '=', 'p.assigned_to');
+        if (! $this->manager()) {
+            $q->where('p.assigned_to', $this->user()->id);
         }
-        return response()->json($q->orderByDesc('visit_date')->limit(100)->get());
+
+        $plans = $q->select(
+            'p.*',
+            's.name as assigned_name',
+            's.salesperson_code as assigned_salesperson_code',
+            's.reservation_doc_types as assigned_reservation_doc_types'
+        )
+            ->orderByDesc('p.visit_date')
+            ->orderByDesc('p.id')
+            ->limit(100)
+            ->get();
+
+        if ($plans->isEmpty()) {
+            return response()->json([]);
+        }
+
+        $planIds = $plans->pluck('id')->map(fn ($v) => (int) $v)->all();
+        $stopsRows = DB::table('crm_visit_plan_stops as st')
+            ->leftJoin('erp_customers as c', 'c.id', '=', 'st.erp_customer_id')
+            ->leftJoin('crm_leads as l', 'l.id', '=', 'st.crm_lead_id')
+            ->leftJoin('crm_customer_locations as loc_c', 'loc_c.erp_customer_id', '=', 'st.erp_customer_id')
+            ->leftJoin('crm_customer_locations as loc_l', 'loc_l.crm_lead_id', '=', 'st.crm_lead_id')
+            ->whereIn('st.plan_id', $planIds)
+            ->select(
+                'st.id',
+                'st.plan_id',
+                'st.stop_order',
+                'st.erp_customer_id',
+                'st.crm_lead_id',
+                'st.status',
+                DB::raw('COALESCE(c.customer_name, l.shop_name) as shop_name'),
+                DB::raw("COALESCE(c.erp_customer_code, CONCAT('LEAD-', l.id)) as code"),
+                DB::raw('COALESCE(c.phone, l.phone) as phone'),
+                DB::raw('COALESCE(c.province, l.province) as province'),
+                DB::raw('COALESCE(c.address, l.address) as address'),
+                DB::raw('COALESCE(loc_c.latitude, loc_l.latitude) as latitude'),
+                DB::raw('COALESCE(loc_c.longitude, loc_l.longitude) as longitude')
+            )
+            ->orderBy('st.stop_order')
+            ->orderBy('st.id')
+            ->get()
+            ->groupBy('plan_id');
+
+        foreach ($plans as $plan) {
+            $planStops = $stopsRows->get($plan->id, collect())->values()->all();
+            $plan->stops = $planStops;
+            $plan->stop_count = count($planStops);
+            $plan->completed_stop_count = collect($planStops)->where('status', 'completed')->count();
+            $plan->assigned_reservation_doc_types = CustomerAccess::reservationDocTypes((object) [
+                'reservation_doc_types' => $plan->assigned_reservation_doc_types,
+            ]);
+        }
+
+        return response()->json($plans);
     }
 
     public function storePlan(Request $r): JsonResponse
     {
-        if (!$this->manager()) {
-            abort(403);
-        }
         $d = $r->validate([
             'route_name' => 'required|string|max:160',
             'visit_date' => 'required|date_format:Y-m-d',
             'district' => 'nullable|string|max:120',
-            'assigned_to' => 'required|integer|exists:staff_users,id',
+            'assigned_to' => 'nullable|integer|exists:staff_users,id',
             'note' => 'nullable|string|max:2000',
+            'auto_fill_mode' => 'nullable|string|in:none,unvisited,inactive,top_sales',
+            'max_stops' => 'nullable|integer|min:1|max:50',
         ]);
+
+        $assignedTo = (int) ($d['assigned_to'] ?? $this->user()->id);
+        if (! $this->manager() && $assignedTo !== (int) $this->user()->id) {
+            abort(403);
+        }
+
         $id = DB::table('crm_visit_plans')->insertGetId([
-            ...$d,
+            'route_name' => $d['route_name'],
+            'visit_date' => $d['visit_date'],
+            'district' => $d['district'] ?? null,
+            'assigned_to' => $assignedTo,
+            'note' => $d['note'] ?? null,
             'created_by' => $this->user()->id,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        return response()->json(['id' => $id], 201);
+
+        $autoMode = $d['auto_fill_mode'] ?? 'none';
+        $addedStops = 0;
+        if ($autoMode !== 'none') {
+            $addedStops = $this->populatePlanStopsFromRoute($id, $assignedTo, $autoMode, (int) ($d['max_stops'] ?? 12));
+        }
+
+        return response()->json(['id' => $id, 'added_stops' => $addedStops], 201);
+    }
+
+    public function autoPopulateStops(Request $r, int $planId): JsonResponse
+    {
+        $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
+        abort_unless($p, 404);
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+            abort(403);
+        }
+
+        $d = $r->validate([
+            'mode' => 'nullable|string|in:unvisited,inactive,top_sales',
+            'max_stops' => 'nullable|integer|min:1|max:50',
+        ]);
+
+        $added = $this->populatePlanStopsFromRoute(
+            $planId,
+            (int) $p->assigned_to,
+            $d['mode'] ?? 'unvisited',
+            (int) ($d['max_stops'] ?? 12)
+        );
+
+        return response()->json(['ok' => true, 'added_stops' => $added]);
+    }
+
+    private function populatePlanStopsFromRoute(int $planId, int $assignedStaffId, string $mode, int $maxStops): int
+    {
+        $staff = DB::table('staff_users')->where('id', $assignedStaffId)->first();
+        if (! $staff) {
+            return 0;
+        }
+
+        $existingErpIds = DB::table('crm_visit_plan_stops')
+            ->where('plan_id', $planId)
+            ->whereNotNull('erp_customer_id')
+            ->pluck('erp_customer_id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        $maxOrder = (int) (DB::table('crm_visit_plan_stops')->where('plan_id', $planId)->max('stop_order') ?? 0);
+
+        $invAgg = SalesRules::customerActualInvoiceSubquery();
+        $visitAgg = DB::table('crm_customer_visits')
+            ->whereNotNull('erp_customer_id')
+            ->groupBy('erp_customer_id')
+            ->select('erp_customer_id', DB::raw('COUNT(*) as visit_count'));
+
+        $q = DB::table('erp_customers as c')
+            ->leftJoinSub($invAgg, 'inv_agg', function ($join): void {
+                $join->on('inv_agg.source_system', '=', 'c.source_system')
+                    ->on('inv_agg.erp_customer_code', '=', 'c.erp_customer_code');
+            })
+            ->leftJoinSub($visitAgg, 'v_agg', 'v_agg.erp_customer_id', '=', 'c.id');
+
+        CustomerAccess::applyActiveCustomerFilter($q, 'c', false);
+
+        if (! CustomerAccess::isManager($staff)) {
+            CustomerAccess::applyCustomerScope($q, 'c', $staff);
+        }
+
+        if ($existingErpIds !== []) {
+            $q->whereNotIn('c.id', $existingErpIds);
+        }
+
+        if ($mode === 'unvisited') {
+            $q->whereRaw('COALESCE(v_agg.visit_count, 0) = 0');
+        } elseif ($mode === 'inactive') {
+            $latestErpDateRaw = DB::table('erp_sales_invoices')->max('sold_at');
+            $refDate = $latestErpDateRaw ? Carbon::parse($latestErpDateRaw) : now();
+            $cutoff = $refDate->copy()->subDays(30)->toDateTimeString();
+            $q->where(function ($w) use ($cutoff): void {
+                $w->whereNull('inv_agg.last_purchase_at')
+                    ->orWhere('inv_agg.last_purchase_at', '<', $cutoff);
+            });
+        }
+
+        $customerIds = $q->orderByDesc(DB::raw('COALESCE(inv_agg.actual_before_vat, 0)'))
+            ->orderBy('c.id')
+            ->limit($maxStops)
+            ->pluck('c.id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        $now = now();
+        $added = 0;
+        foreach ($customerIds as $cid) {
+            $maxOrder++;
+            DB::table('crm_visit_plan_stops')->insert([
+                'plan_id' => $planId,
+                'stop_order' => $maxOrder,
+                'erp_customer_id' => $cid,
+                'crm_lead_id' => null,
+                'status' => 'pending',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+            $added++;
+        }
+
+        return $added;
     }
 
     public function addStop(Request $r, int $planId): JsonResponse
     {
         $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
         abort_unless($p, 404);
-        if (!$this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
         $d = $r->validate([
-            'stop_order' => 'required|integer|min:1|max:500',
+            'stop_order' => 'nullable|integer|min:1|max:500',
             'erp_customer_id' => 'nullable|integer|exists:erp_customers,id',
             'crm_lead_id' => 'nullable|integer|exists:crm_leads,id',
         ]);
         $this->checkSubject($d);
+        $nextOrder = isset($d['stop_order'])
+            ? (int) $d['stop_order']
+            : ((int) (DB::table('crm_visit_plan_stops')->where('plan_id', $planId)->max('stop_order') ?? 0) + 1);
+
         $id = DB::table('crm_visit_plan_stops')->insertGetId([
-            ...$d,
+            'erp_customer_id' => $d['erp_customer_id'] ?? null,
+            'crm_lead_id' => $d['crm_lead_id'] ?? null,
+            'stop_order' => $nextOrder,
             'plan_id' => $planId,
+            'status' => 'pending',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        return response()->json(['id' => $id], 201);
+
+        return response()->json(['id' => $id, 'stop_order' => $nextOrder], 201);
+    }
+
+    public function updateStopStatus(Request $r, int $planId, int $stopId): JsonResponse
+    {
+        $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
+        abort_unless($p, 404);
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+            abort(403);
+        }
+        $d = $r->validate([
+            'status' => 'required|string|in:pending,completed,skipped',
+        ]);
+        DB::table('crm_visit_plan_stops')
+            ->where('id', $stopId)
+            ->where('plan_id', $planId)
+            ->update([
+                'status' => $d['status'],
+                'updated_at' => now(),
+            ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function deleteStop(int $planId, int $stopId): JsonResponse
+    {
+        $p = DB::table('crm_visit_plans')->where('id', $planId)->first();
+        abort_unless($p, 404);
+        if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
+            abort(403);
+        }
+        DB::table('crm_visit_plan_stops')
+            ->where('id', $stopId)
+            ->where('plan_id', $planId)
+            ->delete();
+
+        return response()->json(['ok' => true]);
     }
 
     public function storeFieldVisit(Request $r): JsonResponse
@@ -1178,6 +1734,7 @@ final class FieldController
                 if ((int) $existing->staff_user_id !== (int) $this->user()->id) {
                     return response()->json(['error' => 'Draft ID conflict'], 409);
                 }
+
                 return response()->json([
                     'ok' => true,
                     'id' => $existing->id,
@@ -1188,13 +1745,13 @@ final class FieldController
             }
         }
 
-        if (!empty($d['plan_stop_id'])) {
+        if (! empty($d['plan_stop_id'])) {
             $stop = DB::table('crm_visit_plan_stops as s')
                 ->join('crm_visit_plans as p', 'p.id', '=', 's.plan_id')
                 ->where('s.id', $d['plan_stop_id'])
                 ->first();
             abort_unless($stop, 404);
-            if (!$this->manager() && (int) $stop->assigned_to !== (int) $this->user()->id) {
+            if (! $this->manager() && (int) $stop->assigned_to !== (int) $this->user()->id) {
                 abort(403);
             }
             if ((int) $stop->erp_customer_id !== (int) ($d['erp_customer_id'] ?? 0) || (int) $stop->crm_lead_id !== (int) ($d['crm_lead_id'] ?? 0)) {
@@ -1204,9 +1761,9 @@ final class FieldController
 
         $serverRecordedAt = now();
         $masterId = null;
-        if (!empty($d['crm_lead_id'])) {
+        if (! empty($d['crm_lead_id'])) {
             $masterId = DB::table('crm_customer_masters')->where('crm_lead_id', $d['crm_lead_id'])->value('id');
-        } elseif (!empty($d['erp_customer_id'])) {
+        } elseif (! empty($d['erp_customer_id'])) {
             $masterId = DB::table('crm_customer_masters')->where('erp_customer_id', $d['erp_customer_id'])->value('id');
         }
 
@@ -1228,7 +1785,21 @@ final class FieldController
                     'pipeline_stage' => 'visited', 'updated_by' => $this->user()->id, 'updated_at' => $serverRecordedAt,
                 ]);
             }
-            if (!empty($d['follow_up_action'])) {
+            if (isset($d['checkin_latitude'], $d['checkin_longitude'])) {
+                $this->upsertCustomerLocation(
+                    ! empty($d['erp_customer_id']) ? (int) $d['erp_customer_id'] : null,
+                    ! empty($d['crm_lead_id']) ? (int) $d['crm_lead_id'] : null,
+                    (float) $d['checkin_latitude'],
+                    (float) $d['checkin_longitude'],
+                    isset($d['checkin_accuracy_m']) ? (int) $d['checkin_accuracy_m'] : null,
+                    'gps',
+                    $this->user()->id,
+                    null,
+                    $serverRecordedAt,
+                    preserveManualPin: true
+                );
+            }
+            if (! empty($d['follow_up_action'])) {
                 DB::table('crm_follow_up_tasks')->insert([
                     'visit_id' => $id,
                     'crm_lead_id' => $d['crm_lead_id'] ?? null,
@@ -1239,7 +1810,7 @@ final class FieldController
                     'updated_at' => $serverRecordedAt,
                 ]);
             }
-            if (!empty($d['plan_stop_id'])) {
+            if (! empty($d['plan_stop_id'])) {
                 DB::table('crm_visit_plan_stops')->where('id', $d['plan_stop_id'])->update([
                     'status' => 'visited',
                     'updated_at' => $serverRecordedAt,
@@ -1251,6 +1822,7 @@ final class FieldController
                 'gps_permission_status' => $d['gps_permission_status'] ?? null,
                 'client_draft_id' => $draftId,
             ]);
+
             return $id;
         });
 
@@ -1269,9 +1841,10 @@ final class FieldController
             ->leftJoin('erp_customers as c', 'c.id', '=', 'v.erp_customer_id')
             ->leftJoin('crm_leads as l', 'l.id', '=', 'v.crm_lead_id')
             ->where('v.id', $id);
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $v->where('v.staff_user_id', $this->user()->id);
         }
+
         return $v->exists();
     }
 
@@ -1313,7 +1886,7 @@ final class FieldController
         $file = $r->file('photo');
         $mimeType = $file->getMimeType();
         $sizeBytes = $file->getSize();
-        $path = $file->store('visits/' . $visitId, 'local');
+        $path = $file->store('visits/'.$visitId, 'local');
 
         $id = DB::table('crm_visit_photos')->insertGetId([
             'visit_id' => $visitId,
@@ -1356,6 +1929,7 @@ final class FieldController
                 'Cache-Control' => 'private, max-age=300',
             ]);
         }
+
         return Storage::disk('local')->download($p->storage_path);
     }
 
@@ -1364,9 +1938,10 @@ final class FieldController
         $q = DB::table('crm_follow_up_tasks as t')
             ->leftJoin('crm_leads as l', 'l.id', '=', 't.crm_lead_id')
             ->select('t.*', 'l.shop_name as lead_shop_name');
-        if (!$this->manager()) {
+        if (! $this->manager()) {
             $q->where('t.assigned_to', $this->user()->id);
         }
+
         return response()->json($q->orderBy('t.due_date')->limit(200)->get());
     }
 
@@ -1375,10 +1950,11 @@ final class FieldController
         $q = DB::table('crm_follow_up_tasks')->where('id', $taskId);
         $task = $q->first();
         abort_unless($task, 404);
-        if (!$this->manager() && (int) $task->assigned_to !== (int) $this->user()->id) {
+        if (! $this->manager() && (int) $task->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
         $q->update(['status' => 'done', 'updated_at' => now()]);
+
         return response()->json(['ok' => true]);
     }
 
@@ -1440,7 +2016,7 @@ final class FieldController
             $csvSafe = static function ($value): string {
                 $str = (string) ($value ?? '');
                 if ($str !== '' && in_array($str[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
-                    $str = "'" . $str;
+                    $str = "'".$str;
                 }
 
                 return $str;
@@ -1492,25 +2068,25 @@ final class FieldController
             $trs = '';
             foreach ($rows as $row) {
                 $trs .= '<tr>'
-                    . '<td>' . $esc($row->visited_at) . '</td>'
-                    . '<td>' . $esc($row->staff_name) . '</td>'
-                    . '<td>' . $esc($row->shop_name) . '</td>'
-                    . '<td>' . $esc($row->result) . '</td>'
-                    . '<td>' . $esc($row->supplier_name) . '</td>'
-                    . '<td>' . $esc($row->product_types) . '</td>'
-                    . '<td>' . $esc($row->customer_issues) . '</td>'
-                    . '<td>' . $esc($row->customer_feedback) . '</td>'
-                    . '<td>' . $esc($row->follow_up_action) . '</td>'
-                    . '<td>' . (int) $row->photo_count . '</td>'
-                    . '</tr>';
+                    .'<td>'.$esc($row->visited_at).'</td>'
+                    .'<td>'.$esc($row->staff_name).'</td>'
+                    .'<td>'.$esc($row->shop_name).'</td>'
+                    .'<td>'.$esc($row->result).'</td>'
+                    .'<td>'.$esc($row->supplier_name).'</td>'
+                    .'<td>'.$esc($row->product_types).'</td>'
+                    .'<td>'.$esc($row->customer_issues).'</td>'
+                    .'<td>'.$esc($row->customer_feedback).'</td>'
+                    .'<td>'.$esc($row->follow_up_action).'</td>'
+                    .'<td>'.(int) $row->photo_count.'</td>'
+                    .'</tr>';
             }
             $html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Field Visit Report</title>'
-                . '<style>body{font-family:sans-serif;font-size:12px;margin:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left;vertical-align:top}th{background:#f1f5f9}</style></head><body>'
-                . '<h2>Popstar Field Visit Report (6 Questions)</h2>'
-                . '<p>Generated: ' . $esc(now()->toDateTimeString()) . ' | Total Visits: ' . count($rows) . '</p>'
-                . '<table><thead><tr><th>Visited At</th><th>Sales Rep</th><th>Shop</th><th>Result</th><th>Supplier</th><th>Products</th><th>Issues</th><th>Feedback</th><th>Follow Up</th><th>Photos</th></tr></thead><tbody>'
-                . $trs
-                . '</tbody></table></body></html>';
+                .'<style>body{font-family:sans-serif;font-size:12px;margin:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left;vertical-align:top}th{background:#f1f5f9}</style></head><body>'
+                .'<h2>Popstar Field Visit Report (6 Questions)</h2>'
+                .'<p>Generated: '.$esc(now()->toDateTimeString()).' | Total Visits: '.count($rows).'</p>'
+                .'<table><thead><tr><th>Visited At</th><th>Sales Rep</th><th>Shop</th><th>Result</th><th>Supplier</th><th>Products</th><th>Issues</th><th>Feedback</th><th>Follow Up</th><th>Photos</th></tr></thead><tbody>'
+                .$trs
+                .'</tbody></table></body></html>';
 
             return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
         }

@@ -3,6 +3,7 @@
 namespace App\Modules\CRM;
 
 use App\Modules\ERPIntegration\SalesRules;
+use App\Modules\Loyalty\InvoicePointsSynchronizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,7 @@ final class CustomerMasterController
 
     private function isManager(): bool
     {
-        return in_array($this->user()->role, ['admin', 'manager'], true);
+        return CustomerAccess::isManager($this->user());
     }
 
     private static function clip(?string $value, int $max): ?string
@@ -31,6 +32,7 @@ final class CustomerMasterController
             return null;
         }
         $trimmed = trim($value);
+
         return $trimmed === '' ? null : mb_substr($trimmed, 0, $max, 'UTF-8');
     }
 
@@ -104,12 +106,15 @@ final class CustomerMasterController
         $perPage = max(10, min(100, (int) $request->query('per_page', 25)));
         $page = max(1, (int) $request->query('page', 1));
 
-        // Lazily register any recently synced ERP customers into crm_customer_masters in fast batches
+        // Lazily register any recently synced active ERP customers into crm_customer_masters in fast batches
         $now = now();
         while (true) {
-            $missingErp = DB::table('erp_customers as c')
+            $missingErpQuery = DB::table('erp_customers as c')
                 ->leftJoin('crm_customer_masters as m', 'm.erp_customer_id', '=', 'c.id')
-                ->whereNull('m.id')
+                ->whereNull('m.id');
+            CustomerAccess::applyActiveCustomerFilter($missingErpQuery, 'c', false);
+
+            $missingErp = $missingErpQuery
                 ->orderBy('c.id')
                 ->limit(500)
                 ->select([
@@ -155,33 +160,20 @@ final class CustomerMasterController
             }
         }
 
-        $invAgg = SalesRules::customerActualInvoiceSubquery();
-        $excAgg = SalesRules::customerExcludedItemsSubquery();
-
         $q = DB::table('crm_customer_masters as m')
+            ->whereNull('m.merged_into_customer_master_id')
             ->leftJoin('erp_customers as ec', 'ec.id', '=', 'm.erp_customer_id')
             ->leftJoin('crm_leads as l', 'l.id', '=', 'm.crm_lead_id')
             ->leftJoin('member_erp_links as ml', function ($join): void {
                 $join->on('ml.crm_customer_master_id', '=', 'm.id')
                     ->orOn('ml.erp_customer_id', '=', 'ec.id');
             })
-            ->leftJoin('member_accounts as ma', 'ma.id', '=', 'ml.member_account_id')
-            ->leftJoinSub($invAgg, 'inv', function ($join): void {
-                $join->on('inv.source_system', '=', 'ec.source_system')
-                    ->on('inv.erp_customer_code', '=', 'ec.erp_customer_code');
-            })
-            ->leftJoinSub($excAgg, 'exc', function ($join): void {
-                $join->on('exc.source_system', '=', 'ec.source_system')
-                    ->on('exc.erp_customer_code', '=', 'ec.erp_customer_code');
-            });
+            ->leftJoin('member_accounts as ma', 'ma.id', '=', 'ml.member_account_id');
+
+        CustomerAccess::applyActiveCustomerFilter($q, 'ec', true);
 
         if (! $isManager) {
-            $salesCode = $user->salesperson_code ?? '__unassigned__';
-            $q->where(function ($w) use ($user, $salesCode): void {
-                $w->where('ec.salesperson_code', $salesCode)
-                    ->orWhere('l.owner_staff_id', $user->id)
-                    ->orWhere('l.assigned_salesperson_code', $salesCode);
-            });
+            CustomerAccess::applyCustomerAndLeadScope($q, 'ec', 'l', $user);
         }
 
         if ($search !== '') {
@@ -231,6 +223,7 @@ final class CustomerMasterController
             DB::raw('COALESCE(NULLIF(ec.province, \'\'), m.province) as province'),
             'm.district',
             'm.created_source',
+            'ec.source_system as erp_source_system_join',
             'ec.erp_customer_code',
             'ec.customer_name as erp_customer_name',
             'ec.salesperson_code as erp_salesperson_code',
@@ -246,14 +239,44 @@ final class CustomerMasterController
             'ma.id as member_account_id',
             'ma.name as member_name',
             'ma.phone as member_phone',
-            DB::raw('COALESCE(inv.invoice_count, 0) as invoice_count'),
-            DB::raw('COALESCE(inv.actual_before_vat, 0) - COALESCE(exc.excluded_before_vat, 0) as total_sales_net'),
             DB::raw('(SELECT COALESCE(SUM(lpl.points_delta), 0) FROM loyalty_points_ledger lpl WHERE lpl.member_account_id = ma.id) as member_points_balance')
         )
             ->orderByDesc('m.id')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get();
+
+        // Aggregate invoices & excluded items ONLY for the <=perPage customers on this page
+        $codes = $rows->pluck('erp_customer_code')->filter(fn ($v) => $v !== null && $v !== '')->unique()->values()->all();
+        $invMap = [];
+        $excMap = [];
+        if ($codes !== []) {
+            foreach (SalesRules::customerActualInvoiceSubquery($codes)->get() as $ir) {
+                $invMap[$ir->source_system.'|'.$ir->erp_customer_code] = $ir;
+            }
+            foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
+                $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
+            }
+        }
+
+        $rows = $rows->map(static function ($row) use ($invMap, $excMap) {
+            $key = ($row->erp_source_system_join ?? '').'|'.($row->erp_customer_code ?? '');
+            $inv = $invMap[$key] ?? null;
+            $exc = $excMap[$key] ?? 0.0;
+            $actualBeforeVat = (float) ($inv->actual_before_vat ?? 0);
+            $row->invoice_count = (int) ($inv->invoice_count ?? 0);
+            $row->sale_invoice_count = (int) ($inv->sale_invoice_count ?? 0);
+            $row->return_count = (int) ($inv->return_count ?? 0);
+            $row->gross_purchase_before_vat = (float) ($inv->gross_purchase_before_vat ?? 0);
+            $row->return_amount_before_vat = abs((float) ($inv->return_before_vat ?? 0));
+            $row->net_purchase_before_vat = $actualBeforeVat;
+            $row->last_purchase_at = $inv->last_purchase_at ?? null;
+            $row->total_sales_net = $actualBeforeVat;
+            $row->product_sales_kpi_before_vat = $actualBeforeVat - $exc;
+            unset($row->erp_source_system_join);
+
+            return $row;
+        });
 
         return response()->json([
             'data' => $rows,
@@ -271,7 +294,10 @@ final class CustomerMasterController
      */
     public function show(int $masterId): JsonResponse
     {
-        $master = DB::table('crm_customer_masters')->where('id', $masterId)->first();
+        $requestedMaster = DB::table('crm_customer_masters')->where('id', $masterId)->first();
+        $master = $requestedMaster?->merged_into_customer_master_id
+            ? DB::table('crm_customer_masters')->where('id', $requestedMaster->merged_into_customer_master_id)->first()
+            : $requestedMaster;
         abort_unless($master, 404);
 
         $user = $this->user();
@@ -284,10 +310,7 @@ final class CustomerMasterController
             : null;
 
         if (! $isManager) {
-            $salesCode = $user->salesperson_code ?? '__unassigned__';
-            $allowed = ($erp && $erp->salesperson_code === $salesCode)
-                || ($lead && ((int) $lead->owner_staff_id === (int) $user->id || $lead->assigned_salesperson_code === $salesCode));
-            abort_unless($allowed, 403);
+            abort_unless(CustomerAccess::canAccessCustomerAndLead($erp, $lead, $user), 403);
         }
 
         $memberLink = null;
@@ -329,6 +352,7 @@ final class CustomerMasterController
 
         $visits = DB::table('crm_customer_visits as v')
             ->leftJoin('staff_users as s', 's.id', '=', 'v.staff_user_id')
+            ->when(! $isManager, fn ($q) => $q->where('v.staff_user_id', $user->id))
             ->where(function ($w) use ($erp, $lead, $master): void {
                 $w->where('v.customer_master_id', $master->id);
                 if ($erp) {
@@ -360,15 +384,34 @@ final class CustomerMasterController
             ->get();
 
         $salesSummary = null;
+        $invoiceHistory = collect();
         if ($erp) {
             $salesSummary = SalesRules::summarizeInvoices(function ($query, string $alias) use ($erp): void {
                 $query->where("{$alias}.source_system", $erp->source_system)
                     ->where("{$alias}.erp_customer_code", $erp->erp_customer_code);
             });
+            $invoiceQuery = DB::table('erp_sales_invoices as i')
+                ->where('i.source_system', $erp->source_system)
+                ->where('i.erp_customer_code', $erp->erp_customer_code);
+            SalesRules::applyActualSalesScope($invoiceQuery, 'i');
+            $invoiceHistory = $invoiceQuery->select(
+                'i.id', 'i.branch_code', 'i.doc_type', 'i.dt_properties', 'i.doc_category', 'i.invoice_no',
+                'i.sold_at', 'i.before_vat_amount', 'i.gross_amount', 'i.status'
+            )->orderByDesc('i.sold_at')->limit(25)->get();
+            foreach ($invoiceHistory as $invoice) {
+                $invoice->items = DB::table('erp_sales_items')
+                    ->where('source_system', $erp->source_system)
+                    ->where('branch_code', $invoice->branch_code)
+                    ->where('doc_type', $invoice->doc_type)
+                    ->where('invoice_no', $invoice->invoice_no)
+                    ->select('line_no', 'product_name', 'erp_product_code', 'qty', 'unit_name')
+                    ->orderBy('line_no')->get();
+            }
         }
 
         $followUpTasks = DB::table('crm_follow_up_tasks as t')
             ->leftJoin('crm_customer_visits as v', 'v.id', '=', 't.visit_id')
+            ->when(! $isManager, fn ($q) => $q->where('t.assigned_to', $user->id))
             ->where(function ($q) use ($master, $lead): void {
                 $q->where('v.customer_master_id', $master->id);
                 if ($lead) {
@@ -380,6 +423,9 @@ final class CustomerMasterController
 
         return response()->json([
             'internal_customer' => $master,
+            'requested_internal_customer_id' => (int) $masterId,
+            'identity_aliases' => DB::table('crm_customer_masters')->where('merged_into_customer_master_id', $master->id)
+                ->select('id', 'internal_customer_code', 'display_name', 'created_at')->orderBy('id')->get(),
             'erp_customer' => $erp,
             'crm_lead' => $lead,
             'member_link' => $memberLink,
@@ -388,6 +434,7 @@ final class CustomerMasterController
             'visits' => $visits,
             'follow_up_tasks' => $followUpTasks,
             'sales_summary' => $salesSummary,
+            'invoices' => $invoiceHistory,
             'separation_guarantees' => [
                 'erp_mirror_is_readonly' => true,
                 'erp_sync_preserves_crm_gps_photos_visits' => true,
@@ -448,11 +495,12 @@ final class CustomerMasterController
 
             $now = now();
             if ($duplicateMaster) {
-                // Keep the CRM lead's internal ID and reparent visits before removing the ERP-only row.
+                if ($duplicateMaster->merged_into_customer_master_id) {
+                    abort(409, 'ERP customer belongs to a merged identity alias. Resolve its active customer link first.');
+                }
+                // Keep both immutable Internal IDs. The former ERP-only identity becomes a redirecting alias.
                 DB::table('crm_customer_visits')->where('customer_master_id', $duplicateMaster->id)
                     ->update(['customer_master_id' => $master->id, 'updated_at' => $now]);
-                DB::table('crm_audit_logs')->where('entity_type', 'crm_customer_master')
-                    ->where('entity_id', $duplicateMaster->id)->update(['entity_id' => $master->id]);
                 DB::table('member_verification_requests')->where('crm_customer_master_id', $duplicateMaster->id)
                     ->update(['crm_customer_master_id' => $master->id, 'updated_at' => $now]);
                 if ($erpMemberLink && (int) $erpMemberLink->crm_customer_master_id === (int) $duplicateMaster->id) {
@@ -460,7 +508,16 @@ final class CustomerMasterController
                         'crm_customer_master_id' => $master->id, 'updated_at' => $now,
                     ]);
                 }
-                DB::table('crm_customer_masters')->where('id', $duplicateMaster->id)->delete();
+                DB::table('crm_customer_masters')->where('id', $duplicateMaster->id)->update([
+                    'erp_customer_id' => null,
+                    'erp_source_system' => null,
+                    'erp_customer_code' => null,
+                    'crm_lead_id' => null,
+                    'link_status' => 'merged',
+                    'merged_into_customer_master_id' => $master->id,
+                    'updated_by' => $userId,
+                    'updated_at' => $now,
+                ]);
             }
 
             DB::table('crm_customer_masters')->where('id', $master->id)->update([
@@ -475,11 +532,6 @@ final class CustomerMasterController
             ]);
             DB::table('crm_leads')->where('id', $leadId)->update([
                 'converted_erp_customer_id' => $erp->id,
-                'pipeline_stage' => $lead->pipeline_stage === 'lost' ? 'lost' : 'converted',
-                'approval_status' => 'approved',
-                'approved_by' => $userId,
-                'approved_at' => $now,
-                'approval_note' => $d['note'] ?? $lead->approval_note,
                 'updated_by' => $userId,
                 'updated_at' => $now,
             ]);
@@ -494,7 +546,7 @@ final class CustomerMasterController
             $verifiedMemberLink = DB::table('member_erp_links')->where('crm_customer_master_id', $master->id)
                 ->where('verification_status', 'verified')->whereNotNull('verified_at')->first();
             if ($verifiedMemberLink) {
-                \App\Modules\Loyalty\InvoicePointsSynchronizer::syncCustomer($erp->source_system, $erp->erp_customer_code, $now);
+                InvoicePointsSynchronizer::syncCustomer($erp->source_system, $erp->erp_customer_code, $now);
             }
 
             DB::table('crm_audit_logs')->insert([
@@ -540,6 +592,13 @@ final class CustomerMasterController
         if ($lead->converted_erp_customer_id) {
             return response()->json(['error' => 'CRM customer is already linked to ERP'], 409);
         }
+        $currentStatus = DB::table('crm_customer_masters')->where('crm_lead_id', $leadId)->value('link_status');
+        if ($currentStatus === 'erp_creation_requested') {
+            return response()->json(['ok' => true, 'status' => $currentStatus, 'already_requested' => true]);
+        }
+        if ($currentStatus === 'erp_match_pending') {
+            return response()->json(['error' => 'ERP match candidates are already pending review'], 409);
+        }
         $now = now();
         DB::transaction(function () use ($leadId, $d, $user, $now): void {
             DB::table('crm_customer_masters')->where('crm_lead_id', $leadId)->update([
@@ -551,6 +610,7 @@ final class CustomerMasterController
                 'changes' => json_encode(['note' => $d['note'] ?? null], JSON_UNESCAPED_UNICODE), 'created_at' => $now,
             ]);
         });
+
         return response()->json(['ok' => true, 'status' => 'erp_creation_requested']);
     }
 
@@ -563,6 +623,7 @@ final class CustomerMasterController
             ->where('m.link_status', 'erp_creation_requested')->whereNull('m.erp_customer_id')
             ->select('l.id as crm_lead_id', 'm.id as customer_master_id', 'm.internal_customer_code', 'l.shop_name', 'l.phone', 'l.address', 'l.shop_type', 'l.province', 'l.district', 'l.created_at', 's.name as requested_by')
             ->orderBy('l.created_at')->limit(500)->get();
+
         return response()->json($rows);
     }
 
@@ -578,15 +639,42 @@ final class CustomerMasterController
             ->orderBy('l.id')->limit(1000)->get();
         $erps = DB::table('erp_customers as e')
             ->leftJoin('crm_customer_masters as m', 'm.erp_customer_id', '=', 'e.id')
-            ->where(function ($q): void { $q->whereNull('m.crm_lead_id')->orWhereNull('m.id'); })
+            ->where(function ($q): void {
+                $q->whereNull('m.crm_lead_id')->orWhereNull('m.id');
+            })
             ->select('e.id', 'e.source_system', 'e.erp_customer_code', 'e.customer_name', 'e.phone', 'e.address', 'e.province')
             ->orderBy('e.id')->limit(10000)->get();
+        $erpById = [];
+        $erpNameGramIndex = [];
+        $erpPhoneIndex = [];
+        foreach ($erps as $erp) {
+            $erpById[$erp->id] = $erp;
+            $phone = self::normalizedPhone($erp->phone);
+            if ($phone !== '' && strlen($phone) >= 8) {
+                $erpPhoneIndex[$phone][] = $erp->id;
+            }
+            foreach (self::textGrams($erp->customer_name) as $gram) {
+                $erpNameGramIndex[$gram][] = $erp->id;
+            }
+        }
         $count = 0;
         foreach ($leads as $lead) {
-            foreach ($erps as $erp) {
+            $candidateIds = [];
+            $leadPhone = self::normalizedPhone($lead->phone);
+            if ($leadPhone !== '' && strlen($leadPhone) >= 8) {
+                foreach ($erpPhoneIndex[$leadPhone] ?? [] as $erpId) {
+                    $candidateIds[$erpId] = true;
+                }
+            }
+            foreach (self::textGrams($lead->shop_name) as $gram) {
+                foreach ($erpNameGramIndex[$gram] ?? [] as $erpId) {
+                    $candidateIds[$erpId] = true;
+                }
+            }
+            foreach (array_keys($candidateIds) as $erpId) {
+                $erp = $erpById[$erpId];
                 $nameScore = self::textSimilarity($lead->shop_name, $erp->customer_name);
                 $addressScore = self::textSimilarity($lead->address, $erp->address);
-                $leadPhone = self::normalizedPhone($lead->phone);
                 $phoneMatch = $leadPhone !== '' && strlen($leadPhone) >= 8 && $leadPhone === self::normalizedPhone($erp->phone);
                 $sameProvince = self::normalizedText($lead->province) !== '' && self::normalizedText($lead->province) === self::normalizedText($erp->province);
                 $score = ($phoneMatch ? 60 : 0) + (int) round($nameScore * 45) + (int) round($addressScore * 20) + ($sameProvince ? 8 : 0);
@@ -614,6 +702,7 @@ final class CustomerMasterController
                 $count++;
             }
         }
+
         return response()->json(['ok' => true, 'candidates_refreshed' => $count, 'requires_admin_confirmation' => true]);
     }
 
@@ -637,6 +726,7 @@ final class CustomerMasterController
                 $row->match_reasons = json_decode($row->match_reasons, true) ?: [];
             }
         }
+
         return response()->json($rows);
     }
 
@@ -647,6 +737,7 @@ final class CustomerMasterController
         abort_unless($candidate, 404);
         abort_unless($candidate->status === 'pending', 409, 'Candidate is no longer pending review.');
         $request->merge(['erp_customer_id' => $candidate->erp_customer_id]);
+
         return $this->linkLeadToErp($request, (int) $candidate->crm_lead_id);
     }
 
@@ -673,6 +764,7 @@ final class CustomerMasterController
                 'created_at' => $now,
             ]);
         });
+
         return response()->json(['ok' => true, 'status' => 'dismissed']);
     }
 
@@ -713,6 +805,7 @@ final class CustomerMasterController
                 'created_at' => $now,
             ]);
         });
+
         return response()->json(['ok' => true, 'status' => 'erp_match_pending']);
     }
 
@@ -721,15 +814,22 @@ final class CustomerMasterController
         abort_unless($this->isManager(), 403);
         $master = DB::table('crm_customer_masters')->where('id', $masterId)->first();
         abort_unless($master, 404);
+        $identityIds = DB::table('crm_customer_masters')->where('merged_into_customer_master_id', $master->id)->pluck('id')->all();
+        $identityIds[] = $master->id;
         $rows = DB::table('crm_audit_logs as a')->leftJoin('staff_users as s', 's.id', '=', 'a.actor_staff_id')
-            ->where(function ($q) use ($master): void {
-                $q->where(function ($inner) use ($master): void { $inner->where('a.entity_type', 'crm_customer_master')->where('a.entity_id', $master->id); });
+            ->where(function ($q) use ($master, $identityIds): void {
+                $q->where(function ($inner) use ($identityIds): void {
+                    $inner->where('a.entity_type', 'crm_customer_master')->whereIn('a.entity_id', $identityIds);
+                });
                 if ($master->crm_lead_id) {
-                    $q->orWhere(function ($inner) use ($master): void { $inner->where('a.entity_type', 'crm_lead')->where('a.entity_id', $master->crm_lead_id); });
+                    $q->orWhere(function ($inner) use ($master): void {
+                        $inner->where('a.entity_type', 'crm_lead')->where('a.entity_id', $master->crm_lead_id);
+                    });
                 }
             })
             ->select('a.id', 'a.entity_type', 'a.entity_id', 'a.action', 'a.changes', 'a.created_at', 's.name as actor_name')
             ->orderByDesc('a.id')->limit(250)->get();
+
         return response()->json($rows);
     }
 
@@ -741,6 +841,7 @@ final class CustomerMasterController
     private static function normalizedText(?string $value): string
     {
         $value = mb_strtolower(trim((string) $value), 'UTF-8');
+
         return preg_replace('/[\\p{Z}\\p{P}\\p{S}\\s]+/u', '', $value) ?? '';
     }
 
@@ -761,6 +862,25 @@ final class CustomerMasterController
         if ($leftPairs === [] || $rightPairs === []) {
             return 0.0;
         }
+
         return count(array_intersect($leftPairs, $rightPairs)) / count(array_unique(array_merge($leftPairs, $rightPairs)));
+    }
+
+    /** @return list<string> */
+    private static function textGrams(?string $value): array
+    {
+        $chars = mb_str_split(self::normalizedText($value), 1, 'UTF-8');
+        if ($chars === []) {
+            return [];
+        }
+        if (count($chars) < 2) {
+            return $chars;
+        }
+        $grams = [];
+        for ($i = 0, $length = count($chars) - 1; $i < $length; $i++) {
+            $grams[] = $chars[$i].$chars[$i + 1];
+        }
+
+        return array_values(array_unique($grams));
     }
 }

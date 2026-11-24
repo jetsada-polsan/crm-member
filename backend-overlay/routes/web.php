@@ -1,16 +1,22 @@
 <?php
-use Illuminate\Support\Facades\Route;
+
+use App\Http\Middleware\RejectExecutiveMutations;
 use App\Modules\Core\HealthController;
-use App\Modules\ERPIntegration\SyncController;
-use App\Modules\ERPIntegration\ErpLocalSyncController;
-use App\Modules\CRM\StaffAuthController;
+use App\Modules\Core\SystemHealthController;
 use App\Modules\CRM\CrmController;
 use App\Modules\CRM\CustomerMasterController;
+use App\Modules\CRM\CustomerPurchaseController;
 use App\Modules\CRM\FieldController;
+use App\Modules\CRM\StaffAuthController;
+use App\Modules\CRM\VisitPresentationController;
+use App\Modules\ERPIntegration\ErpLocalSyncController;
+use App\Modules\ERPIntegration\SyncController;
+use App\Modules\LINE\LineChatController;
+use App\Modules\LINE\LineWebhookController;
+use App\Modules\Loyalty\LoyaltyController;
 use App\Modules\Member\MemberAuthController;
 use App\Modules\Member\MemberController;
-use App\Modules\Loyalty\LoyaltyController;
-use App\Modules\LINE\LineWebhookController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/api/health', HealthController::class);
 
@@ -26,13 +32,16 @@ Route::post('/api/line/webhook', LineWebhookController::class)->middleware('thro
 Route::prefix('api/crm')->group(function () {
     Route::get('/csrf', [StaffAuthController::class, 'csrf']);
     Route::post('/login', [StaffAuthController::class, 'login'])->middleware('throttle:crm-login');
-    Route::middleware('auth:staff')->group(function () {
+    Route::middleware(['auth:staff', RejectExecutiveMutations::class])->group(function () {
         Route::post('/logout', [StaffAuthController::class, 'logout']);
         Route::get('/me', [StaffAuthController::class, 'me']);
         Route::get('/dashboard', [CrmController::class, 'dashboard']);
         Route::get('/salespersons', [CrmController::class, 'salespersons']);
         Route::get('/customers', [CrmController::class, 'customers']);
-        Route::get('/customers/{id}', [CrmController::class, 'customerDetail']);
+        Route::get('/customers/{id}', [CrmController::class, 'customerDetail'])->whereNumber('id');
+        Route::get('/customers/{id}/invoices', [CustomerPurchaseController::class, 'invoices'])->whereNumber('id');
+        Route::get('/customers/{id}/invoices/{invoiceId}', [CustomerPurchaseController::class, 'invoiceDetail'])->whereNumber(['id', 'invoiceId']);
+        Route::get('/customers/{id}/purchase-insights', [CustomerPurchaseController::class, 'insights'])->whereNumber('id');
         Route::get('/visits', [CrmController::class, 'visits']);
         Route::post('/visits', [CrmController::class, 'storeVisit'])->middleware('throttle:30,1');
 
@@ -43,11 +52,18 @@ Route::prefix('api/crm')->group(function () {
         Route::post('/reports/product-size-segments', [CrmController::class, 'saveProductSizeSegment']);
         Route::delete('/reports/product-size-segments/{segmentId}', [CrmController::class, 'deleteProductSizeSegment'])->whereNumber('segmentId');
         Route::get('/reports/field-visits', [FieldController::class, 'fieldVisitReport']);
+        Route::get('/reports/visit-presentation', [VisitPresentationController::class, 'data']);
         Route::get('/members', [CrmController::class, 'members']);
+        Route::post('/members', [CrmController::class, 'storeMember']);
         Route::get('/member-links', [CrmController::class, 'memberLinks']);
         Route::post('/member-links', [CrmController::class, 'createMemberLink']);
         Route::post('/member-links/{id}/verify', [CrmController::class, 'verifyMemberLink']);
         Route::get('/settings/overview', [CrmController::class, 'settingsOverview']);
+        Route::get('/system-health', [SystemHealthController::class, 'index']);
+        Route::post('/settings/line', [CrmController::class, 'updateLineSettings']);
+        Route::post('/settings/staff/auto-sync', [CrmController::class, 'autoSyncStaffFromErp']);
+        Route::post('/settings/staff', [CrmController::class, 'storeStaffUser']);
+        Route::patch('/settings/staff/{id}', [CrmController::class, 'updateStaffUser'])->whereNumber('id');
 
         Route::get('/leads', [FieldController::class, 'leads']);
         Route::post('/leads', [FieldController::class, 'storeLead'])->middleware('throttle:30,1');
@@ -75,10 +91,19 @@ Route::prefix('api/crm')->group(function () {
         Route::post('/customer-master/{masterId}/unlink-erp', [CustomerMasterController::class, 'unlinkErp'])->whereNumber('masterId');
         Route::get('/customer-master/{masterId}/audit', [CustomerMasterController::class, 'auditHistory'])->whereNumber('masterId');
         Route::get('/pins', [FieldController::class, 'pins']);
+        Route::get('/map-staff', [FieldController::class, 'mapStaff']);
         Route::post('/pins', [FieldController::class, 'storePin'])->middleware('throttle:30,1');
         Route::get('/plans', [FieldController::class, 'plans']);
         Route::post('/plans', [FieldController::class, 'storePlan']);
-        Route::post('/plans/{planId}/stops', [FieldController::class, 'addStop']);
+        Route::post('/plans/{planId}/stops', [FieldController::class, 'addStop'])->whereNumber('planId');
+        Route::post('/plans/{planId}/auto-stops', [FieldController::class, 'autoPopulateStops'])->whereNumber('planId');
+        Route::patch('/plans/{planId}/stops/{stopId}', [FieldController::class, 'updateStopStatus'])->whereNumber(['planId', 'stopId']);
+        Route::delete('/plans/{planId}/stops/{stopId}', [FieldController::class, 'deleteStop'])->whereNumber(['planId', 'stopId']);
+        Route::get('/targets', [CrmController::class, 'salesTargets']);
+        Route::post('/targets', [CrmController::class, 'saveSalesTarget']);
+        Route::get('/inactive-customers', [CrmController::class, 'inactiveCustomers']);
+        Route::get('/products', [CrmController::class, 'products']);
+        Route::get('/product-catalog', [CrmController::class, 'productCatalog']);
         Route::post('/field-visits', [FieldController::class, 'storeFieldVisit']);
         Route::get('/field-visits/{visitId}/photos', [FieldController::class, 'visitPhotos']);
         Route::post('/field-visits/{visitId}/photos', [FieldController::class, 'uploadPhoto']);
@@ -93,7 +118,17 @@ Route::prefix('api/crm')->group(function () {
             Route::post('/test-customers-10', [ErpLocalSyncController::class, 'testCustomers10']);
             Route::post('/test-products-10', [ErpLocalSyncController::class, 'testProducts10']);
             Route::post('/test-invoices-10', [ErpLocalSyncController::class, 'testInvoices10']);
+            Route::post('/test-push-api', [ErpLocalSyncController::class, 'testPushApi']);
             Route::post('/sync/{kind}', [ErpLocalSyncController::class, 'syncKind']);
+        });
+
+        Route::prefix('line-chat')->group(function () {
+            Route::get('/threads', [LineChatController::class, 'threads']);
+            Route::get('/threads/{threadId}/messages', [LineChatController::class, 'messages'])->whereNumber('threadId');
+            Route::post('/threads/{threadId}/reply', [LineChatController::class, 'reply'])->whereNumber('threadId');
+            Route::post('/threads/{threadId}/link-customer', [LineChatController::class, 'linkCustomer'])->whereNumber('threadId');
+            Route::patch('/threads/{threadId}', [LineChatController::class, 'updateThread'])->whereNumber('threadId');
+            Route::post('/simulate-incoming', [LineChatController::class, 'simulateIncoming']);
         });
 
         // Phase C: Loyalty Rules, Member Verification Review, Transaction Reversal, Rewards Catalog

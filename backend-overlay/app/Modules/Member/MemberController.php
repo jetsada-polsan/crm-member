@@ -37,6 +37,7 @@ final class MemberController
                 'l.erp_member_code',
                 'cm.link_status as erp_link_status',
                 'l.erp_customer_id',
+                'c.source_system',
                 'c.erp_customer_code',
                 'c.customer_name as erp_customer_name',
                 'c.province',
@@ -49,6 +50,15 @@ final class MemberController
             && $link->verification_status === 'verified'
             && $link->verified_at !== null
             && $link->erp_customer_id !== null;
+        $purchaseSummary = null;
+        if ($verified) {
+            $sourceSystem = (string) $link->source_system;
+            $customerCode = (string) $link->erp_customer_code;
+            $purchaseSummary = SalesRules::summarizeInvoices(function ($query, string $alias) use ($sourceSystem, $customerCode): void {
+                $query->where("{$alias}.source_system", $sourceSystem)
+                    ->where("{$alias}.erp_customer_code", $customerCode);
+            });
+        }
         if ($link) {
             $link = [
                 'link_id' => $link->link_id,
@@ -85,9 +95,14 @@ final class MemberController
                 'status' => $member->status,
             ],
             'erp_link' => $link,
+            'purchase_summary' => $purchaseSummary,
             'line_binding' => $lineBinding,
             'verification_request' => $latestVerification,
-            'identity_status' => ! $link ? 'member_verification_pending' : (! $link['verified_at'] ? 'member_verification_pending' : ($link['erp_status'] === 'pending_erp' ? 'pending_erp' : 'member_verified')),
+            'identity_status' => ! $link ? 'member_verification_pending' : (
+                $link['verification_status'] !== 'verified' || ! $link['verified_at']
+                    ? 'member_verification_pending'
+                    : ($link['erp_status'] === 'pending_erp' ? 'pending_erp' : 'member_verified')
+            ),
         ]);
     }
 
@@ -143,6 +158,7 @@ final class MemberController
         SalesRules::applyActualSalesScope($query, 'i');
 
         $rows = $query->select(
+              'i.source_system',
             'i.branch_code',
             'i.doc_type',
             'i.dt_properties',
@@ -158,6 +174,32 @@ final class MemberController
             ->orderByDesc('i.sold_at')
             ->limit(100)
             ->get();
+
+        $invoiceNos = $rows->pluck('invoice_no')->unique()->values()->all();
+        $itemsByInv = [];
+        if ($invoiceNos !== []) {
+            $sources = $rows->pluck('source_system')->unique()->values()->all();
+            $allItems = DB::table('erp_sales_items')
+                ->whereIn('source_system', $sources)
+                ->whereIn('invoice_no', $invoiceNos)
+                ->select('source_system', 'branch_code', 'doc_type', 'invoice_no', 'line_no', 'erp_product_code', 'product_name', 'qty', 'unit_name')
+                ->orderBy('line_no')
+                ->get();
+            foreach ($allItems as $it) {
+                $k = $it->source_system.'|'.$it->branch_code.'|'.$it->doc_type.'|'.$it->invoice_no;
+                $itemsByInv[$k][] = (object) [
+                    'line_no' => $it->line_no,
+                    'erp_product_code' => $it->erp_product_code,
+                    'product_name' => $it->product_name,
+                    'qty' => $it->qty,
+                    'unit_name' => $it->unit_name,
+                ];
+            }
+        }
+        foreach ($rows as $invoice) {
+            $k = $invoice->source_system.'|'.$invoice->branch_code.'|'.$invoice->doc_type.'|'.$invoice->invoice_no;
+            $invoice->items = $itemsByInv[$k] ?? [];
+        }
 
         return response()->json($rows);
     }

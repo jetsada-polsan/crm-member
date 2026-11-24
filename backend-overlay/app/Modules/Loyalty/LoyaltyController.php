@@ -17,7 +17,7 @@ final class LoyaltyController
     private function authorizeManager(): object
     {
         $user = Auth::guard('staff')->user();
-        abort_unless($user && in_array($user->role, ['admin', 'manager'], true), 403, 'Manager or admin access required');
+        abort_unless($user && in_array($user->role, ['admin', 'manager', 'executive'], true), 403, 'Manager or admin access required');
 
         return $user;
     }
@@ -28,6 +28,10 @@ final class LoyaltyController
     public static function calculatePointsForAmount(float $beforeVatAmount, object $rule, string $docCategory = 'sale', string $status = 'posted'): int
     {
         if (!(bool) ($rule->is_active ?? false)) {
+            return 0;
+        }
+        if (! in_array($docCategory, ['sale', 'return'], true)
+            || ! in_array($status, ['posted', 'returned'], true)) {
             return 0;
         }
         if ((bool) ($rule->exclude_cancelled ?? true) && $status === 'cancelled') {

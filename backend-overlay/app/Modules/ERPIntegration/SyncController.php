@@ -128,6 +128,8 @@ final class SyncController
 
         return $this->applyBatch('salespersons', $data, function ($record, $source, $now) {
             ErpMirrorUpserter::upsertSalesperson($source, $record, $now);
+        }, afterCommit: function (): void {
+            \App\Modules\CRM\CustomerAccess::syncStaffFromErp();
         });
     }
 
@@ -159,7 +161,7 @@ final class SyncController
         });
     }
 
-    private function applyBatch(string $kind, array $data, callable $apply): JsonResponse
+    private function applyBatch(string $kind, array $data, callable $apply, ?callable $afterCommit = null): JsonResponse
     {
         $bodyHash = hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $already = false;
@@ -188,6 +190,18 @@ final class SyncController
                 'updated_at' => $now,
             ]);
         }, 3);
+
+        // A replay does not change data; a committed batch can update existing
+        // rows without changing their IDs, so cached analytics must be expired.
+        if (! $already) {
+            SalesRules::invalidateCache();
+            \App\Modules\CRM\CustomerAccess::clearCache();
+        }
+
+        $staffSync = null;
+        if (! $already && $afterCommit !== null) {
+            $afterCommit();
+        }
 
         return response()->json([
             'ok' => true,
