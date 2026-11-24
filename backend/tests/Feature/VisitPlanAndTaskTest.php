@@ -87,6 +87,24 @@ class VisitPlanAndTaskTest extends TestCase
             ->assertJsonValidationErrors('status');
     }
 
+    public function test_editing_a_stop_through_a_different_plan_reports_not_found(): void
+    {
+        $sales = $this->createStaff('sales', 'S01');
+        $shop = $this->customer('AR001', 'S01');
+        $planA = $this->plan($sales->id);
+        $planB = $this->plan($sales->id);
+        $stopInA = DB::table('crm_visit_plan_stops')->insertGetId([
+            'plan_id' => $planA, 'stop_order' => 1, 'erp_customer_id' => $shop,
+            'status' => 'pending', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->actingAs($sales, 'staff');
+
+        $this->patchJson("/api/crm/plans/{$planB}/stops/{$stopInA}", ['status' => 'completed'])->assertNotFound();
+        $this->deleteJson("/api/crm/plans/{$planB}/stops/{$stopInA}")->assertNotFound();
+
+        $this->assertDatabaseHas('crm_visit_plan_stops', ['id' => $stopInA, 'status' => 'pending']);
+    }
+
     public function test_sales_staff_cannot_plan_for_others_or_use_customers_outside_their_scope(): void
     {
         $sales = $this->createStaff('sales', 'S01');

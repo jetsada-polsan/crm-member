@@ -83,6 +83,8 @@ class SalesTargetAndReportTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('target_amount');
         $this->postJson('/api/crm/targets', ['month' => '12-2026', 'staff_user_id' => $sales->id, 'target_amount' => 1, 'target_visits' => 1])
             ->assertUnprocessable()->assertJsonValidationErrors('month');
+        $this->postJson('/api/crm/targets', ['month' => '2026-13', 'staff_user_id' => $sales->id, 'target_amount' => 1, 'target_visits' => 1])
+            ->assertUnprocessable()->assertJsonValidationErrors('month');
         $this->postJson('/api/crm/targets', ['target_amount' => 1, 'target_visits' => 1])->assertUnprocessable();
         $this->assertDatabaseCount('crm_sales_targets', 0);
     }

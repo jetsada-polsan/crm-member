@@ -1721,7 +1721,7 @@ final class CrmController
         $isManager = CustomerAccess::isManager($user);
 
         $monthParam = trim((string) $request->query('month', now()->format('Y-m')));
-        if (! preg_match('/^\d{4}-\d{2}$/', $monthParam)) {
+        if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $monthParam)) {
             $monthParam = now()->format('Y-m');
         }
         $periodStart = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->startOfMonth()->toDateString();
@@ -1899,7 +1899,7 @@ final class CrmController
         abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
 
         $d = $request->validate([
-            'month' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
+            'month' => ['nullable', 'string', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
             'staff_user_id' => ['nullable', 'integer', 'exists:staff_users,id'],
             'apply_to_all' => ['nullable', 'boolean'],
             'target_amount' => ['required', 'numeric', 'min:0', 'max:999999999'],
