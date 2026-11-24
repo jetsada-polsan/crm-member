@@ -9,7 +9,7 @@ Zero external web framework required (uses Python 3 standard library + optional 
 Read-only SELECT access to Bplus SQL Server (192.168.88.200:1433).
 
 Quick start on Server 201 (192.168.88.201):
-  1. Copy the sync-agent folder to e.g. C:\popstar-crm-agent\
+  1. Copy the sync-agent folder to e.g. D:/Xamp/htdocs/sync-agent
   2. Configure server201.env (or config.env)
   3. Double-click start-popstar-api-201.cmd
   4. Open http://192.168.88.201:8770/ in Chrome
@@ -23,6 +23,7 @@ import html
 import http.cookies
 import json
 import os
+import re
 import secrets
 import socket
 import sys
@@ -40,7 +41,8 @@ from typing import Any
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
-from agent.http_client import send_batch  # noqa: E402
+from agent.http_client import get_invoice_cursor, open_crm_request, send_batch  # noqa: E402
+from agent.local_bridge import LocalBridge  # noqa: E402
 from agent.queue import PendingQueue  # noqa: E402
 
 APP_TITLE = "POPSTAR CRM Sync & API Monitor"
@@ -50,6 +52,11 @@ VALID_SESSIONS: dict[str, float] = {}
 SESSION_TTL_SEC = 12 * 3600
 
 STATE_LOCK = threading.Lock()
+SETTINGS_LOCK = threading.Lock()
+SETTINGS_PATH: Path | None = None
+BPLUS_BRIDGE: LocalBridge | None = None
+SQL_DRIVERS = ("ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server", "SQL Server")
+SETTINGS_FIELDS = ("SQL_SERVER", "SQL_PORT", "SQL_DATABASE", "SQL_ODBC_DRIVER", "SQL_USER", "SQL_PASSWORD", "SYNC_BASE_URL", "SYNC_API_TOKEN")
 ACTIVITY_LOG: deque[dict[str, Any]] = deque(maxlen=80)
 AUTO_SYNC_STATE: dict[str, Any] = {
     "enabled": False,
@@ -77,9 +84,68 @@ def load_env_files() -> dict[str, str]:
                 cfg[k] = v
     # Environment variables always win
     for k, v in os.environ.items():
-        if k.startswith(("POPSTAR_", "SYNC_", "SQL_", "ERP_", "LOCAL_BRIDGE_")):
+        if k.startswith(("POPSTAR_", "SYNC_", "SQL_", "ERP_", "LOCAL_BRIDGE_", "BRIDGE_")):
             cfg[k] = v
+    cfg.update(read_web_settings())
     return cfg
+
+
+def read_web_settings() -> dict[str, str]:
+    if SETTINGS_PATH is None:
+        return {}
+    try:
+        return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+
+
+def save_web_settings(form: dict[str, list[str]]) -> str:
+    values = {key: form.get(key, [""])[0].strip() for key in SETTINGS_FIELDS}
+    sql_server = values["SQL_SERVER"]
+    if not re.fullmatch(r"[A-Za-z0-9.-]+", sql_server):
+        return "กรุณากรอกชื่อเครื่องหรือ IPv4 ของ SQL Server"
+    port = values["SQL_PORT"]
+    if not re.fullmatch(r"[0-9]{1,5}", port) or not 1 <= int(port) <= 65535:
+        return "พอร์ต SQL ต้องอยู่ระหว่าง 1–65535"
+    if not values["SQL_DATABASE"] or not values["SQL_USER"] or values["SQL_ODBC_DRIVER"] not in SQL_DRIVERS:
+        return "กรุณากรอกฐานข้อมูล ผู้ใช้ และเลือก ODBC Driver"
+
+    values["SYNC_BASE_URL"] = values["SYNC_BASE_URL"].rstrip("/")
+    token = values["SYNC_API_TOKEN"]
+    if token and (len(token) < 32 or not token.isascii() or any(c.isspace() for c in token)):
+        return "Push Token ต้องมีอย่างน้อย 32 ตัวอักษร และไม่มีช่องว่าง"
+
+    with SETTINGS_LOCK:
+        current = load_env_files()
+        saved = read_web_settings()
+        if values["SYNC_BASE_URL"] != current.get("SYNC_BASE_URL", "").rstrip("/"):
+            try:
+                url = urllib.parse.urlsplit(values["SYNC_BASE_URL"])
+                valid_url = (url.scheme == "https" and url.hostname and not url.username
+                             and url.password is None and not url.query and not url.fragment
+                             and not any(c.isspace() for c in values["SYNC_BASE_URL"])
+                             and url.port != 0)
+            except ValueError:
+                valid_url = False
+            if not valid_url:
+                return "กรุณากรอก CRM Base URL แบบ HTTPS โดยไม่ใส่ชื่อผู้ใช้ รหัสผ่าน หรือพารามิเตอร์"
+            if not token:
+                return "เมื่อเปลี่ยน CRM URL กรุณากรอก Push Token สำหรับ URL ใหม่"
+        for key in ("SQL_PASSWORD", "SYNC_API_TOKEN"):
+            if not values[key]:
+                values.pop(key)
+        if "SQL_PASSWORD" in values or "SQL_PASSWORD" in saved:
+            values["SQL_CONNECTION_STRING"] = ""
+        saved.update(values)
+        assert SETTINGS_PATH is not None
+        temporary = SETTINGS_PATH.with_suffix(".tmp")
+        try:
+            temporary.write_text(json.dumps(saved, ensure_ascii=False), encoding="utf-8")
+            temporary.replace(SETTINGS_PATH)
+        except OSError:
+            return "บันทึกการตั้งค่าไม่สำเร็จ"
+    return ""
+
 
 
 def log_event(level: str, action: str, detail: str) -> None:
@@ -100,6 +166,10 @@ def queue_path(cfg: dict[str, str]) -> Path:
     return Path(local) / "PopstarCrmAgent201" / "queue.sqlite3"
 
 
+def quote_odbc_value(value: str) -> str:
+    return "{" + value.replace("}", "}}") + "}"
+
+
 def get_sql_conn_string(cfg: dict[str, str]) -> str:
     direct = cfg.get("SQL_CONNECTION_STRING", "").strip()
     if direct:
@@ -113,8 +183,9 @@ def get_sql_conn_string(cfg: dict[str, str]) -> str:
     if not (server and database and user and pwd):
         return ""
     return (
-        f"Driver={{{driver}}};Server={server},{port};Database={database};"
-        f"Uid={user};Pwd={pwd};Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=10;"
+        f"Driver={{{driver}}};Server={server},{port};Database={quote_odbc_value(database)};"
+        f"Uid={quote_odbc_value(user)};Pwd={quote_odbc_value(pwd)};"
+        "Encrypt=yes;TrustServerCertificate=yes;Connection Timeout=10;"
     )
 
 
@@ -122,6 +193,21 @@ def test_bplus_sql(cfg: dict[str, str]) -> dict[str, Any]:
     t0 = time.perf_counter()
     server = cfg.get("SQL_SERVER", "192.168.88.200").strip()
     port = int(cfg.get("SQL_PORT", "1433") or 1433)
+    if BPLUS_BRIDGE is not None:
+        try:
+            result = BPLUS_BRIDGE.request(cfg, "/test-connection", method="POST")
+            return {
+                "ok": True, "tcp_ok": True, "server": f"{server}:{port}",
+                "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
+                "message": result.get("message", "เชื่อมต่อ Bplus ผ่าน Bridge สำเร็จ"),
+            }
+        except (OSError, RuntimeError, ValueError) as error:
+            return {
+                "ok": False, "tcp_ok": False, "server": f"{server}:{port}",
+                "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
+                "message": str(error),
+            }
+
     conn_str = get_sql_conn_string(cfg)
 
     # First verify raw TCP reachability to Bplus SQL Server
@@ -198,7 +284,7 @@ def test_crm_api(cfg: dict[str, str]) -> dict[str, Any]:
     url = f"{base}/api/health"
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json"}, method="GET")
-        with urllib.request.urlopen(req, timeout=6) as resp:
+        with open_crm_request(base, req, timeout=6) as resp:
             body = resp.read().decode("utf-8", errors="replace")
             code = resp.status
         ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -222,6 +308,63 @@ def test_crm_api(cfg: dict[str, str]) -> dict[str, Any]:
         }
 
 
+MASTER_KINDS = ("salespersons", "customers", "products", "members")
+PUSH_KINDS = MASTER_KINDS + ("invoices",)
+INVOICE_LOOKBACK = 50  # same re-read window as the CRM's LAN pull, catches recently edited bills
+MAX_INVOICE_LINES = 2000
+
+
+def _push_state_path(cfg: dict[str, str]) -> Path:
+    return queue_path(cfg).with_name("push_state.json")
+
+
+def _load_push_state(cfg: dict[str, str]) -> dict[str, Any]:
+    try:
+        return json.loads(_push_state_path(cfg).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_push_state(cfg: dict[str, str], state: dict[str, Any]) -> None:
+    path = _push_state_path(cfg)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _queue_from_bridge(kind: str, cfg: dict[str, str], q: PendingQueue, source: str, base_url: str, token: str) -> int:
+    """Queue one kind read through the Windows Bridge (it holds the read-only SQL login on Server 201)."""
+    assert BPLUS_BRIDGE is not None
+    queued = 0
+    if kind != "invoices":
+        for records, _ in BPLUS_BRIDGE.pages(cfg, kind, size=250):
+            if q.enqueue(kind, source, records):
+                queued += 1
+        return queued
+
+    state = _load_push_state(cfg)
+    try:
+        server_cursor = get_invoice_cursor(base_url, token, source)
+        after_key = max(0, server_cursor - INVOICE_LOOKBACK)
+    except Exception as exc:  # noqa: BLE001
+        after_key = int(state.get("invoices_after_key", 0))
+        log_event("warn", "sync:invoices", f"อ่าน cursor จาก CRM ไม่ได้ ใช้ค่าในเครื่องแทน ({after_key}): {exc}")
+    if after_key <= 0:
+        raise RuntimeError("ไม่มีตำแหน่งบิลเริ่มต้น จะไม่อ่านบิลทั้งหมดตั้งแต่ต้นโดยอัตโนมัติ")
+
+    max_invoices = int(cfg.get("POPSTAR_INVOICE_MAX_PER_RUN", "2000") or 2000)
+    for records, next_cursor in BPLUS_BRIDGE.pages(cfg, "invoices", after_key=after_key, size=100, max_records=max_invoices):
+        for record in records:
+            if len(record.get("items") or []) > MAX_INVOICE_LINES:
+                raise RuntimeError(f"บิล {record.get('invoice_no')} มีเกิน {MAX_INVOICE_LINES} รายการ")
+        for offset in range(0, len(records), 25):
+            if q.enqueue("invoices", source, records[offset:offset + 25]):
+                queued += 1
+        state["invoices_after_key"] = next_cursor
+        _save_push_state(cfg, state)  # the batches are already durable in the queue
+    return queued
+
+
 def run_push_sync(kind: str, cfg: dict[str, str]) -> dict[str, Any]:
     with STATE_LOCK:
         if AUTO_SYNC_STATE["running"]:
@@ -239,50 +382,48 @@ def run_push_sync(kind: str, cfg: dict[str, str]) -> dict[str, Any]:
 
         q = PendingQueue(queue_path(cfg))
         queued = 0
-        push_kinds = ["customers", "products", "salespersons", "members", "invoices"]
-        kinds = push_kinds if kind == "all" else [kind] if kind in push_kinds else []
-        if kind != "flush" and not kinds:
-            return {"ok": False, "error": f"ยังไม่รองรับประเภท {kind} ในโหมด Push"}
-        if kinds:
+        test_one = kind == "customers-test"
+        test_batch = None
+        kinds = {"all": PUSH_KINDS, "masters": MASTER_KINDS}.get(kind, (kind,) if kind in PUSH_KINDS else ())
+        if test_one and BPLUS_BRIDGE is not None:
+            for records in BPLUS_BRIDGE.customer_batches(cfg, limit=1):
+                test_batch = q.enqueue("customers", source, records)
+                queued += 1
+            if test_batch is None:
+                return {"ok": False, "error": "Bridge ไม่พบลูกหนี้สำหรับทดสอบ"}
+        elif kinds and BPLUS_BRIDGE is not None:
+            for k in kinds:
+                queued += _queue_from_bridge(k, cfg, q, source, base_url, token)
+        elif kind == "customers":
             conn_str = get_sql_conn_string(cfg)
             if not conn_str:
-                return {"ok": False, "error": "ยังไม่ได้ตั้งค่า SQL_CONNECTION_STRING / SQL_USER / SQL_PASSWORD"}
-            from agent import bplus_push
-            conn = bplus_push.connect(conn_str)
-            try:
-                for k in kinds:
-                    if k == "invoices":
-                        try:
-                            from agent.http_client import get_cursors
-                            server_cursor = int(get_cursors(base_url, token, source).get("invoices") or 0)
-                        except Exception as exc:  # noqa: BLE001
-                            server_cursor = None
-                            log_event("warn", "sync:invoices", f"อ่าน cursor จากเว็บไม่ได้ ใช้ค่าในเครื่องแทน: {exc}")
-                        queued += bplus_push.queue_invoices(
-                            conn, q, source, queue_path(cfg).with_name("push_state.json"),
-                            int(cfg.get("POPSTAR_INVOICE_START_KEY", "0") or 0),
-                            int(cfg.get("POPSTAR_INVOICE_MAX_PER_RUN", "2000") or 2000),
-                            server_cursor,
-                        )
-                    else:
-                        queued += bplus_push.queue_master(conn, k, q, source)
-            finally:
-                conn.close()
+                return {"ok": False, "error": "ยังไม่ได้ตั้งค่า SQL_CONNECTION_STRING"}
+            from agent.sql_reader import read_customers
+            rows = read_customers(conn_str)
+            for offset in range(0, len(rows), 250):
+                q.enqueue("customers", source, rows[offset:offset + 250])
+                queued += 1
+        elif kind != "flush":
+            return {"ok": False, "error": f"ยังไม่รองรับประเภท {kind} ในโหมด Push"}
 
         sent = 0
         failed = 0
         last_err = None
         for row_id, r_kind, body_json in q.pending():
+            batch_id = json.loads(body_json)["batch_id"]
+            if test_one and batch_id != test_batch:
+                continue
             try:
                 reply = send_batch(base_url, token, r_kind, body_json)
-                if reply.get("batch_id") != json.loads(body_json)["batch_id"]:
+                if reply.get("batch_id") != batch_id:
                     raise RuntimeError("Batch ID mismatch")
                 q.mark_sent(row_id)
                 sent += 1
             except Exception as exc:  # noqa: BLE001
                 failed += 1
-                last_err = str(exc)
+                last_err = f"{r_kind}: {exc}"
                 break
+        q.purge_sent(keep_days=3)
 
         res = {
             "ok": failed == 0,
@@ -295,7 +436,7 @@ def run_push_sync(kind: str, cfg: dict[str, str]) -> dict[str, Any]:
         }
         AUTO_SYNC_STATE["last_run_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         AUTO_SYNC_STATE["last_result"] = res
-        log_event("ok" if res["ok"] else "error", f"sync:{kind}", f"sent={sent}, failed={failed}, err={last_err or '-'}")
+        log_event("ok" if res["ok"] else "error", f"sync:{kind}", f"queued={queued}, sent={sent}, failed={failed}, err={last_err or '-'}")
         return res
     except Exception as exc:  # noqa: BLE001
         log_event("error", f"sync:{kind}", str(exc))
@@ -306,27 +447,36 @@ def run_push_sync(kind: str, cfg: dict[str, str]) -> dict[str, Any]:
 
 
 def scheduler_loop() -> None:
+    """Invoices every POPSTAR_AUTO_SYNC_MINUTES; master tables every POPSTAR_MASTER_SYNC_MINUTES."""
+    # Attempt times, not success times: a failing run waits for the next slot instead of retrying every loop.
+    last_attempt_at = 0.0
+    last_masters_attempt_at = 0.0
     while True:
         time.sleep(20)
-        cfg = load_env_files()
         with STATE_LOCK:
             enabled = AUTO_SYNC_STATE["enabled"]
             interval = max(5, int(AUTO_SYNC_STATE["interval_minutes"]))
-            last_str = AUTO_SYNC_STATE["last_run_at"]
-        if not enabled:
+        if not enabled or time.time() - last_attempt_at < interval * 60:
             continue
-        due = True
-        if last_str:
-            try:
-                last_dt = datetime.strptime(last_str, "%Y-%m-%d %H:%M:%S")
-                due = (datetime.now() - last_dt).total_seconds() >= interval * 60
-            except ValueError:
-                due = True
-        if due:
-            run_push_sync("all", cfg)
+        last_attempt_at = time.time()
+        cfg = load_env_files()
+        master_minutes = max(15, int(cfg.get("POPSTAR_MASTER_SYNC_MINUTES", "60") or 60))
+        if BPLUS_BRIDGE is not None and time.time() - last_masters_attempt_at >= master_minutes * 60:
+            last_masters_attempt_at = time.time()
+            run_push_sync("masters", cfg)
+        run_push_sync("invoices" if BPLUS_BRIDGE is not None else "customers", cfg)
 
 
-def render_login_html(error_msg: str = "") -> str:
+def render_login_html(error_msg: str = "", *, setup: bool = False) -> str:
+    title = "ตั้งรหัสผ่านครั้งแรก" if setup else "เข้าสู่ระบบตรวจสอบ API"
+    password_label = "รหัสผ่านตั้งต้น" if setup else "รหัสผ่านผู้ดูแล"
+    new_fields = (
+        '<label for="new-password">รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label>'
+        '<input id="new-password" type="password" name="new_password" autocomplete="new-password" minlength="8" maxlength="256" required>'
+        '<label for="confirm-password">ยืนยันรหัสผ่านใหม่</label>'
+        '<input id="confirm-password" type="password" name="confirm_password" autocomplete="new-password" required>'
+    ) if setup else ""
+    button = "บันทึกรหัสผ่านและเข้าสู่ระบบ" if setup else "เข้าสู่หน้าตรวจสอบสถานะ"
     err_html = f'<div class="err">{html.escape(error_msg)}</div>' if error_msg else ""
     return f"""<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>เข้าสู่ระบบ · {APP_TITLE}</title>
@@ -342,16 +492,24 @@ button{{width:100%;padding:11px 16px;border:0;border-radius:12px;background:#028
 .tag{{display:inline-block;background:#e0f2fe;color:#0369a1;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;margin-bottom:10px}}
 </style></head><body><form class="card" method="POST" action="/login">
 <span class="tag">POPSTAR CRM v4 · Server 201 Agent</span>
-<h1>เข้าสู่ระบบตรวจสอบ API</h1>
+<h1>{title}</h1>
 <p>หน้ามอนิเตอร์แยกอิสระสำหรับระบบ POPSTAR CRM (ไม่เกี่ยวกับ bplusAPI พอร์ต 8765)</p>
 {err_html}
-<label>รหัสผ่านผู้ดูแล (POPSTAR_WEB_PASSWORD)</label>
-<input type="password" name="password" placeholder="กรอกรหัสผ่าน..." autofocus required>
-<button type="submit">เข้าสู่หน้าตรวจสอบสถานะ</button>
+<label for="password">{password_label}</label>
+<input id="password" type="password" name="password" autocomplete="current-password" autofocus required>
+{new_fields}
+<button type="submit">{button}</button>
 </form></body></html>"""
 
 
 def render_dashboard_html(port: int) -> str:
+    test_button = """<button id="btnSyncTest" onclick="triggerSync('customers-test')">ทดสอบ 1 รายการ</button>""" if BPLUS_BRIDGE else ""
+    all_buttons = (
+        """<button class="primary" id="btnSyncInvoices" onclick="triggerSync('invoices')">🧾 ซิงก์บิลล่าสุด</button>"""
+        """<button id="btnSyncAll" onclick="triggerSync('all')">🔄 ซิงก์ทั้งหมด</button>"""
+    ) if BPLUS_BRIDGE else ""
+    cust_class = "" if BPLUS_BRIDGE else ' class="primary"'
+    settings_link = '<a class="btn" href="/settings">ตั้งค่าการเชื่อมต่อ</a>' if SETTINGS_PATH else ""
     return f"""<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{APP_TITLE} (:{port})</title>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -380,6 +538,7 @@ th{{color:#64748b;font-weight:600}} code{{background:#f1f5f9;padding:2px 6px;bor
   </div>
   <div class="btns">
     <button class="primary" onclick="refreshAll(true)">⟳ ตรวจสอบทุกจุดทันที</button>
+    {settings_link}
     <a class="btn" href="/health" target="_blank">JSON /health</a>
     <form method="POST" action="/logout" style="margin:0"><button type="submit">ออกจากระบบ</button></form>
   </div>
@@ -388,7 +547,7 @@ th{{color:#64748b;font-weight:600}} code{{background:#f1f5f9;padding:2px 6px;bor
 <div class="grid">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <strong>🗄️ Bplus SQL Server (192.168.88.200)</strong>
+      <strong>🗄️ Bplus SQL Server</strong>
       <span id="sqlTag" class="tag info">กำลังตรวจ...</span>
     </div>
     <div class="row"><span>Server</span><b id="sqlSrv">-</b></div>
@@ -415,7 +574,9 @@ th{{color:#64748b;font-weight:600}} code{{background:#f1f5f9;padding:2px 6px;bor
     <div class="row"><span>ส่งสำเร็จ (Sent)</span><b id="qSent">0</b></div>
     <div class="row"><span>ซิงก์ล่าสุด</span><b id="lastRun">-</b></div>
     <div class="btns" style="margin-top:12px">
-      <button class="primary" id="btnSyncCust" onclick="triggerSync('all')">🔄 ซิงก์ทั้งหมด</button>
+      {all_buttons}
+      <button{cust_class} id="btnSyncCust" onclick="triggerSync('customers')">👥 ซิงก์ลูกหนี้</button>
+      {test_button}
       <button id="btnFlush" onclick="triggerSync('flush')">📤 ส่งคิวค้าง</button>
     </div>
   </div>
@@ -462,7 +623,7 @@ async function refreshAll(testSql=false){{
   document.getElementById('logBody').innerHTML = rows || '<tr><td colspan="4" style="color:#64748b">ยังไม่มีรายการบันทึก</td></tr>';
 }}
 async function triggerSync(kind){{
-  const btn = document.getElementById(kind==='all'?'btnSyncCust':'btnFlush');
+  const btn = document.getElementById({{customers:'btnSyncCust','customers-test':'btnSyncTest',invoices:'btnSyncInvoices',all:'btnSyncAll'}}[kind] || 'btnFlush');
   btn.disabled = true;
   try {{
     const r = await fetch('/api/sync/' + kind, {{ method: 'POST' }});
@@ -476,8 +637,66 @@ setInterval(() => refreshAll(false), 15000);
 </script></body></html>"""
 
 
+def render_settings_html(cfg: dict[str, str], error: str = "") -> str:
+    def field(key, label, default="", kind="text"):
+        value = "" if kind == "password" else html.escape(cfg.get(key, default), quote=True)
+        placeholder = ' placeholder="เว้นว่างเพื่อใช้ค่าเดิม"' if kind == "password" else ""
+        autocomplete = "new-password" if kind == "password" else "off"
+        return f'<label>{label}<input name="{key}" type="{kind}" value="{value}" autocomplete="{autocomplete}"{placeholder}></label>'
+
+    driver = cfg.get("SQL_ODBC_DRIVER", "ODBC Driver 17 for SQL Server")
+    options = "".join(
+        f'<option{" selected" if name == driver else ""}>{name}</option>' for name in SQL_DRIVERS
+    )
+    error_html = f'<p role="alert">{html.escape(error)}</p>' if error else ""
+    bridge_note = "<p>Server 201 ใช้บัญชี SQL ที่ตั้งไว้ใน Windows Bridge</p>" if BPLUS_BRIDGE else ""
+    return f"""<!doctype html><html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ตั้งค่าการเชื่อมต่อ · {APP_TITLE}</title>
+<style>
+body{{background:#eff4f8;color:#0f172a;font:16px system-ui,sans-serif;margin:24px}}
+main{{max-width:620px;margin:auto;background:white;padding:24px;border-radius:16px}}
+fieldset{{border:1px solid #dbe4ed;border-radius:12px;margin:0 0 16px;padding:16px}}
+label{{display:block;margin-bottom:12px}}
+input,select{{display:block;box-sizing:border-box;width:100%;padding:9px;border:1px solid #bac9d8;border-radius:8px;font:inherit}}
+button{{padding:10px 16px;background:#027cac;color:white;border:0;border-radius:8px;font:inherit}}
+a{{color:#025c85;margin-left:12px}} [role=alert]{{color:#a51d21}}
+</style></head><body><main>
+<h1>ตั้งค่าการเชื่อมต่อ</h1>{error_html}
+<form method="post" action="/settings">
+<fieldset><legend>Bplus SQL Server</legend>{bridge_note}
+{field("SQL_SERVER", "SQL Server", "192.168.88.200")}
+{field("SQL_PORT", "พอร์ต SQL", "1433", "number")}
+{field("SQL_DATABASE", "ชื่อฐานข้อมูล", "BPLUSERP_POPSTAR_2021")}
+<label>ODBC Driver<select name="SQL_ODBC_DRIVER">{options}</select></label>
+{field("SQL_USER", "บัญชี SQL แบบอ่านอย่างเดียว")}
+{field("SQL_PASSWORD", "รหัสผ่าน SQL", kind="password")}
+</fieldset>
+<fieldset><legend>POPSTAR CRM API</legend>
+{field("SYNC_BASE_URL", "CRM Base URL (HTTPS)", kind="url")}
+{field("SYNC_API_TOKEN", "Push Token", kind="password")}
+</fieldset>
+<button type="submit">บันทึกการตั้งค่า</button><a href="/">กลับ Dashboard</a>
+</form></main></body></html>"""
+
+
+
 class MonitorHandler(BaseHTTPRequestHandler):
     server_port: int = DEFAULT_PORT
+
+    def login_setup_required(self) -> bool:
+        return False
+
+    def validate_login(self, form: dict[str, list[str]], cfg: dict[str, str]) -> tuple[int, str]:
+        pwd = form.get("password", [""])[0]
+        expected = cfg.get("POPSTAR_WEB_PASSWORD", "Popstar2026!").strip()
+        if hmac.compare_digest(pwd.encode("utf-8"), expected.encode("utf-8")):
+            return 200, ""
+        return 401, "รหัสผ่านไม่ถูกต้อง"
+
+    def _send_login(self, code: int = 200, error: str = "") -> None:
+        body = render_login_html(error, setup=self.login_setup_required()).encode("utf-8")
+        self._send(code, body, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         return  # Keep console clean
@@ -525,12 +744,13 @@ class MonitorHandler(BaseHTTPRequestHandler):
                 "port": self.server_port,
                 "time": datetime.now().isoformat(),
                 "sql_configured": bool(get_sql_conn_string(cfg)),
+                "bplus_method": "bridge" if BPLUS_BRIDGE else "odbc",
                 "crm_target": cfg.get("SYNC_BASE_URL", ""),
             })
             return
 
         if path == "/login":
-            self._send(200, render_login_html().encode("utf-8"), "text/html; charset=utf-8")
+            self._send_login()
             return
 
         if not self._is_authenticated():
@@ -542,6 +762,10 @@ class MonitorHandler(BaseHTTPRequestHandler):
 
         if path == "/":
             self._send(200, render_dashboard_html(self.server_port).encode("utf-8"), "text/html; charset=utf-8")
+            return
+
+        if path == "/settings" and SETTINGS_PATH:
+            self._send(200, render_settings_html(cfg).encode("utf-8"), "text/html; charset=utf-8", {"Cache-Control": "no-store"})
             return
 
         if path == "/api/status":
@@ -573,9 +797,8 @@ class MonitorHandler(BaseHTTPRequestHandler):
 
         if path == "/login":
             form = urllib.parse.parse_qs(raw_body)
-            pwd = (form.get("password") or [""])[0]
-            expected = cfg.get("POPSTAR_WEB_PASSWORD", "Popstar2026!").strip()
-            if hmac.compare_digest(pwd, expected):
+            code, error = self.validate_login(form, cfg)
+            if code == 200:
                 sid = secrets.token_hex(24)
                 VALID_SESSIONS[sid] = time.time() + SESSION_TTL_SEC
                 log_event("ok", "login", f"เข้าสู่ระบบจาก {self.client_address[0]}")
@@ -589,7 +812,7 @@ class MonitorHandler(BaseHTTPRequestHandler):
                     },
                 )
             else:
-                self._send(401, render_login_html("รหัสผ่านไม่ถูกต้อง").encode("utf-8"), "text/html; charset=utf-8")
+                self._send_login(code, error)
             return
 
         if path == "/logout":
@@ -608,6 +831,21 @@ class MonitorHandler(BaseHTTPRequestHandler):
             self._json(401, {"ok": False, "error": "Unauthorized"})
             return
 
+        if path == "/settings" and SETTINGS_PATH:
+            if self.headers.get("Origin") != f"http://{self.headers.get('Host')}":
+                self._json(403, {"ok": False, "error": "Invalid request origin"})
+                return
+            form = urllib.parse.parse_qs(raw_body)
+            error = save_web_settings(form)
+            if error:
+                values = {key: form[key][0] for key in SETTINGS_FIELDS if key in form and key not in ("SQL_PASSWORD", "SYNC_API_TOKEN")}
+                body = render_settings_html({**cfg, **values}, error).encode("utf-8")
+                self._send(400, body, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
+            else:
+                log_event("ok", "settings", "บันทึกการตั้งค่าการเชื่อมต่อ")
+                self._send(303, b"", "text/plain", {"Location": "/"})
+            return
+
         if path.startswith("/api/sync/"):
             kind = path.split("/")[-1]
             res = run_push_sync(kind, cfg)
@@ -621,7 +859,7 @@ def main() -> int:
     cfg = load_env_files()
     host = cfg.get("POPSTAR_AGENT_HOST", "0.0.0.0").strip() or "0.0.0.0"
     port = int(cfg.get("POPSTAR_AGENT_PORT", str(DEFAULT_PORT)) or DEFAULT_PORT)
-    AUTO_SYNC_STATE["enabled"] = cfg.get("POPSTAR_AUTO_SYNC", "true").lower() in ("1", "true", "yes")
+    AUTO_SYNC_STATE["enabled"] = cfg.get("POPSTAR_AUTO_SYNC", "false").lower() in ("1", "true", "yes")
     AUTO_SYNC_STATE["interval_minutes"] = int(cfg.get("POPSTAR_AUTO_SYNC_MINUTES", "15") or 15)
 
     MonitorHandler.server_port = port
