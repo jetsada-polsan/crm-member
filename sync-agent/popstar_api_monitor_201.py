@@ -239,17 +239,28 @@ def run_push_sync(kind: str, cfg: dict[str, str]) -> dict[str, Any]:
 
         q = PendingQueue(queue_path(cfg))
         queued = 0
-        if kind == "customers":
+        push_kinds = ["customers", "products", "salespersons", "members", "invoices"]
+        kinds = push_kinds if kind == "all" else [kind] if kind in push_kinds else []
+        if kind != "flush" and not kinds:
+            return {"ok": False, "error": f"ยังไม่รองรับประเภท {kind} ในโหมด Push"}
+        if kinds:
             conn_str = get_sql_conn_string(cfg)
             if not conn_str:
-                return {"ok": False, "error": "ยังไม่ได้ตั้งค่า SQL_CONNECTION_STRING"}
-            from agent.sql_reader import read_customers
-            rows = read_customers(conn_str)
-            for offset in range(0, len(rows), 250):
-                q.enqueue("customers", source, rows[offset:offset + 250])
-                queued += 1
-        elif kind != "flush":
-            return {"ok": False, "error": f"ยังไม่รองรับประเภท {kind} ในโหมด Push"}
+                return {"ok": False, "error": "ยังไม่ได้ตั้งค่า SQL_CONNECTION_STRING / SQL_USER / SQL_PASSWORD"}
+            from agent import bplus_push
+            conn = bplus_push.connect(conn_str)
+            try:
+                for k in kinds:
+                    if k == "invoices":
+                        queued += bplus_push.queue_invoices(
+                            conn, q, source, queue_path(cfg).with_name("push_state.json"),
+                            int(cfg.get("POPSTAR_INVOICE_START_KEY", "0") or 0),
+                            int(cfg.get("POPSTAR_INVOICE_MAX_PER_RUN", "2000") or 2000),
+                        )
+                    else:
+                        queued += bplus_push.queue_master(conn, k, q, source)
+            finally:
+                conn.close()
 
         sent = 0
         failed = 0
@@ -305,7 +316,7 @@ def scheduler_loop() -> None:
             except ValueError:
                 due = True
         if due:
-            run_push_sync("customers", cfg)
+            run_push_sync("all", cfg)
 
 
 def render_login_html(error_msg: str = "") -> str:
@@ -397,7 +408,7 @@ th{{color:#64748b;font-weight:600}} code{{background:#f1f5f9;padding:2px 6px;bor
     <div class="row"><span>ส่งสำเร็จ (Sent)</span><b id="qSent">0</b></div>
     <div class="row"><span>ซิงก์ล่าสุด</span><b id="lastRun">-</b></div>
     <div class="btns" style="margin-top:12px">
-      <button class="primary" id="btnSyncCust" onclick="triggerSync('customers')">👥 ซิงก์ลูกหนี้</button>
+      <button class="primary" id="btnSyncCust" onclick="triggerSync('all')">🔄 ซิงก์ทั้งหมด</button>
       <button id="btnFlush" onclick="triggerSync('flush')">📤 ส่งคิวค้าง</button>
     </div>
   </div>
@@ -444,7 +455,7 @@ async function refreshAll(testSql=false){{
   document.getElementById('logBody').innerHTML = rows || '<tr><td colspan="4" style="color:#64748b">ยังไม่มีรายการบันทึก</td></tr>';
 }}
 async function triggerSync(kind){{
-  const btn = document.getElementById(kind==='customers'?'btnSyncCust':'btnFlush');
+  const btn = document.getElementById(kind==='all'?'btnSyncCust':'btnFlush');
   btn.disabled = true;
   try {{
     const r = await fetch('/api/sync/' + kind, {{ method: 'POST' }});
@@ -603,7 +614,7 @@ def main() -> int:
     cfg = load_env_files()
     host = cfg.get("POPSTAR_AGENT_HOST", "0.0.0.0").strip() or "0.0.0.0"
     port = int(cfg.get("POPSTAR_AGENT_PORT", str(DEFAULT_PORT)) or DEFAULT_PORT)
-    AUTO_SYNC_STATE["enabled"] = cfg.get("POPSTAR_AUTO_SYNC", "false").lower() in ("1", "true", "yes")
+    AUTO_SYNC_STATE["enabled"] = cfg.get("POPSTAR_AUTO_SYNC", "true").lower() in ("1", "true", "yes")
     AUTO_SYNC_STATE["interval_minutes"] = int(cfg.get("POPSTAR_AUTO_SYNC_MINUTES", "15") or 15)
 
     MonitorHandler.server_port = port
