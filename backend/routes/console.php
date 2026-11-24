@@ -4,6 +4,21 @@ use App\Models\StaffUser;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schedule;
+
+/*
+ * ERP auto-sync through the local Bplus bridge. The Windows task "POPSTAR schedule-run" fires
+ * schedule:run every minute; each run skips quietly when the office SQL Server is unreachable.
+ */
+Schedule::command('popstar:sync-erp --kind=invoices')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(60)
+    ->appendOutputTo(storage_path('logs/erp-sync.log'));
+
+Schedule::command('popstar:sync-erp --kind=salespersons --kind=customers --kind=products --kind=members')
+    ->hourlyAt(7)
+    ->withoutOverlapping(60)
+    ->appendOutputTo(storage_path('logs/erp-sync.log'));
 
 Artisan::command('popstar:create-staff-admin {email}', function (string $email) {
     if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {

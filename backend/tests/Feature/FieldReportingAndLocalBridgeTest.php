@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\StaffUser;
-use App\Modules\ERPIntegration\ErpLocalSyncController;
+use App\Modules\ERPIntegration\LocalBridgeSync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -259,7 +259,7 @@ class FieldReportingAndLocalBridgeTest extends TestCase
             'phone' => $phone,
         ]);
 
-        $controller = app(ErpLocalSyncController::class);
+        $controller = app(LocalBridgeSync::class);
         $method = new \ReflectionMethod($controller, 'sanitizeMessage');
         $safe = $method->invoke($controller, "SQLSTATE[22001]: value too long (Connection: pgsql, SQL: insert into customers values ('private customer value'))");
         $this->assertStringContainsString('statement redacted', $safe);

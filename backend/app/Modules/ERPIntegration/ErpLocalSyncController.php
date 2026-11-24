@@ -9,13 +9,14 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
 final class ErpLocalSyncController
 {
-    private const DATA_KINDS = ['customers', 'products', 'salespersons', 'invoices', 'members'];
+    private const DATA_KINDS = LocalBridgeSync::DATA_KINDS;
+
+    public function __construct(private LocalBridgeSync $bridgeSync) {}
 
     private function requireAdmin(): void
     {
@@ -25,29 +26,20 @@ final class ErpLocalSyncController
 
     private function bridgeUrl(string $path): string
     {
-        return rtrim((string) config('popstar.local_bridge_url', 'http://host.docker.internal:18900'), '/').$path;
+        return $this->bridgeSync->bridgeUrl($path);
     }
 
+    /**
+     * @return array<string, string>
+     */
     private function bridgeHeaders(): array
     {
-        return [
-            'Accept' => 'application/json',
-            'Host' => '127.0.0.1:18900',
-            'X-Bridge-Token' => (string) config('popstar.local_bridge_token', ''),
-        ];
+        return $this->bridgeSync->bridgeHeaders();
     }
 
     private function sanitizeMessage(string $message): string
     {
-        $message = (string) preg_replace('/\s*,?\s*SQL:\s*.+$/is', ' SQL: [statement redacted]', $message);
-        $message = (string) preg_replace('/(Password|Pwd)\s*=\s*[^;]+/i', '$1=***', $message);
-
-        if (stripos($message, 'The wait operation timed out') !== false
-            || stripos($message, 'server was not found or was not accessible') !== false) {
-            return 'เชื่อมต่อ Bplus SQL Server ไม่ได้ (Timeout) — เครื่องนี้ไม่ได้อยู่ในวงแลนออฟฟิศ กรุณาใช้โหมด Push API แทน';
-        }
-
-        return $message;
+        return $this->bridgeSync->sanitizeMessage($message);
     }
 
     private function checkOfficeSqlReachable(): ?bool
@@ -56,30 +48,7 @@ final class ErpLocalSyncController
             return null;
         }
 
-        return SalesRules::cacheRemember('office_sql_tcp_reachable', 15, static function (): bool {
-            $errno = 0;
-            $errstr = '';
-            $sock = @fsockopen('192.168.88.200', 1433, $errno, $errstr, 1.0);
-            if (is_resource($sock)) {
-                fclose($sock);
-
-                return true;
-            }
-
-            return false;
-        });
-    }
-
-    private function safeRecordKey(array $record): ?string
-    {
-        foreach (['erp_customer_code', 'erp_product_code', 'invoice_no', 'member_code', 'salesperson_code', 'di_key'] as $key) {
-            $value = $record[$key] ?? null;
-            if (is_scalar($value) && trim((string) $value) !== '') {
-                return mb_substr((string) $value, 0, 160);
-            }
-        }
-
-        return null;
+        return SalesRules::cacheRemember('office_sql_tcp_reachable', 15, fn (): bool => $this->bridgeSync->isOfficeSqlReachable());
     }
 
     public function status(): JsonResponse
@@ -379,175 +348,30 @@ final class ErpLocalSyncController
     {
         $this->requireAdmin();
 
-        $handlers = [
-            'customers' => [ErpMirrorUpserter::class, 'upsertCustomer'],
-            'products' => [ErpMirrorUpserter::class, 'upsertProduct'],
-            'invoices' => [ErpMirrorUpserter::class, 'upsertInvoiceWithItems'],
-            'salespersons' => [ErpMirrorUpserter::class, 'upsertSalesperson'],
-            'members' => [ErpMirrorUpserter::class, 'upsertMember'],
-        ];
+        $afterKey = $request->input('after_key');
+        $result = $this->bridgeSync->syncPage(
+            $kind,
+            $request->has('limit') ? (int) $request->input('limit') : null,
+            $afterKey === null ? null : (int) $afterKey,
+            $request->boolean('full_reconcile'),
+            Auth::guard('staff')->id(),
+        );
 
-        if (! isset($handlers[$kind])) {
-            return response()->json(['error' => 'Unsupported sync kind'], 422);
-        }
-
-        $defaultLimit = $kind === 'invoices' ? 100 : 1000;
-        $limit = max(1, min($kind === 'invoices' ? 500 : 5000, (int) $request->input('limit', $defaultLimit)));
-        if ($kind === 'invoices') {
-            $limit = max(100, $limit);
-        }
-        $runId = $this->startRun($kind);
-
-        try {
-            $source = (string) config('popstar.erp_source_system', 'BPLUS');
-            $cursorRow = $kind === 'invoices'
-                ? DB::table('erp_sync_cursors')->where('source_system', $source)->where('kind', 'invoices')->first()
-                : null;
-            $cursor = (int) ($cursorRow->cursor_value ?? 0);
-            $requestedAfterKey = $request->input('after_key');
-            $defaultAfterKey = $kind === 'invoices'
-                ? ($request->boolean('full_reconcile') ? 0 : max(0, $cursor - 50))
-                : 0;
-            $afterKey = $requestedAfterKey === null ? $defaultAfterKey : max(0, (int) $requestedAfterKey);
-            $query = ['limit' => $limit];
-            $query['after_key'] = $afterKey;
-
-            $res = Http::withHeaders($this->bridgeHeaders())->timeout(60)->get($this->bridgeUrl("/export/{$kind}"), $query);
-            $json = $res->json() ?? [];
-            if (! $res->successful() || ! ($json['ok'] ?? false)) {
-                $msg = $this->sanitizeMessage((string) ($json['error'] ?? $json['detail'] ?? ('HTTP '.$res->status())));
-                $this->finishRun($runId, 'failed', 0, 0, 0, $msg);
-                $this->logError($runId, $kind, null, $msg);
-
-                return response()->json(['ok' => false, 'error' => $msg], 422);
-            }
-
-            $responseSource = (string) ($json['source'] ?? '');
-            if ($responseSource === '' || ($kind === 'invoices' && $responseSource !== $source)) {
-                throw new \RuntimeException('ERP source does not match configured source system');
-            }
-            $source = $responseSource;
-            $records = $json['records'] ?? [];
-            $inserted = 0;
-            $updated = 0;
-            $skipped = 0;
-            $now = now();
-            $upserter = $handlers[$kind];
-
-            $nextCursor = (int) ($json['next_cursor'] ?? $cursor);
-            $rowErrors = 0;
-
-            if ($kind === 'invoices') {
-                // Keep invoice rows and their cursor atomic. A failed row must not advance the cursor.
-                DB::transaction(function () use ($source, $records, $now, $upserter, $nextCursor, $cursor, &$inserted, &$updated) {
-                    foreach ($records as $rec) {
-                        $wasExisting = $upserter($source, $rec, $now);
-                        $wasExisting ? $updated++ : $inserted++;
-                    }
-
-                    if ($nextCursor > $cursor) {
-                        DB::table('erp_sync_cursors')->upsert(
-                            [[
-                                'source_system' => $source,
-                                'kind' => 'invoices',
-                                'cursor_value' => $nextCursor,
-                                'created_at' => $now,
-                                'updated_at' => $now,
-                            ]],
-                            ['source_system', 'kind'],
-                            ['cursor_value', 'updated_at']
-                        );
-                    }
-                });
-            } else {
-                foreach ($records as $rec) {
-                    try {
-                        $wasExisting = DB::transaction(fn () => $upserter($source, $rec, $now));
-                        if ($wasExisting === null) {
-                            $skipped++;
-                        } else {
-                            $wasExisting ? $updated++ : $inserted++;
-                        }
-                    } catch (Throwable $rowErr) {
-                        $rowErrors++;
-                        $this->logError(
-                            $runId,
-                            $kind,
-                            $this->safeRecordKey($rec),
-                            $this->sanitizeMessage($rowErr->getMessage())
-                        );
-                    }
-                }
-            }
-
-            $status = $rowErrors === 0 ? 'success' : 'failed';
-            $staffSyncStats = null;
-            if ($rowErrors === 0 && in_array($kind, ['salespersons', 'invoices'], true)) {
-                $staffSyncStats = CustomerAccess::syncStaffFromErp();
-            }
-            $message = "Synced {$kind}: fetched ".count($records).", row errors {$rowErrors}";
-            $this->finishRun($runId, $status, count($records), $inserted, $updated, $message);
-
-            return response()->json([
-                'ok' => $rowErrors === 0,
-                'kind' => $kind,
-                'status' => $status,
-                'fetched' => count($records),
-                'inserted' => $inserted,
-                'updated' => $updated,
-                'skipped' => $skipped,
-                'row_errors' => $rowErrors,
-                'next_cursor' => $nextCursor,
-                'has_more' => (bool) ($json['has_more'] ?? false),
-                'staff_sync' => $staffSyncStats,
-            ], $rowErrors === 0 ? 200 : 422);
-        } catch (Throwable $e) {
-            $err = $this->sanitizeMessage($e->getMessage());
-            Log::error('ERP local sync failed', ['kind' => $kind, 'error' => $err]);
-            $this->finishRun($runId, 'failed', 0, 0, 0, $err);
-            $this->logError($runId, $kind, null, $err);
-
-            return response()->json(['ok' => false, 'error' => $err], 502);
-        }
+        return response()->json($result['body'], $result['http_status']);
     }
 
     private function startRun(string $kind): int
     {
-        return (int) DB::table('sync_runs')->insertGetId([
-            'kind' => $kind,
-            'status' => 'running',
-            'triggered_by' => Auth::guard('staff')->id(),
-            'started_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        return $this->bridgeSync->startRun($kind, Auth::guard('staff')->id());
     }
 
     private function finishRun(int $id, string $status, int $fetched, int $inserted, int $updated, string $message): void
     {
-        DB::table('sync_runs')->where('id', $id)->update([
-            'status' => $status,
-            'fetched_count' => $fetched,
-            'inserted_count' => $inserted,
-            'updated_count' => $updated,
-            'message' => mb_substr($message, 0, 2000),
-            'finished_at' => now(),
-            'updated_at' => now(),
-        ]);
-        if ($inserted > 0 || $updated > 0) {
-            SalesRules::invalidateCache();
-            CustomerAccess::clearCache();
-        }
+        $this->bridgeSync->finishRun($id, $status, $fetched, $inserted, $updated, $message);
     }
 
     private function logError(?int $runId, string $kind, ?string $key, string $message): void
     {
-        DB::table('sync_errors')->insert([
-            'sync_run_id' => $runId,
-            'kind' => $kind,
-            'record_key' => $key ? mb_substr($key, 0, 160) : null,
-            'error_message' => mb_substr($message, 0, 2000),
-            'created_at' => now(),
-        ]);
+        $this->bridgeSync->logError($runId, $kind, $key, $message);
     }
 }
