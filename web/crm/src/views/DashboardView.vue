@@ -387,7 +387,7 @@
 
           <!-- Primary Visual: Upgraded Monthly Sales Chart + Recent Activities -->
           <div class="dash-grid" style="margin-bottom: 0">
-            <div class="card">
+            <div class="card exec-chart-card">
               <div class="section-head">
                 <div>
                   <h3>แนวโน้มยอดขายสุทธิรายเดือน</h3>
@@ -466,7 +466,7 @@
                 <div v-for="act in (dashboard?.recent_activities || []).slice(0, 5)" :key="act.id" class="activity-row">
                   <div class="bullet">📍</div>
                   <div style="min-width: 0">
-                    <strong>{{ act.shop_name || 'ร้านค้า' }} · {{ act.result }}</strong>
+                    <strong>{{ act.shop_name || 'ร้านค้า' }} · {{ visitResultLabel(act.result) }}</strong>
                     <small
                       >{{ act.staff_name || 'ทีมขาย' }} ·
                       {{
@@ -711,6 +711,7 @@ import CustomerMapBoard from '../components/CustomerMapBoard.vue';
 import SalesTargetAndAlertBoard from '../components/SalesTargetAndAlertBoard.vue';
 import DateRangePicker from '../components/DateRangePicker.vue';
 import { toast } from '../../../shared/composables/useUiStore.js';
+import { visitResultLabel } from '../utils/visitResult.js';
 import {
   crmGet,
   crmMutate,
@@ -1372,9 +1373,25 @@ function refetchAll() {
   border-top: 3px solid var(--blue);
 }
 
+/* The chart grows with the card (stretched to the recent-visits column) instead of
+   sitting in a fixed 252px box with empty space below it. */
+.exec-chart-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .exec-chart {
-  height: 252px;
+  flex: 1;
+  height: auto;
+  min-height: 252px;
   padding: 12px 16px 14px;
+  display: flex;
+  align-items: stretch;
+}
+
+.exec-chart > * {
+  flex: 1;
+  height: auto;
 }
 
 .exec-bar-col rect {

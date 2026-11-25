@@ -16,6 +16,12 @@
     <VisitPresentationPanel />
 
     <div class="card panel-pad" style="margin-bottom: 16px">
+      <div class="section-head" style="padding: 0 0 10px">
+        <div>
+          <h3 style="margin: 0">ช่วงเวลาของรายงาน</h3>
+          <div class="small muted">ใช้กับตารางยอดซื้อและสรุปการเข้าพบด้านล่าง (แยกจากช่วงเวลาของสไลด์ด้านบน)</div>
+        </div>
+      </div>
       <DateRangePicker v-model:from="from" v-model:to="to" />
       <p v-if="period === 'day' && rangeDays > 31" class="small error">
         รายวันแสดงได้ไม่เกิน 31 วัน กรุณาลดช่วงวันที่หรือเลือกแสดงยอดรายเดือน
