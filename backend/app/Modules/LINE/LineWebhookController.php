@@ -2,6 +2,7 @@
 
 namespace App\Modules\LINE;
 
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,8 @@ use Throwable;
 
 final class LineWebhookController
 {
+    private const LINK_INSTRUCTIONS = 'ผูกบัญชี LINE ได้ที่ https://crm.popstarmember.com/member-portal เข้าสู่ระบบแล้วกด "สร้างรหัสเชื่อม LINE" จากนั้นพิมพ์ LINK-รหัส ในแชทนี้';
+
     public function __invoke(Request $request): JsonResponse
     {
         $secret = LineConfig::channelSecret();
@@ -45,23 +48,47 @@ final class LineWebhookController
                 continue; // Idempotent webhook replay protection
             }
 
-            $replyText = null;
+            $replyMessage = null;
+            $isPointOrBindAction = false;
 
             if ($eventType === 'message' && ($event['message']['type'] ?? '') === 'text' && $lineUserId) {
                 $text = trim((string) ($event['message']['text'] ?? ''));
                 if (preg_match('/^LINK[:\-\s]+([A-Za-z0-9\-]+)$/i', $text, $m)) {
+                    $isPointOrBindAction = true;
                     $rawCode = strtoupper(trim($m[1]));
                     $bound = $this->consumeLinkCode($rawCode, $lineUserId);
                     if ($bound) {
                         $boundCount++;
-                        $replyText = 'ผูกบัญชี LINE กับ Popstar Member สำเร็จแล้ว';
+                        $replyMessage = ['type' => 'text', 'text' => 'ผูกบัญชี LINE กับ Popstar Member สำเร็จแล้ว'];
                     } else {
-                        $replyText = 'รหัสเชื่อมบัญชีไม่ถูกต้องหรือหมดอายุ กรุณาสร้างรหัสใหม่จากหน้าสมาชิก';
+                        $replyMessage = ['type' => 'text', 'text' => 'รหัสเชื่อมบัญชีไม่ถูกต้องหรือหมดอายุ กรุณาสร้างรหัสใหม่จากหน้าสมาชิก'];
+                    }
+                } elseif ($this->isCheckPointsCommand($text)) {
+                    $isPointOrBindAction = true;
+                    $member = $this->findMemberByLineUserId($lineUserId);
+                    if ($member !== null) {
+                        $replyMessage = $this->buildPointsFlexMessage($member);
+                    } else {
+                        $replyMessage = [
+                            'type' => 'text',
+                            'text' => self::LINK_INSTRUCTIONS,
+                        ];
                     }
                 } else {
-                    $replyText = $this->customerReply($text, $lineUserId);
+                    $phoneDigits = $this->extractTenDigitPhone($text);
+                    if ($phoneDigits !== null && $this->findMemberByLineUserId($lineUserId) === null) {
+                        $isPointOrBindAction = true;
+                        // A phone number alone proves nothing, so binding needs a code from the signed-in member portal.
+                        $replyMessage = ['type' => 'text', 'text' => self::LINK_INSTRUCTIONS];
+                    } else {
+                        $replyMessage = [
+                            'type' => 'text',
+                            'text' => $this->customerReply($text, $lineUserId),
+                        ];
+                    }
                 }
             }
+
             DB::table('line_webhook_events')->insert([
                 'webhook_event_id' => $eventId ?: null,
                 'event_type' => $eventType,
@@ -74,7 +101,11 @@ final class LineWebhookController
 
             $isFirstThreadMessage = false;
             if ($lineUserId && $eventType === 'message') {
-                $isFirstThreadMessage = $this->recordIncomingChat($lineUserId, $event, $accessToken);
+                $isFirstThreadMessage = $this->recordIncomingChat(
+                    $lineUserId,
+                    $event,
+                    $isPointOrBindAction ? '' : $accessToken
+                );
             }
 
             if ($eventType !== 'message') {
@@ -82,19 +113,28 @@ final class LineWebhookController
             }
 
             if (($event['message']['type'] ?? '') !== 'text' && $lineUserId) {
-                $replyText = 'ได้รับข้อความแล้วครับ ทีมงาน POPSTAR จะตอบกลับในแชทนี้';
+                $replyMessage = [
+                    'type' => 'text',
+                    'text' => 'ได้รับข้อความแล้วครับ ทีมงาน POPSTAR จะตอบกลับในแชทนี้',
+                ];
             }
 
-            if ($replyText === null && $isFirstThreadMessage) {
-                $replyText = LineConfig::welcomeMessage();
+            if ($replyMessage === null && $isFirstThreadMessage) {
+                $replyMessage = [
+                    'type' => 'text',
+                    'text' => LineConfig::welcomeMessage(),
+                ];
             }
 
-            if ($replyText === null) {
-                $replyText = 'พิมพ์ “เช็คแต้ม” เพื่อดูคะแนนและของรางวัล หรือพิมพ์ “ติดต่อเรา” เพื่อฝากข้อความถึงทีมงาน';
+            if ($replyMessage === null) {
+                $replyMessage = [
+                    'type' => 'text',
+                    'text' => 'พิมพ์ “เช็คแต้ม” เพื่อดูคะแนนและของรางวัล หรือพิมพ์ “ติดต่อเรา” เพื่อฝากข้อความถึงทีมงาน',
+                ];
             }
 
             $replyToken = $event['replyToken'] ?? null;
-            if ($replyToken && $replyText !== null && $accessToken !== '') {
+            if ($replyToken && $replyMessage !== null && $accessToken !== '') {
                 $deliveryStatus = 'failed';
                 $deliveryError = null;
 
@@ -102,7 +142,7 @@ final class LineWebhookController
                     $response = Http::withToken($accessToken)->acceptJson()->timeout(8)
                         ->post('https://api.line.me/v2/bot/message/reply', [
                             'replyToken' => $replyToken,
-                            'messages' => [['type' => 'text', 'text' => $replyText]],
+                            'messages' => [$replyMessage],
                         ]);
                     $deliveryStatus = $response->successful() ? 'sent' : 'failed';
                     if (! $response->successful()) {
@@ -115,11 +155,15 @@ final class LineWebhookController
                 if ($lineUserId && Schema::hasTable('line_chat_threads')) {
                     $thread = DB::table('line_chat_threads')->where('line_user_id', $lineUserId)->first();
                     if ($thread) {
+                        $outgoingBody = ($replyMessage['type'] ?? 'text') === 'flex'
+                            ? (string) ($replyMessage['altText'] ?? '[การ์ดคะแนนสะสม]')
+                            : (string) ($replyMessage['text'] ?? '');
+
                         DB::table('line_chat_messages')->insert([
                             'thread_id' => $thread->id,
                             'direction' => 'outgoing',
-                            'message_type' => 'text',
-                            'body' => $replyText,
+                            'message_type' => (string) ($replyMessage['type'] ?? 'text'),
+                            'body' => $outgoingBody,
                             'delivery_status' => $deliveryStatus,
                             'delivery_error' => $deliveryError,
                             'created_at' => now(),
@@ -132,24 +176,323 @@ final class LineWebhookController
         return response()->json(['ok' => true, 'bound' => $boundCount]);
     }
 
+    private function isCheckPointsCommand(string $text): bool
+    {
+        $normalized = mb_strtolower(preg_replace('/[\s\p{P}\p{S}]+/u', '', trim($text)) ?? trim($text));
+
+        return in_array($normalized, ['เช็คแต้ม', 'เช็กแต้ม', 'แต้ม', 'คะแนน', 'เช็คคะแนน', 'เช็กคะแนน', 'คะแนนสะสม'], true);
+    }
+
+    private function extractTenDigitPhone(string $text): ?string
+    {
+        $trimmed = trim($text);
+        if (! preg_match('/^0[\d\-\s]{9,12}$/', $trimmed)) {
+            return null;
+        }
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
+
+        return preg_match('/^0\d{9}$/', $digits) === 1 ? $digits : null;
+    }
+
+    private function findMemberByLineUserId(string $lineUserId): ?object
+    {
+        if ($lineUserId === '') {
+            return null;
+        }
+
+        if (Schema::hasColumn('member_accounts', 'line_user_id')) {
+            $direct = DB::table('member_accounts')
+                ->where('line_user_id', $lineUserId)
+                ->first();
+            if ($direct) {
+                return $direct;
+            }
+        }
+
+        if (Schema::hasTable('member_line_accounts')) {
+            $linked = DB::table('member_line_accounts as mla')
+                ->join('member_accounts as m', 'm.id', '=', 'mla.member_account_id')
+                ->where('mla.line_user_id', $lineUserId)
+                ->where('mla.binding_status', 'verified')
+                ->whereNull('mla.revoked_at')
+                ->select('m.*')
+                ->first();
+            if ($linked) {
+                return $linked;
+            }
+        }
+
+        return null;
+    }
+
+    public static function maskMemberName(string $name): string
+    {
+        $clean = trim($name);
+        if ($clean === '') {
+            return 'สมาชิก***';
+        }
+
+        $firstPart = preg_split('/\s+/u', $clean)[0] ?? $clean;
+        preg_match_all('/.[\x{0E31}\x{0E34}-\x{0E3A}\x{0E47}-\x{0E4E}]*/u', $firstPart, $matches);
+        $clusters = $matches[0] ?? [];
+
+        if ($clusters === []) {
+            return 'สมาชิก***';
+        }
+
+        if (count($clusters) === 1) {
+            return $clusters[0].'***';
+        }
+
+        return $clusters[0].$clusters[1].'***';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildPointsFlexMessage(object $member): array
+    {
+        $memberId = (int) $member->id;
+        $maskedName = self::maskMemberName((string) ($member->name ?? ''));
+
+        $hasLedger = DB::table('loyalty_points_ledger')
+            ->where('member_account_id', $memberId)
+            ->exists();
+        $ledgerBalance = (int) DB::table('loyalty_points_ledger')
+            ->where('member_account_id', $memberId)
+            ->sum('points_delta');
+
+        $erpMember = null;
+        if (Schema::hasTable('member_erp_links') && Schema::hasTable('erp_members')) {
+            $erpMember = DB::table('member_erp_links as l')
+                ->join('erp_customers as c', 'c.id', '=', 'l.erp_customer_id')
+                ->leftJoin('erp_members as em', function ($join): void {
+                    $join->on('em.source_system', '=', 'c.source_system')
+                        ->on('em.member_code', '=', 'l.erp_member_code');
+                })
+                ->where('l.member_account_id', $memberId)
+                ->where('l.verification_status', 'verified')
+                ->whereNotNull('l.verified_at')
+                ->select('em.erp_point_balance', 'em.member_expire')
+                ->first();
+        }
+
+        $balance = $hasLedger
+            ? $ledgerBalance
+            : ($erpMember && $erpMember->erp_point_balance !== null ? (int) $erpMember->erp_point_balance : 0);
+
+        $expiringPoints = null;
+        $expiryDateFormatted = null;
+
+        if (Schema::hasColumn('loyalty_points_ledger', 'expires_at')) {
+            $now = now();
+            $earliestExpiry = DB::table('loyalty_points_ledger')
+                ->where('member_account_id', $memberId)
+                ->where('points_delta', '>', 0)
+                ->whereNotNull('expires_at')
+                ->where('expires_at', '>=', $now)
+                ->orderBy('expires_at')
+                ->value('expires_at');
+
+            if ($earliestExpiry !== null) {
+                $expDate = Carbon::parse($earliestExpiry)->timezone('Asia/Bangkok');
+                $expiringSum = (int) DB::table('loyalty_points_ledger')
+                    ->where('member_account_id', $memberId)
+                    ->where('points_delta', '>', 0)
+                    ->whereDate('expires_at', $expDate->toDateString())
+                    ->sum('points_delta');
+                $expiringPoints = $balance > 0 ? min($balance, $expiringSum) : $expiringSum;
+                $expiryDateFormatted = $expDate->format('d/m/Y');
+            }
+        }
+
+        if ($expiringPoints === null && $erpMember && ! empty($erpMember->member_expire) && $balance > 0) {
+            $expiringPoints = $balance;
+            $expiryDateFormatted = Carbon::parse($erpMember->member_expire)->timezone('Asia/Bangkok')->format('d/m/Y');
+        }
+
+        $recentEntries = DB::table('loyalty_points_ledger')
+            ->where('member_account_id', $memberId)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get(['points_delta', 'reason', 'created_at']);
+
+        $bodyContents = [
+            [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'สมาชิก',
+                        'size' => 'sm',
+                        'color' => '#64748B',
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $maskedName,
+                        'size' => 'sm',
+                        'weight' => 'bold',
+                        'color' => '#0F172A',
+                        'align' => 'end',
+                    ],
+                ],
+            ],
+            [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'margin' => 'md',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'แต้มคงเหลือ',
+                        'size' => 'xs',
+                        'color' => '#64748B',
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => number_format($balance).' แต้ม',
+                        'size' => 'xxl',
+                        'weight' => 'bold',
+                        'color' => '#0284C7',
+                    ],
+                ],
+            ],
+        ];
+
+        if ($expiringPoints !== null && $expiringPoints > 0 && $expiryDateFormatted !== null) {
+            $bodyContents[] = [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'margin' => 'sm',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'แต้มที่จะหมดอายุ',
+                        'size' => 'xs',
+                        'color' => '#D97706',
+                        'flex' => 0,
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => number_format($expiringPoints).' แต้ม ('.$expiryDateFormatted.')',
+                        'size' => 'xs',
+                        'weight' => 'bold',
+                        'color' => '#D97706',
+                        'align' => 'end',
+                    ],
+                ],
+            ];
+        }
+
+        $bodyContents[] = [
+            'type' => 'separator',
+            'margin' => 'md',
+        ];
+
+        $bodyContents[] = [
+            'type' => 'text',
+            'text' => 'รายการแต้มล่าสุด',
+            'size' => 'xs',
+            'weight' => 'bold',
+            'color' => '#475569',
+            'margin' => 'md',
+        ];
+
+        if ($recentEntries->isEmpty()) {
+            $bodyContents[] = [
+                'type' => 'text',
+                'text' => 'ยังไม่มีประวัติรายการแต้ม',
+                'size' => 'xs',
+                'color' => '#94A3B8',
+                'margin' => 'sm',
+            ];
+        } else {
+            foreach ($recentEntries as $entry) {
+                $dateStr = $entry->created_at
+                    ? Carbon::parse($entry->created_at)->timezone('Asia/Bangkok')->format('d/m/Y')
+                    : '-';
+                $delta = (int) $entry->points_delta;
+                $sign = $delta >= 0 ? '+' : '-';
+                $formattedDelta = $sign.number_format(abs($delta));
+
+                $bodyContents[] = [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'margin' => 'sm',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => $dateStr,
+                            'size' => 'xs',
+                            'color' => '#64748B',
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $formattedDelta,
+                            'size' => 'xs',
+                            'weight' => 'bold',
+                            'align' => 'end',
+                            'color' => $delta >= 0 ? '#059669' : '#E11D48',
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        return [
+            'type' => 'flex',
+            'altText' => 'แต้มสะสมของ '.$maskedName.': '.number_format($balance).' แต้ม',
+            'contents' => [
+                'type' => 'bubble',
+                'header' => [
+                    'type' => 'box',
+                    'layout' => 'vertical',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => 'POPSTAR MEMBER',
+                            'weight' => 'bold',
+                            'size' => 'xs',
+                            'color' => '#0284C7',
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => 'บัตรคะแนนสมาชิก',
+                            'weight' => 'bold',
+                            'size' => 'lg',
+                            'color' => '#0F172A',
+                        ],
+                    ],
+                ],
+                'body' => [
+                    'type' => 'box',
+                    'layout' => 'vertical',
+                    'contents' => $bodyContents,
+                ],
+            ],
+        ];
+    }
+
     private function customerReply(string $text, string $lineUserId): string
     {
-        $normalized = mb_strtolower(preg_replace('/[\\s\\p{P}\\p{S}]+/u', '', trim($text)) ?? trim($text));
-
-        if (in_array($normalized, ['แต้ม', 'คะแนน', 'เช็คแต้ม', 'เช็กแต้ม', 'เช็คคะแนน', 'เช็กคะแนน', 'คะแนนสะสม'], true)) {
-            return $this->memberPointsReply($lineUserId);
-        }
+        $normalized = mb_strtolower(preg_replace('/[\s\p{P}\p{S}]+/u', '', trim($text)) ?? trim($text));
 
         if (in_array($normalized, ['ของรางวัล', 'ของขวัญ', 'รางวัล', 'โปรโมชั่น', 'โปรโมชัน'], true)) {
             return $this->activeRewardsReply();
         }
 
-        if (in_array($normalized, ['ติดต่อ', 'ติดต่อเรา', 'แอดมิน', 'เจ้าหน้าที่', 'คุยกับเจ้าหน้าที่'], true)) {
+        if (in_array($normalized, ['ติดต่อ', 'ติดต่อเรา', 'แอดมิน', 'ติดต่อแอดมิน', 'ติดต่อแอดมินpopstar', 'เจ้าหน้าที่', 'คุยกับเจ้าหน้าที่'], true)) {
             return 'รับข้อความแล้วครับ ทีมงาน POPSTAR จะตอบกลับในแชทนี้';
         }
 
         if (in_array($normalized, ['ผูกสมาชิก', 'ผูกบัญชี', 'สมัครสมาชิก'], true)) {
-            return 'กรุณาเข้าสู่ระบบสมาชิกเพื่อผูกบัญชีร้านค้าและ LINE ก่อนตรวจสอบคะแนน: https://crm.popstarmember.com/member-portal';
+            if ($this->findMemberByLineUserId($lineUserId) !== null) {
+                return 'บัญชี LINE ของคุณผูกกับสมาชิก POPSTAR แล้วครับ พิมพ์ “เช็คแต้ม” เพื่อดูคะแนนสะสมได้เลย';
+            }
+
+            return self::LINK_INSTRUCTIONS."\nหากยังไม่เคยสมัครสมาชิก พิมพ์ชื่อร้านค้าและเบอร์โทรศัพท์ในแชทนี้เพื่อให้แอดมินลงทะเบียนให้ครับ";
         }
 
         if (in_array($normalized, ['วิธีใช้', 'ช่วยเหลือ', 'help', 'start', 'เมนู'], true)) {
@@ -157,47 +500,6 @@ final class LineWebhookController
         }
 
         return 'ขออภัย ยังไม่เข้าใจข้อความนี้ครับ พิมพ์ “เช็คแต้ม”, “ของรางวัล”, “วิธีใช้” หรือ “ติดต่อเรา” ได้เลย';
-    }
-
-    private function memberPointsReply(string $lineUserId): string
-    {
-        $lineAccount = DB::table('member_line_accounts')
-            ->where('line_user_id', $lineUserId)
-            ->where('binding_status', 'verified')
-            ->whereNull('revoked_at')
-            ->first();
-
-        if (! $lineAccount || ! $lineAccount->member_account_id) {
-            return 'ยังไม่ได้ผูก LINE กับบัญชีสมาชิกที่ยืนยันแล้วครับ พิมพ์ “ผูกสมาชิก” เพื่อเริ่มเชื่อมบัญชี';
-        }
-
-        $erpLink = DB::table('member_erp_links as l')
-            ->join('erp_customers as c', 'c.id', '=', 'l.erp_customer_id')
-            ->leftJoin('erp_members as em', function ($join): void {
-                $join->on('em.source_system', '=', 'c.source_system')
-                    ->on('em.member_code', '=', 'l.erp_member_code');
-            })
-            ->where('l.member_account_id', $lineAccount->member_account_id)
-            ->where('l.verification_status', 'verified')
-            ->whereNotNull('l.verified_at')
-            ->whereNotNull('l.erp_customer_id')
-            ->select('em.erp_point_balance')
-            ->first();
-
-        if (! $erpLink) {
-            return 'บัญชีสมาชิกเชื่อม LINE แล้ว แต่ร้านค้ายังรอการยืนยันจากทีมงาน จึงยังแสดงคะแนนไม่ได้ครับ';
-        }
-
-        $crmBalance = (int) DB::table('loyalty_points_ledger')
-            ->where('member_account_id', $lineAccount->member_account_id)
-            ->sum('points_delta');
-        $reply = 'แต้มสะสม POPSTAR: '.number_format($crmBalance).' คะแนน';
-
-        if ($erpLink->erp_point_balance !== null) {
-            $reply .= "\nแต้มใน Bplus: ".number_format((int) $erpLink->erp_point_balance).' คะแนน';
-        }
-
-        return $reply."\n\n".$this->activeRewardsReply();
     }
 
     private function activeRewardsReply(): string
@@ -258,7 +560,10 @@ final class LineWebhookController
             ->where('line_user_id', $lineUserId)
             ->whereNull('revoked_at')
             ->first();
-        $memberId = $lineAccount?->member_account_id ? (int) $lineAccount->member_account_id : null;
+        $boundMember = $this->findMemberByLineUserId($lineUserId);
+        $memberId = $boundMember?->id
+            ? (int) $boundMember->id
+            : ($lineAccount?->member_account_id ? (int) $lineAccount->member_account_id : null);
         $erpCustomerId = null;
         if ($memberId !== null) {
             $erpLink = DB::table('member_erp_links')->where('member_account_id', $memberId)->first();
@@ -267,7 +572,7 @@ final class LineWebhookController
 
         $thread = DB::table('line_chat_threads')->where('line_user_id', $lineUserId)->first();
         $isFirst = ! $thread;
-        $displayName = $thread->display_name ?? ($lineAccount->line_display_name ?? null);
+        $displayName = $thread->display_name ?? ($lineAccount->line_display_name ?? ($boundMember->name ?? null));
         $pictureUrl = $thread->picture_url ?? null;
 
         if (($displayName === null || $displayName === '') && $accessToken !== '') {
@@ -342,6 +647,15 @@ final class LineWebhookController
 
             if (! $token) {
                 return false;
+            }
+
+            if (Schema::hasColumn('member_accounts', 'line_user_id')) {
+                DB::table('member_accounts')
+                    ->where('id', $token->member_account_id)
+                    ->update([
+                        'line_user_id' => $lineUserId,
+                        'updated_at' => $now,
+                    ]);
             }
 
             $existsLine = DB::table('member_line_accounts')->where('line_user_id', $lineUserId)->exists();
