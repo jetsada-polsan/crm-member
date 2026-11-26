@@ -1669,13 +1669,14 @@ final class FieldController
         $d = $r->validate([
             'status' => 'required|string|in:pending,completed,skipped',
         ]);
-        DB::table('crm_visit_plan_stops')
+        $updated = DB::table('crm_visit_plan_stops')
             ->where('id', $stopId)
             ->where('plan_id', $planId)
             ->update([
                 'status' => $d['status'],
                 'updated_at' => now(),
             ]);
+        abort_if($updated === 0, 404, 'Stop not found in this plan');
 
         return response()->json(['ok' => true]);
     }
@@ -1687,10 +1688,11 @@ final class FieldController
         if (! $this->manager() && (int) $p->assigned_to !== (int) $this->user()->id) {
             abort(403);
         }
-        DB::table('crm_visit_plan_stops')
+        $deleted = DB::table('crm_visit_plan_stops')
             ->where('id', $stopId)
             ->where('plan_id', $planId)
             ->delete();
+        abort_if($deleted === 0, 404, 'Stop not found in this plan');
 
         return response()->json(['ok' => true]);
     }

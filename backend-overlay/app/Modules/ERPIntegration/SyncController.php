@@ -2,6 +2,7 @@
 
 namespace App\Modules\ERPIntegration;
 
+use App\Modules\CRM\CustomerAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ final class SyncController
             'records' => ['required', 'array', 'min:1', 'max:250'],
             'records.*.erp_customer_code' => ['required', 'string', 'max:64'],
             'records.*.customer_name' => ['required', 'string', 'max:255'],
-            'records.*.phone' => ['nullable', 'string', 'max:40'],
+            'records.*.phone' => ['nullable', 'string', 'max:128'],
             'records.*.province' => ['nullable', 'string', 'max:120'],
             'records.*.address' => ['nullable', 'string', 'max:500'],
             'records.*.ar_enable' => ['nullable', 'string', 'max:8'],
@@ -167,7 +168,7 @@ final class SyncController
         return $this->applyBatch('salespersons', $data, function ($record, $source, $now) {
             ErpMirrorUpserter::upsertSalesperson($source, $record, $now);
         }, afterCommit: function (): void {
-            \App\Modules\CRM\CustomerAccess::syncStaffFromErp();
+            CustomerAccess::syncStaffFromErp();
         });
     }
 
@@ -233,7 +234,7 @@ final class SyncController
         // rows without changing their IDs, so cached analytics must be expired.
         if (! $already) {
             SalesRules::invalidateCache();
-            \App\Modules\CRM\CustomerAccess::clearCache();
+            CustomerAccess::clearCache();
         }
 
         $staffSync = null;

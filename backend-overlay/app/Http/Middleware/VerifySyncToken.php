@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -11,9 +12,10 @@ final class VerifySyncToken
     {
         $token = (string) config('popstar.sync_api_token', '');
         $provided = (string) $request->bearerToken();
-        if (strlen($token) < 32 || $provided === '' || !hash_equals($token, $provided)) {
+        if (strlen($token) < 32 || $provided === '' || ! hash_equals($token, $provided)) {
             return response()->json(['error' => 'Unauthorized sync client'], 401);
         }
+
         return $next($request);
     }
 }

@@ -6,6 +6,8 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
+use function Illuminate\Support\defer;
+
 /**
  * Centralizes Bplus ERP sales calculation, document classification,
  * credit-note reversal, reservation separation, and service/packaging KPI exclusion rules.
@@ -13,9 +15,13 @@ use Illuminate\Support\Facades\DB;
 final class SalesRules
 {
     public const EXCLUDED_ICCAT_CODES = ['CC', 'CO', 'AS', 'PK'];
+
     public const ACTUAL_SALE_PROPERTIES = [302, 307, 337];
+
     public const RETURN_PROPERTIES = [308];
+
     public const RESERVATION_PROPERTIES = [207];
+
     public const ACTUAL_DOCUMENT_PROPERTIES = [302, 307, 308, 337];
 
     private static ?string $requestErpVersion = null;
@@ -46,16 +52,59 @@ final class SalesRules
     }
 
     /**
-     * Cache heavy read-only ERP mirror aggregations (automatically bypassed during unit tests).
+     * Longest time a stale analytics result may still be served while it is refreshed.
      */
-    public static function cacheRemember(string $key, int $ttlSeconds, callable $compute): mixed
+    private const STALE_SERVE_MAX_SECONDS = 86400;
+
+    /**
+     * Cache heavy read-only ERP mirror aggregations (automatically bypassed during unit tests).
+     *
+     * Uses stale-while-revalidate: every ERP sync batch bumps the version, but the
+     * previous result keeps being served immediately while a single locked refresh
+     * recomputes it after the response. This avoids every user paying (and
+     * concurrently repeating) the full aggregation after each 15-minute sync push.
+     * Pass $allowStale = false for data that drives access control.
+     */
+    public static function cacheRemember(string $key, int $ttlSeconds, callable $compute, bool $allowStale = true): mixed
     {
         if (app()->runningUnitTests()) {
             return $compute();
         }
-        $fullKey = 'popstar:v4:'.self::erpCacheVersion().':'.$key;
+        $fullKey = 'popstar:v5:'.$key;
+        $version = self::erpCacheVersion();
+        $entry = Cache::get($fullKey);
 
-        return Cache::remember($fullKey, $ttlSeconds, $compute);
+        if (is_array($entry) && array_key_exists('data', $entry)) {
+            $age = time() - (int) ($entry['at'] ?? 0);
+            if (($entry['version'] ?? null) === $version && $age < $ttlSeconds) {
+                return $entry['data'];
+            }
+            if ($allowStale && $age < self::STALE_SERVE_MAX_SECONDS) {
+                defer(static function () use ($fullKey, $ttlSeconds, $compute): void {
+                    Cache::lock($fullKey.':refresh', 600)->get(static function () use ($fullKey, $ttlSeconds, $compute): void {
+                        self::$requestErpVersion = null;
+                        $current = Cache::get($fullKey);
+                        $version = self::erpCacheVersion();
+                        if (is_array($current) && ($current['version'] ?? null) === $version && time() - (int) ($current['at'] ?? 0) < $ttlSeconds) {
+                            return;
+                        }
+                        self::storeCacheEntry($fullKey, $version, $compute());
+                    });
+                }, 'popstar-cache-refresh:'.$fullKey);
+
+                return $entry['data'];
+            }
+        }
+
+        $data = $compute();
+        self::storeCacheEntry($fullKey, $version, $data);
+
+        return $data;
+    }
+
+    private static function storeCacheEntry(string $fullKey, string $version, mixed $data): void
+    {
+        Cache::put($fullKey, ['version' => $version, 'at' => time(), 'data' => $data], self::STALE_SERVE_MAX_SECONDS);
     }
 
     /**
@@ -242,6 +291,36 @@ final class SalesRules
         }
 
         return self::applyActualSalesScope($q, 'inv');
+    }
+
+    /**
+     * Excluded item amounts keyed "source_system|erp_customer_code" for the given customers.
+     *
+     * Reads one cached map of every customer, refreshed after each ERP sync: computing it per
+     * page cost ~200 ms because the largest customers have thousands of invoices to probe.
+     *
+     * @param  list<string>  $customerCodes
+     * @return array<string, float>
+     */
+    public static function customerExcludedTotals(array $customerCodes): array
+    {
+        if ($customerCodes === []) {
+            return [];
+        }
+
+        $all = self::cacheRemember('customer_excluded_totals', 3600, static fn (): array => self::customerExcludedItemsSubquery()
+            ->get()
+            ->mapWithKeys(static fn (object $row): array => [
+                $row->source_system.'|'.$row->erp_customer_code => (float) ($row->excluded_before_vat ?? 0),
+            ])
+            ->all());
+        $wanted = array_flip($customerCodes);
+
+        return array_filter(
+            $all,
+            static fn (string $key): bool => isset($wanted[substr($key, (int) strpos($key, '|') + 1)]),
+            ARRAY_FILTER_USE_KEY
+        );
     }
 
     /**

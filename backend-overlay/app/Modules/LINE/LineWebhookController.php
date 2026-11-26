@@ -12,7 +12,15 @@ use Throwable;
 
 final class LineWebhookController
 {
-    private const LINK_INSTRUCTIONS = 'ผูกบัญชี LINE ได้ที่ https://crm.popstarmember.com/member-portal เข้าสู่ระบบแล้วกด "สร้างรหัสเชื่อม LINE" จากนั้นพิมพ์ LINK-รหัส ในแชทนี้';
+    private function linkInstructions(): string
+    {
+        $url = trim((string) config('popstar.member_portal_url', 'https://crm.popstarmember.com/m/'));
+        if ($url === '') {
+            $url = 'https://crm.popstarmember.com/m/';
+        }
+
+        return 'ผูกบัญชี LINE ได้ที่ '.$url.' เข้าสู่ระบบแล้วกด "สร้างรหัสเชื่อม LINE" จากนั้นพิมพ์ LINK-รหัส ในแชทนี้';
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -71,7 +79,7 @@ final class LineWebhookController
                     } else {
                         $replyMessage = [
                             'type' => 'text',
-                            'text' => self::LINK_INSTRUCTIONS,
+                            'text' => $this->linkInstructions(),
                         ];
                     }
                 } else {
@@ -79,7 +87,7 @@ final class LineWebhookController
                     if ($phoneDigits !== null && $this->findMemberByLineUserId($lineUserId) === null) {
                         $isPointOrBindAction = true;
                         // A phone number alone proves nothing, so binding needs a code from the signed-in member portal.
-                        $replyMessage = ['type' => 'text', 'text' => self::LINK_INSTRUCTIONS];
+                        $replyMessage = ['type' => 'text', 'text' => $this->linkInstructions()];
                     } else {
                         $replyMessage = [
                             'type' => 'text',
@@ -492,7 +500,7 @@ final class LineWebhookController
                 return 'บัญชี LINE ของคุณผูกกับสมาชิก POPSTAR แล้วครับ พิมพ์ “เช็คแต้ม” เพื่อดูคะแนนสะสมได้เลย';
             }
 
-            return self::LINK_INSTRUCTIONS."\nหากยังไม่เคยสมัครสมาชิก พิมพ์ชื่อร้านค้าและเบอร์โทรศัพท์ในแชทนี้เพื่อให้แอดมินลงทะเบียนให้ครับ";
+            return $this->linkInstructions()."\nหากยังไม่เคยสมัครสมาชิก พิมพ์ชื่อร้านค้าและเบอร์โทรศัพท์ในแชทนี้เพื่อให้แอดมินลงทะเบียนให้ครับ";
         }
 
         if (in_array($normalized, ['วิธีใช้', 'ช่วยเหลือ', 'help', 'start', 'เมนู'], true)) {
