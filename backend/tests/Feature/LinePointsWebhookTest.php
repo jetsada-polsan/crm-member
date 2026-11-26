@@ -153,6 +153,7 @@ class LinePointsWebhookTest extends TestCase
         $this->postLineTextWebhook('U_UNBOUND_001', 'เช็คแต้ม')->assertOk();
 
         Http::assertSent(fn (HttpRequest $request) => $request->url() === self::LINE_REPLY_URL
+            && str_contains((string) ($request['messages'][0]['text'] ?? ''), 'https://crm.popstarmember.com/m/')
             && str_contains((string) ($request['messages'][0]['text'] ?? ''), 'LINK-รหัส'));
     }
 
@@ -247,6 +248,7 @@ class LinePointsWebhookTest extends TestCase
         // Button A: สมัครสมาชิก (unbound user)
         $this->postLineTextWebhook('U_MENU_USER', 'สมัครสมาชิก')->assertOk();
         Http::assertSent(fn (HttpRequest $request) => $request->url() === self::LINE_REPLY_URL
+            && str_contains((string) ($request['messages'][0]['text'] ?? ''), 'https://crm.popstarmember.com/m/')
             && str_contains((string) ($request['messages'][0]['text'] ?? ''), 'LINK-รหัส'));
     }
 }

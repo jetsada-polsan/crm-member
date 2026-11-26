@@ -11,4 +11,4 @@ DirectoryIndex index.html
 
 # Dot folders (.git, .claude), Docker data backups (customer data), sync-agent, tools, Laravel internals.
 # Matches at any depth so the protection holds whatever this folder is named (crm-member, popstar-business-platform-v4, ...).
-RedirectMatch 404 (?i)/(\.[^/]+|_docker_backup|sync-agent|tools|backend-overlay|backend/(?!public(/|$)))
+RedirectMatch 404 (?i)/(\.[^/]+|_docker_backup|_backups|sync-agent|tools|backend-overlay|backend/(?!public(/|$)))

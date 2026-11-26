@@ -39,12 +39,27 @@ export function getPortalUrl(targetPortal, path = '/') {
   }
   const { protocol, hostname, port } = window.location;
 
-  // Name-based hosts (Apache vhosts / production): popstar.localhost <-> member.popstar.localhost
+  // Name-based hosts:
+  // - Local XAMPP vhosts: popstar.localhost <-> member.popstar.localhost
+  // - Production host: crm.popstarmember.com <-> crm.popstarmember.com/m/ (or dedicated member.popstarmember.com)
   const isIpHost = /^[\d.]+$/.test(hostname) || hostname.includes(':') || hostname === 'localhost';
   if (!port && !isIpHost) {
-    const baseHost = hostname.replace(/^member\./, '');
-    const targetHost = targetPortal === 'crm' ? baseHost : `member.${baseHost}`;
-    return `${protocol}//${targetHost}${normalizedPath}`;
+    if (hostname.endsWith('.localhost')) {
+      const baseHost = hostname.replace(/^member\./, '');
+      const targetHost = targetPortal === 'crm' ? baseHost : `member.${baseHost}`;
+      return `${protocol}//${targetHost}${normalizedPath}`;
+    }
+    if (hostname.startsWith('member.')) {
+      if (targetPortal === 'member') {
+        return `${protocol}//${hostname}${normalizedPath}`;
+      }
+      const rootDomain = hostname.replace(/^member\./, '');
+      return `${protocol}//crm.${rootDomain}${normalizedPath}`;
+    }
+    if (targetPortal === 'member') {
+      return `${protocol}//${hostname}/m${normalizedPath}`;
+    }
+    return `${protocol}//${hostname}${normalizedPath}`;
   }
 
   const targetPort =

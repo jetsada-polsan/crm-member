@@ -34,10 +34,14 @@ export const MEMBER_ROUTES = [
     component: viewLoaders.binding,
     meta: { label: 'ผูกบัญชี LINE & ร้านค้า ERP', nextLikely: ['overview'] },
   },
+  { path: '/:pathMatch(.*)*', redirect: '/overview' },
 ];
 
+const historyBase =
+  typeof window !== 'undefined' && /^\/m(\/|$)/.test(window.location.pathname) ? '/m/' : '/';
+
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(historyBase),
   routes: MEMBER_ROUTES,
   scrollBehavior: () => ({ top: 0 }),
 });

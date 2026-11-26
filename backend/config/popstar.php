@@ -11,4 +11,5 @@ return [
     'office_sql_port' => (int) env('OFFICE_SQL_PORT', 1433),
     'line_channel_secret' => env('LINE_CHANNEL_SECRET', ''),
     'line_channel_access_token' => env('LINE_CHANNEL_ACCESS_TOKEN', ''),
+    'member_portal_url' => env('MEMBER_PORTAL_URL', 'https://crm.popstarmember.com/m/'),
 ];
