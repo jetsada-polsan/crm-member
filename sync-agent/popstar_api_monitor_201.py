@@ -61,10 +61,23 @@ ACTIVITY_LOG: deque[dict[str, Any]] = deque(maxlen=80)
 AUTO_SYNC_STATE: dict[str, Any] = {
     "enabled": False,
     "interval_minutes": 15,
+    "sync_times": ["08:00", "13:00", "18:00"],
     "running": False,
     "last_run_at": None,
     "last_result": None,
 }
+
+
+def parse_sync_times(raw: str) -> list[str]:
+    slots: list[str] = []
+    for part in (raw or "").split(","):
+        parts = part.strip().split(":")
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit() and len(parts[1]) == 2:
+            hh, mm = int(parts[0]), int(parts[1])
+            norm = f"{hh:02d}:{mm:02d}"
+            if 0 <= hh <= 23 and 0 <= mm <= 59 and norm not in slots:
+                slots.append(norm)
+    return sorted(slots)
 
 
 def load_env_files() -> dict[str, str]:
@@ -447,19 +460,39 @@ def run_push_sync(kind: str, cfg: dict[str, str]) -> dict[str, Any]:
 
 
 def scheduler_loop() -> None:
-    """Invoices every POPSTAR_AUTO_SYNC_MINUTES; master tables every POPSTAR_MASTER_SYNC_MINUTES."""
-    # Attempt times, not success times: a failing run waits for the next slot instead of retrying every loop.
+    """Push sync on fixed daily times (POPSTAR_SYNC_TIMES, e.g. 08:00,13:00,18:00) or interval minutes."""
     last_attempt_at = 0.0
     last_masters_attempt_at = 0.0
+    fired_slots: set[tuple[str, str]] = set()
     while True:
         time.sleep(20)
+        cfg = load_env_files()
+        raw_times = cfg.get("POPSTAR_SYNC_TIMES", "08:00,13:00,18:00")
+        sync_times = parse_sync_times(raw_times)
         with STATE_LOCK:
             enabled = AUTO_SYNC_STATE["enabled"]
             interval = max(5, int(AUTO_SYNC_STATE["interval_minutes"]))
-        if not enabled or time.time() - last_attempt_at < interval * 60:
+            AUTO_SYNC_STATE["sync_times"] = sync_times
+        if not enabled:
+            continue
+
+        if sync_times:
+            now_dt = datetime.now()
+            today = now_dt.strftime("%Y-%m-%d")
+            hhmm = now_dt.strftime("%H:%M")
+            slot = (today, hhmm)
+            if hhmm not in sync_times or slot in fired_slots:
+                continue
+            fired_slots = {s for s in fired_slots if s[0] == today}
+            fired_slots.add(slot)
+            if BPLUS_BRIDGE is not None:
+                run_push_sync("masters", cfg)
+            run_push_sync("invoices" if BPLUS_BRIDGE is not None else "customers", cfg)
+            continue
+
+        if time.time() - last_attempt_at < interval * 60:
             continue
         last_attempt_at = time.time()
-        cfg = load_env_files()
         master_minutes = max(15, int(cfg.get("POPSTAR_MASTER_SYNC_MINUTES", "60") or 60))
         if BPLUS_BRIDGE is not None and time.time() - last_masters_attempt_at >= master_minutes * 60:
             last_masters_attempt_at = time.time()
@@ -617,7 +650,11 @@ async function refreshAll(testSql=false){{
   document.getElementById('qPending').textContent = qc.pending || 0;
   document.getElementById('qSent').textContent = qc.sent || 0;
   document.getElementById('lastRun').textContent = d.auto_sync?.last_run_at || 'ยังไม่เคยซิงก์';
-  document.getElementById('autoTag').textContent = d.auto_sync?.enabled ? ('Auto ทุก ' + d.auto_sync.interval_minutes + ' นาที') : 'Manual';
+  document.getElementById('autoTag').textContent = d.auto_sync?.enabled
+    ? ((d.auto_sync.sync_times && d.auto_sync.sync_times.length)
+        ? ('Auto รอบ ' + d.auto_sync.sync_times.join(', '))
+        : ('Auto ทุก ' + d.auto_sync.interval_minutes + ' นาที'))
+    : 'Manual';
 
   const rows = (d.logs || []).map(l => `<tr><td>${{l.time}}</td><td><span class="tag ${{l.level==='ok'?'ok':'err'}}">${{l.level}}</span></td><td><code>${{l.action}}</code></td><td>${{l.detail}}</td></tr>`).join('');
   document.getElementById('logBody').innerHTML = rows || '<tr><td colspan="4" style="color:#64748b">ยังไม่มีรายการบันทึก</td></tr>';
@@ -861,6 +898,7 @@ def main() -> int:
     port = int(cfg.get("POPSTAR_AGENT_PORT", str(DEFAULT_PORT)) or DEFAULT_PORT)
     AUTO_SYNC_STATE["enabled"] = cfg.get("POPSTAR_AUTO_SYNC", "false").lower() in ("1", "true", "yes")
     AUTO_SYNC_STATE["interval_minutes"] = int(cfg.get("POPSTAR_AUTO_SYNC_MINUTES", "15") or 15)
+    AUTO_SYNC_STATE["sync_times"] = parse_sync_times(cfg.get("POPSTAR_SYNC_TIMES", "08:00,13:00,18:00"))
 
     MonitorHandler.server_port = port
     threading.Thread(target=scheduler_loop, daemon=True).start()

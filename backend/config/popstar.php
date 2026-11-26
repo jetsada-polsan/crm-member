@@ -7,6 +7,8 @@ return [
     'local_bridge_url' => env('LOCAL_ERP_BRIDGE_URL', 'http://host.docker.internal:18900'),
     'erp_source_system' => env('ERP_SOURCE_SYSTEM', 'BPLUS'),
     // Office Bplus SQL Server, probed before scheduled bridge syncs (popstar:sync-erp).
+    // Disabled by default so syncing runs strictly via HTTPS Push API without VPN.
+    'vpn_pull_enabled' => filter_var(env('POPSTAR_VPN_PULL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
     'office_sql_host' => env('OFFICE_SQL_HOST', '192.168.88.200'),
     'office_sql_port' => (int) env('OFFICE_SQL_PORT', 1433),
     'line_channel_secret' => env('LINE_CHANNEL_SECRET', ''),
