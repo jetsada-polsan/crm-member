@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Log;
 
 #[Signature('popstar:sync-erp
     {--kind=* : Kinds to sync (salespersons, customers, products, members, invoices); default is all}
-    {--max-pages=50 : Upper bound on bridge pages per kind for one run}')]
+    {--max-pages=50 : Upper bound on bridge pages per kind for one run}
+    {--rescan-days= : Invoices only: re-read every bill dated within this many days so Bplus edits are refreshed}
+    {--after-key= : Invoices only: re-read bills from this Bplus DI_KEY onward (bootstrap a rescan)}')]
 #[Description('Pull ERP data from the local Bplus bridge into the CRM mirror (skips quietly when the office SQL Server is unreachable)')]
 class SyncErpFromBridge extends Command
 {
@@ -36,6 +38,16 @@ class SyncErpFromBridge extends Command
             return self::INVALID;
         }
 
+        $rescanDays = $this->option('rescan-days');
+        $afterKeyOption = $this->option('after-key');
+        foreach (['rescan-days' => $rescanDays, 'after-key' => $afterKeyOption] as $name => $value) {
+            if ($value !== null && ! ctype_digit((string) $value)) {
+                $this->error("--{$name} must be a whole number.");
+
+                return self::INVALID;
+            }
+        }
+
         if (! $bridgeSync->isOfficeSqlReachable()) {
             $this->warn(now()->toDateTimeString().' skipped: office SQL Server is unreachable (VPN/LAN down).');
 
@@ -47,11 +59,27 @@ class SyncErpFromBridge extends Command
 
         foreach (array_values(array_intersect(self::DEFAULT_ORDER, $kinds)) as $kind) {
             $limit = self::PAGE_LIMITS[$kind] ?? self::DEFAULT_PAGE_LIMIT;
-            $totals = $bridgeSync->syncAll($kind, $maxPages, $limit);
+            $label = $kind;
+            $startAfterKey = null;
+
+            if ($kind === 'invoices' && $afterKeyOption !== null) {
+                $startAfterKey = (int) $afterKeyOption;
+                $label = "invoices (from key {$startAfterKey})";
+            } elseif ($kind === 'invoices' && $rescanDays !== null) {
+                $startAfterKey = $bridgeSync->recentInvoiceRescanAfterKey((int) $rescanDays);
+                if ($startAfterKey === null) {
+                    $this->warn("invoices: no Bplus document keys stored for the last {$rescanDays} days yet; run once with --after-key to bootstrap the rescan.");
+
+                    continue;
+                }
+                $label = "invoices (rescan {$rescanDays} days from key {$startAfterKey})";
+            }
+
+            $totals = $bridgeSync->syncAll($kind, $maxPages, $limit, null, $startAfterKey);
             $summary = sprintf(
                 '%s %s: pages %d, fetched %d, new %d, updated %d, skipped %d',
                 now()->toDateTimeString(),
-                $kind,
+                $label,
                 $totals['pages'],
                 $totals['fetched'],
                 $totals['inserted'],

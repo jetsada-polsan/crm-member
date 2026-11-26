@@ -12,7 +12,19 @@ use Illuminate\Support\Facades\Schedule;
  */
 Schedule::command('popstar:sync-erp --kind=invoices')
     ->everyFifteenMinutes()
+    ->createMutexNameUsing('popstar-erp-sync-invoices')
     ->withoutOverlapping(60)
+    ->appendOutputTo(storage_path('logs/erp-sync.log'));
+
+/*
+ * The 15-minute pull only reads new bills. Bills edited in Bplus after their first sync
+ * (amount, salesperson, cancellation) are refreshed by re-reading a recent window.
+ * Shares the invoice mutex so it never writes at the same time as the 15-minute pull.
+ */
+Schedule::command('popstar:sync-erp --kind=invoices --rescan-days=3 --max-pages=20')
+    ->twiceDailyAt(12, 19, 40)
+    ->createMutexNameUsing('popstar-erp-sync-invoices')
+    ->withoutOverlapping(90)
     ->appendOutputTo(storage_path('logs/erp-sync.log'));
 
 Schedule::command('popstar:sync-erp --kind=salespersons --kind=customers --kind=products --kind=members')

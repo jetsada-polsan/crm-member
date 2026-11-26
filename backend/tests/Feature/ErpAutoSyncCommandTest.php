@@ -179,6 +179,7 @@ class ErpAutoSyncCommandTest extends TestCase
 
         $this->assertSame([
             'popstar:sync-erp --kind=invoices' => '*/15 * * * *',
+            'popstar:sync-erp --kind=invoices --rescan-days=3 --max-pages=20' => '40 12,19 * * *',
             'popstar:sync-erp --kind=salespersons --kind=customers --kind=products --kind=members' => '7 * * * *',
         ], $events);
     }

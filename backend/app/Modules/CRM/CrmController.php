@@ -651,7 +651,17 @@ final class CrmController
             ->select('seg.size_code', 'seg.size_label', DB::raw('COUNT(*) as product_count'))
             ->orderBy('seg.size_code')->get();
 
-        return response()->json(['source_system' => $source, 'routes' => $routes, 'size_segments' => $sizes]);
+        $user = Auth::guard('staff')->user();
+        $salespersons = DB::table('erp_salespersons')
+            ->where('source_system', $source)
+            ->when(! CustomerAccess::isManager($user), function ($q) use ($user): void {
+                $ownCode = CustomerAccess::salespersonCode($user);
+                $ownCode === null ? $q->whereRaw('1 = 0') : $q->where('salesperson_code', $ownCode);
+            })
+            ->orderBy('salesperson_code')
+            ->get(['salesperson_code', 'salesperson_name', 'is_active']);
+
+        return response()->json(['source_system' => $source, 'routes' => $routes, 'size_segments' => $sizes, 'salespersons' => $salespersons]);
     }
 
     public function productSizeSegments(Request $request): JsonResponse
@@ -728,6 +738,7 @@ final class CrmController
             'to' => ['nullable', 'date_format:Y-m-d'],
             'source_system' => ['nullable', 'string', 'max:32'],
             'route_code' => ['nullable', 'string', 'max:32'],
+            'salesperson_code' => ['nullable', 'string', 'max:32'],
             'size_code' => ['nullable', 'string', 'max:40'],
             'q' => ['nullable', 'string', 'max:120'],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -771,6 +782,10 @@ final class CrmController
         if (! empty($filters['route_code'])) {
             $base->where('c.route_code', trim($filters['route_code']));
         }
+        if (! empty($filters['salesperson_code'])) {
+            // Bplus credits a bill to the salesperson on the document (SLDETAIL), not the customer's owner.
+            $base->where('inv.salesperson_code', trim($filters['salesperson_code']));
+        }
         if (! empty($filters['size_code'])) {
             $base->where('seg.size_code', mb_strtoupper(trim($filters['size_code']), 'UTF-8'));
         }
@@ -809,11 +824,44 @@ final class CrmController
         $rows = $query->orderBy('c.route_code')->orderBy('c.customer_name')->orderBy('c.erp_customer_code')
             ->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
+        $totalsSql = [
+            DB::raw("COUNT(DISTINCT CASE WHEN inv.doc_category = 'sale' THEN inv.id END) as sale_invoice_count"),
+            DB::raw("COUNT(DISTINCT CASE WHEN inv.doc_category = 'return' THEN inv.id END) as return_count"),
+            DB::raw('COUNT(DISTINCT c.id) as customer_count'),
+            DB::raw("COALESCE(SUM(CASE WHEN inv.doc_category = 'sale' THEN {$amount} ELSE 0 END), 0) as gross_purchase_before_vat"),
+            DB::raw("COALESCE(SUM(CASE WHEN inv.doc_category = 'return' THEN ABS({$amount}) ELSE 0 END), 0) as return_amount_before_vat"),
+            DB::raw("COALESCE(SUM({$amount}), 0) as net_purchase_before_vat"),
+        ];
+        $summary = (clone $base)->select($totalsSql)->first();
+        $byRoute = (clone $base)
+            ->selectRaw("COALESCE(NULLIF(c.route_code, ''), '') as route_code")
+            ->selectRaw('MAX(c.route_name) as route_name')
+            ->addSelect($totalsSql)
+            ->groupByRaw("COALESCE(NULLIF(c.route_code, ''), '')")
+            ->orderByDesc('net_purchase_before_vat')
+            ->get();
+        $bySalesperson = (clone $base)
+            ->selectRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0') as salesperson_code")
+            ->selectRaw("MAX(COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง')) as salesperson_name")
+            ->addSelect($totalsSql)
+            ->groupByRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0')")
+            ->orderByDesc('net_purchase_before_vat')
+            ->get();
+
         return response()->json([
             'source_system' => $source,
-            'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'route_code' => $filters['route_code'] ?? null, 'size_code' => $filters['size_code'] ?? null],
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+                'route_code' => $filters['route_code'] ?? null,
+                'salesperson_code' => $filters['salesperson_code'] ?? null,
+                'size_code' => $filters['size_code'] ?? null,
+            ],
             'dates' => $dates,
             'period' => $period,
+            'summary' => $summary,
+            'by_route' => $byRoute,
+            'by_salesperson' => $bySalesperson,
             'data' => $rows,
             'meta' => ['current_page' => $page, 'per_page' => $perPage, 'total_customers' => $customerTotal, 'last_page' => max(1, (int) ceil($customerTotal / $perPage))],
             'amount_basis' => $bySize ? 'ERP invoice items before VAT, filtered by size.' : 'ERP invoice totals before VAT, after returns, from 1 January 2026.',
