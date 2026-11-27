@@ -2,6 +2,7 @@
 
 namespace App\Modules\ERPIntegration;
 
+use App\Modules\CRM\CustomerAccess;
 use App\Modules\Loyalty\InvoicePointsSynchronizer;
 use Illuminate\Support\Facades\DB;
 
@@ -22,7 +23,7 @@ final class ErpMirrorUpserter
             ->where('erp_customer_code', $code)
             ->exists();
 
-        if (! $exists && \App\Modules\CRM\CustomerAccess::isClosedCustomerRecord(
+        if (! $exists && CustomerAccess::isClosedCustomerRecord(
             isset($rec['ar_enable']) ? (string) $rec['ar_enable'] : null,
             isset($rec['customer_name']) ? (string) $rec['customer_name'] : null
         )) {
@@ -118,11 +119,13 @@ final class ErpMirrorUpserter
             'invoice_no' => $invNo,
         ];
         $exists = DB::table('erp_sales_invoices')->where($key)->exists();
+        $docKey = isset($rec['di_key']) && is_numeric($rec['di_key']) && (int) $rec['di_key'] > 0 ? (int) $rec['di_key'] : null;
 
         DB::table('erp_sales_invoices')->updateOrInsert(
             $key,
             array_merge(
                 $exists ? [] : ['created_at' => $now],
+                $docKey !== null ? ['erp_doc_key' => $docKey] : [],
                 [
                     'erp_customer_code' => (string) ($rec['erp_customer_code'] ?? ''),
                     'salesperson_code' => $rec['salesperson_code'] ?? null,

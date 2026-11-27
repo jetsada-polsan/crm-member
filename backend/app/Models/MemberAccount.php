@@ -8,7 +8,7 @@ class MemberAccount extends Authenticatable
 {
     protected $table = 'member_accounts';
 
-    protected $fillable = ['name', 'email', 'password', 'phone', 'status'];
+    protected $fillable = ['name', 'email', 'password', 'phone', 'status', 'line_user_id'];
 
     protected $hidden = ['password', 'remember_token'];
 

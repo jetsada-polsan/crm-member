@@ -24,3 +24,4 @@ _docker_backup/
 /tools/cloudflared.log
 /sync-agent/*.log
 /sync-agent/*.zip
+_backups/

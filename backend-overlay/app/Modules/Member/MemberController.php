@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 final class MemberController
@@ -158,7 +159,7 @@ final class MemberController
         SalesRules::applyActualSalesScope($query, 'i');
 
         $rows = $query->select(
-              'i.source_system',
+            'i.source_system',
             'i.branch_code',
             'i.doc_type',
             'i.dt_properties',
@@ -292,6 +293,17 @@ final class MemberController
                 'revoked_at' => now(),
                 'updated_at' => now(),
             ]);
+
+        if (Schema::hasColumn('member_accounts', 'line_user_id')) {
+            $cleared = DB::table('member_accounts')
+                ->where('id', $memberId)
+                ->whereNotNull('line_user_id')
+                ->update([
+                    'line_user_id' => null,
+                    'updated_at' => now(),
+                ]);
+            $updated += $cleared;
+        }
 
         return response()->json(['ok' => true, 'revoked' => $updated > 0]);
     }

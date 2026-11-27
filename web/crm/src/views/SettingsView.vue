@@ -136,6 +136,9 @@
                     <span class="tag" :class="u.is_active ? 'green' : 'red'">
                       {{ u.is_active ? 'เปิดใช้งาน' : 'ระงับ' }}
                     </span>
+                    <span v-if="u.must_change_password" class="tag orange" title="ยังใช้รหัสชั่วคราวหรือรหัสเดิมที่ไม่ปลอดภัย"
+                      >ต้องเปลี่ยนรหัส</span
+                    >
                   </td>
                   <td style="text-align: right">
                     <div v-if="!isExecutive" class="row-action-btns">
@@ -190,6 +193,9 @@
                 <span class="tag" :class="u.is_active ? 'green' : 'red'">
                   {{ u.is_active ? 'เปิดใช้งาน' : 'ระงับ' }}
                 </span>
+                <span v-if="u.must_change_password" class="tag orange" title="ยังใช้รหัสชั่วคราวหรือรหัสเดิมที่ไม่ปลอดภัย"
+                  >ต้องเปลี่ยนรหัส</span
+                >
               </div>
 
               <div v-if="!isExecutive" class="mob-card-actions">
@@ -376,7 +382,7 @@
             type="text"
             :required="!editingId"
             minlength="8"
-            placeholder="เช่น Popstar2026!"
+            placeholder="รหัสชั่วคราว (ระบบสุ่มให้แล้ว)"
           />
         </div>
         <div class="field">
@@ -450,25 +456,22 @@
     >
       <div v-if="resetTarget" style="display: flex; flex-direction: column; gap: 14px">
         <div class="notice" style="margin-bottom: 0">
-          กดปุ่มด้านล่างเพื่อรีเซ็ตกลับเป็นรหัสมาตรฐาน <b>Popstar2026!</b> ในคลิกเดียว หรือพิมพ์รหัสผ่านใหม่ที่ต้องการตั้งให้ผู้ใช้นี้
+          ระบบสุ่ม <b>รหัสชั่วคราว</b> ให้แล้ว กดยืนยันแล้วแจ้งรหัสนี้ให้ผู้ใช้ทางช่องทางส่วนตัว ผู้ใช้จะถูกบังคับให้ตั้งรหัสผ่านของตัวเองทันทีที่เข้าสู่ระบบ
         </div>
 
-        <button
-          type="button"
-          class="btn light"
-          style="width: 100%; justify-content: center"
-          :disabled="savingReset"
-          @click="
-            newPassword = 'Popstar2026!';
-            confirmResetPassword();
-          "
-        >
-          ⚡ รีเซ็ตรหัสผ่านเป็น "Popstar2026!" ทันที
-        </button>
-
         <div class="field">
-          <label>หรือกำหนดรหัสผ่านใหม่เอง (อย่างน้อย 8 ตัวอักษร)</label>
-          <input v-model="newPassword" type="text" minlength="8" placeholder="พิมพ์รหัสผ่านใหม่ที่ต้องการ..." />
+          <label>รหัสชั่วคราว (อย่างน้อย 8 ตัวอักษร)</label>
+          <div style="display: flex; gap: 8px">
+            <input v-model="newPassword" type="text" minlength="8" autocomplete="off" style="flex: 1" />
+            <button
+              type="button"
+              class="btn light"
+              :disabled="savingReset"
+              @click="newPassword = generateTemporaryPassword()"
+            >
+              🎲 สุ่มใหม่
+            </button>
+          </div>
         </div>
       </div>
 
@@ -588,9 +591,20 @@ const form = ref({
   is_active: true,
 });
 
+/**
+ * Random temporary password the admin hands to the user once; the user must replace it at sign-in.
+ * Avoids look-alike characters (0/O, 1/l/I) so it can be read out over the phone.
+ */
+function generateTemporaryPassword(length = 12) {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = new Uint32Array(length);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (n) => alphabet[n % alphabet.length]).join('');
+}
+
 const resetModalOpen = ref(false);
 const resetTarget = ref(null);
-const newPassword = ref('Popstar2026!');
+const newPassword = ref('');
 const savingReset = ref(false);
 
 function countByRole(role) {
@@ -664,7 +678,7 @@ function openCreateModal() {
   form.value = {
     name: '',
     email: '',
-    password: 'Popstar2026!',
+    password: generateTemporaryPassword(),
     role: 'executive',
     salesperson_code: '',
     reservation_doc_types: [],
@@ -692,7 +706,7 @@ function openCreateFromRoute(routeRow) {
   form.value = {
     name: `${routeRow.main_sp_name || routeRow.doc_type} (${routeRow.doc_type})`,
     email: `${codeLower}@popstar.local`,
-    password: 'Popstar2026!',
+    password: generateTemporaryPassword(),
     role: 'sales',
     salesperson_code: routeRow.main_sp_code || '',
     reservation_doc_types: [routeRow.doc_type],
@@ -717,7 +731,7 @@ function openEditModal(u) {
 
 function openResetPasswordModal(u) {
   resetTarget.value = u;
-  newPassword.value = 'Popstar2026!';
+  newPassword.value = generateTemporaryPassword();
   resetModalOpen.value = true;
 }
 
@@ -731,7 +745,10 @@ async function confirmResetPassword() {
     await crmMutate(`/settings/staff/${resetTarget.value.id}`, 'PATCH', {
       password: newPassword.value,
     });
-    toast.success(`รีเซ็ตรหัสผ่านของ "${resetTarget.value.name}" เรียบร้อย`, `รหัสผ่านใหม่คือ: ${newPassword.value}`);
+    toast.success(
+      `ตั้งรหัสชั่วคราวให้ "${resetTarget.value.name}" แล้ว`,
+      `รหัสชั่วคราว: ${newPassword.value} — แจ้งผู้ใช้ทางช่องทางส่วนตัว ระบบจะบังคับให้ตั้งรหัสใหม่ตอนเข้าสู่ระบบ`
+    );
     resetModalOpen.value = false;
     await refetch();
   } catch (err) {

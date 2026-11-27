@@ -312,6 +312,7 @@ import SkeletonBlock from '../../../shared/components/SkeletonBlock.vue';
 import DateRangePicker from '../components/DateRangePicker.vue';
 import { askConfirm, toast } from '../../../shared/composables/useUiStore.js';
 import { removeOfflineDraft } from '../../../shared/utils/offlineDrafts.js';
+import { visitResultLabel } from '../utils/visitResult.js';
 import {
   crmGet,
   fmt,
@@ -343,16 +344,6 @@ const mobileRangeLabel = computed(() =>
         .join(' – ')
     : 'เลือกวันที่'
 );
-const visitResults = {
-  visited: 'เข้าพบแล้ว',
-  interested: 'สนใจสินค้า',
-  follow_up: 'ต้องติดตาม',
-  not_interested: 'ยังไม่สนใจ',
-  not_found: 'ไม่พบลูกค้า',
-};
-function visitResultLabel(value) {
-  return visitResults[value] || value || 'ไม่ระบุผล';
-}
 watch([from, to, routeCode], () => {
   page.value = 1;
 });

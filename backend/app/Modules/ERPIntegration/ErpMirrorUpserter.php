@@ -119,11 +119,13 @@ final class ErpMirrorUpserter
             'invoice_no' => $invNo,
         ];
         $exists = DB::table('erp_sales_invoices')->where($key)->exists();
+        $docKey = isset($rec['di_key']) && is_numeric($rec['di_key']) && (int) $rec['di_key'] > 0 ? (int) $rec['di_key'] : null;
 
         DB::table('erp_sales_invoices')->updateOrInsert(
             $key,
             array_merge(
                 $exists ? [] : ['created_at' => $now],
+                $docKey !== null ? ['erp_doc_key' => $docKey] : [],
                 [
                     'erp_customer_code' => (string) ($rec['erp_customer_code'] ?? ''),
                     'salesperson_code' => $rec['salesperson_code'] ?? null,

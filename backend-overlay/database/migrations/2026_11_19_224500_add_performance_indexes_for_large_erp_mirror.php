@@ -18,6 +18,7 @@ return new class extends Migration
             DB::statement('ANALYZE erp_sales_items');
             DB::statement('ANALYZE erp_customers');
             DB::statement('ANALYZE erp_product_prices');
+
             return;
         }
 
@@ -34,6 +35,7 @@ return new class extends Migration
             DB::statement('DROP INDEX IF EXISTS erp_inv_res_doctype_idx');
             DB::statement('DROP INDEX IF EXISTS erp_inv_sp_cat_status_idx');
             DB::statement('DROP INDEX IF EXISTS erp_items_excl_inv_idx');
+
             return;
         }
 

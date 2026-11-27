@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [vue()],
   build: {
     outDir: 'dist',
+    assetsDir: 'member-assets',
     emptyOutDir: true,
     rollupOptions: {
       output: {

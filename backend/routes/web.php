@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureStaffPasswordChanged;
 use App\Http\Middleware\RejectExecutiveMutations;
 use App\Modules\Core\HealthController;
 use App\Modules\Core\SystemHealthController;
@@ -33,9 +34,10 @@ Route::post('/api/line/webhook', LineWebhookController::class)->middleware('thro
 Route::prefix('api/crm')->group(function () {
     Route::get('/csrf', [StaffAuthController::class, 'csrf']);
     Route::post('/login', [StaffAuthController::class, 'login'])->middleware('throttle:crm-login');
-    Route::middleware(['auth:staff', RejectExecutiveMutations::class])->group(function () {
+    Route::middleware(['auth:staff', EnsureStaffPasswordChanged::class, RejectExecutiveMutations::class])->group(function () {
         Route::post('/logout', [StaffAuthController::class, 'logout']);
         Route::get('/me', [StaffAuthController::class, 'me']);
+        Route::post('/me/password', [StaffAuthController::class, 'changePassword'])->middleware('throttle:10,1');
         Route::get('/dashboard', [CrmController::class, 'dashboard']);
         Route::get('/salespersons', [CrmController::class, 'salespersons']);
         Route::get('/customers', [CrmController::class, 'customers']);

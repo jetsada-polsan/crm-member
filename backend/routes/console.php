@@ -7,16 +7,33 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schedule;
 
 /*
- * ERP auto-sync through the local Bplus bridge. The Windows task "POPSTAR schedule-run" fires
- * schedule:run every minute; each run skips quietly when the office SQL Server is unreachable.
+ * Optional local VPN/LAN ERP pull through the local Bplus bridge.
+ * Disabled by default (POPSTAR_VPN_PULL_ENABLED=false) because syncing runs via HTTPS Push API
+ * without VPN. When enabled, runs 3 times daily: morning (08:00), afternoon (13:00), evening (18:00).
  */
+$vpnPullEnabled = static fn (): bool => (bool) config('popstar.vpn_pull_enabled', false);
+
 Schedule::command('popstar:sync-erp --kind=invoices')
-    ->everyFifteenMinutes()
+    ->cron('0 8,13,18 * * *')
+    ->when($vpnPullEnabled)
+    ->createMutexNameUsing('popstar-erp-sync-invoices')
     ->withoutOverlapping(60)
     ->appendOutputTo(storage_path('logs/erp-sync.log'));
 
+/*
+ * Evening rescan refreshes bills edited or cancelled in Bplus over the last 3 days.
+ * Shares the invoice mutex so it never overlaps with the regular invoice pull.
+ */
+Schedule::command('popstar:sync-erp --kind=invoices --rescan-days=3 --max-pages=20')
+    ->dailyAt('18:20')
+    ->when($vpnPullEnabled)
+    ->createMutexNameUsing('popstar-erp-sync-invoices')
+    ->withoutOverlapping(90)
+    ->appendOutputTo(storage_path('logs/erp-sync.log'));
+
 Schedule::command('popstar:sync-erp --kind=salespersons --kind=customers --kind=products --kind=members')
-    ->hourlyAt(7)
+    ->cron('5 8,13,18 * * *')
+    ->when($vpnPullEnabled)
     ->withoutOverlapping(60)
     ->appendOutputTo(storage_path('logs/erp-sync.log'));
 

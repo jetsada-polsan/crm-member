@@ -153,9 +153,7 @@ final class CrmController
                 foreach (SalesRules::customerActualInvoiceSubquery($codes)->get() as $ir) {
                     $invMap[$ir->source_system.'|'.$ir->erp_customer_code] = $ir;
                 }
-                foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
-                    $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
-                }
+                $excMap = SalesRules::customerExcludedTotals($codes);
             }
             if ($ids !== []) {
                 foreach (DB::table('crm_customer_masters')->whereIn('erp_customer_id', $ids)->select('id', 'erp_customer_id', 'internal_customer_code')->get() as $m) {
@@ -257,12 +255,7 @@ final class CrmController
 
         $attachExcluded = static function ($items) {
             $codes = $items->pluck('erp_customer_code')->filter()->unique()->values()->all();
-            $excMap = [];
-            if ($codes !== []) {
-                foreach (SalesRules::customerExcludedItemsSubquery($codes)->get() as $er) {
-                    $excMap[$er->source_system.'|'.$er->erp_customer_code] = (float) ($er->excluded_before_vat ?? 0);
-                }
-            }
+            $excMap = SalesRules::customerExcludedTotals($codes);
 
             return $items->map(static function ($row) use ($excMap) {
                 $exc = $excMap[$row->source_system.'|'.$row->erp_customer_code] ?? 0.0;
@@ -658,7 +651,17 @@ final class CrmController
             ->select('seg.size_code', 'seg.size_label', DB::raw('COUNT(*) as product_count'))
             ->orderBy('seg.size_code')->get();
 
-        return response()->json(['source_system' => $source, 'routes' => $routes, 'size_segments' => $sizes]);
+        $user = Auth::guard('staff')->user();
+        $salespersons = DB::table('erp_salespersons')
+            ->where('source_system', $source)
+            ->when(! CustomerAccess::isManager($user), function ($q) use ($user): void {
+                $ownCode = CustomerAccess::salespersonCode($user);
+                $ownCode === null ? $q->whereRaw('1 = 0') : $q->where('salesperson_code', $ownCode);
+            })
+            ->orderBy('salesperson_code')
+            ->get(['salesperson_code', 'salesperson_name', 'is_active']);
+
+        return response()->json(['source_system' => $source, 'routes' => $routes, 'size_segments' => $sizes, 'salespersons' => $salespersons]);
     }
 
     public function productSizeSegments(Request $request): JsonResponse
@@ -735,6 +738,7 @@ final class CrmController
             'to' => ['nullable', 'date_format:Y-m-d'],
             'source_system' => ['nullable', 'string', 'max:32'],
             'route_code' => ['nullable', 'string', 'max:32'],
+            'salesperson_code' => ['nullable', 'string', 'max:32'],
             'size_code' => ['nullable', 'string', 'max:40'],
             'q' => ['nullable', 'string', 'max:120'],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -778,6 +782,10 @@ final class CrmController
         if (! empty($filters['route_code'])) {
             $base->where('c.route_code', trim($filters['route_code']));
         }
+        if (! empty($filters['salesperson_code'])) {
+            // Bplus credits a bill to the salesperson on the document (SLDETAIL), not the customer's owner.
+            $base->where('inv.salesperson_code', trim($filters['salesperson_code']));
+        }
         if (! empty($filters['size_code'])) {
             $base->where('seg.size_code', mb_strtoupper(trim($filters['size_code']), 'UTF-8'));
         }
@@ -816,11 +824,44 @@ final class CrmController
         $rows = $query->orderBy('c.route_code')->orderBy('c.customer_name')->orderBy('c.erp_customer_code')
             ->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
+        $totalsSql = [
+            DB::raw("COUNT(DISTINCT CASE WHEN inv.doc_category = 'sale' THEN inv.id END) as sale_invoice_count"),
+            DB::raw("COUNT(DISTINCT CASE WHEN inv.doc_category = 'return' THEN inv.id END) as return_count"),
+            DB::raw('COUNT(DISTINCT c.id) as customer_count'),
+            DB::raw("COALESCE(SUM(CASE WHEN inv.doc_category = 'sale' THEN {$amount} ELSE 0 END), 0) as gross_purchase_before_vat"),
+            DB::raw("COALESCE(SUM(CASE WHEN inv.doc_category = 'return' THEN ABS({$amount}) ELSE 0 END), 0) as return_amount_before_vat"),
+            DB::raw("COALESCE(SUM({$amount}), 0) as net_purchase_before_vat"),
+        ];
+        $summary = (clone $base)->select($totalsSql)->first();
+        $byRoute = (clone $base)
+            ->selectRaw("COALESCE(NULLIF(c.route_code, ''), '') as route_code")
+            ->selectRaw('MAX(c.route_name) as route_name')
+            ->addSelect($totalsSql)
+            ->groupByRaw("COALESCE(NULLIF(c.route_code, ''), '')")
+            ->orderByDesc('net_purchase_before_vat')
+            ->get();
+        $bySalesperson = (clone $base)
+            ->selectRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0') as salesperson_code")
+            ->selectRaw("MAX(COALESCE(NULLIF(inv.salesperson_name, ''), 'ขายเอง')) as salesperson_name")
+            ->addSelect($totalsSql)
+            ->groupByRaw("COALESCE(NULLIF(inv.salesperson_code, ''), '0')")
+            ->orderByDesc('net_purchase_before_vat')
+            ->get();
+
         return response()->json([
             'source_system' => $source,
-            'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'route_code' => $filters['route_code'] ?? null, 'size_code' => $filters['size_code'] ?? null],
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+                'route_code' => $filters['route_code'] ?? null,
+                'salesperson_code' => $filters['salesperson_code'] ?? null,
+                'size_code' => $filters['size_code'] ?? null,
+            ],
             'dates' => $dates,
             'period' => $period,
+            'summary' => $summary,
+            'by_route' => $byRoute,
+            'by_salesperson' => $bySalesperson,
             'data' => $rows,
             'meta' => ['current_page' => $page, 'per_page' => $perPage, 'total_customers' => $customerTotal, 'last_page' => max(1, (int) ceil($customerTotal / $perPage))],
             'amount_basis' => $bySize ? 'ERP invoice items before VAT, filtered by size.' : 'ERP invoice totals before VAT, after returns, from 1 January 2026.',
@@ -1464,7 +1505,7 @@ final class CrmController
         $autoSyncStats = SalesRules::cacheRemember('settings_auto_sync_staff', 3600, static fn (): array => CustomerAccess::syncStaffFromErp());
 
         $staff = DB::table('staff_users')
-            ->select('id', 'name', 'email', 'role', 'salesperson_code', 'reservation_doc_types', 'is_active', 'created_at')
+            ->select('id', 'name', 'email', 'role', 'salesperson_code', 'reservation_doc_types', 'is_active', 'must_change_password', 'created_at')
             ->orderBy('id')
             ->get()
             ->map(function ($u) {
@@ -1631,6 +1672,7 @@ final class CrmController
             'name' => trim($d['name']),
             'email' => strtolower(trim($d['email'])),
             'password' => bcrypt($d['password']),
+            'must_change_password' => true,
             'role' => $d['role'],
             'salesperson_code' => $spCode,
             'reservation_doc_types' => $resDocTypes,
@@ -1681,8 +1723,11 @@ final class CrmController
         if (array_key_exists('email', $d)) {
             $updates['email'] = strtolower(trim($d['email']));
         }
-        if (! empty($d['password'])) {
+        $passwordReset = ! empty($d['password']);
+        if ($passwordReset) {
             $updates['password'] = bcrypt($d['password']);
+            // A password chosen by someone else is temporary: its owner must replace it at next sign-in.
+            $updates['must_change_password'] = (int) $actor->id !== $id;
         }
         if (array_key_exists('role', $d)) {
             $updates['role'] = $d['role'];
@@ -1710,6 +1755,7 @@ final class CrmController
                 'salesperson_code' => array_key_exists('salesperson_code', $updates) ? $updates['salesperson_code'] : $target->salesperson_code,
                 'reservation_doc_types' => array_key_exists('reservation_doc_types', $updates) ? $updates['reservation_doc_types'] : ($target->reservation_doc_types ?? null),
                 'is_active' => $updates['is_active'] ?? $target->is_active,
+                'password_reset' => $passwordReset,
             ], JSON_UNESCAPED_UNICODE),
             'created_at' => now(),
         ]);
@@ -1723,7 +1769,7 @@ final class CrmController
         $isManager = CustomerAccess::isManager($user);
 
         $monthParam = trim((string) $request->query('month', now()->format('Y-m')));
-        if (! preg_match('/^\d{4}-\d{2}$/', $monthParam)) {
+        if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $monthParam)) {
             $monthParam = now()->format('Y-m');
         }
         $periodStart = Carbon::createFromFormat('Y-m-d', $monthParam.'-01')->startOfMonth()->toDateString();
@@ -1901,7 +1947,7 @@ final class CrmController
         abort_unless(in_array($actor->role, ['admin', 'manager'], true), 403, 'Admin or manager role required');
 
         $d = $request->validate([
-            'month' => ['nullable', 'string', 'regex:/^\d{4}-\d{2}$/'],
+            'month' => ['nullable', 'string', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
             'staff_user_id' => ['nullable', 'integer', 'exists:staff_users,id'],
             'apply_to_all' => ['nullable', 'boolean'],
             'target_amount' => ['required', 'numeric', 'min:0', 'max:999999999'],
@@ -2337,18 +2383,9 @@ final class CrmController
     {
         $search = trim((string) $request->query('q', ''));
         $limit = max(10, min(150, (int) $request->query('limit', 60)));
-
-        $latestPriceSub = DB::table('erp_sales_items')
-            ->where('unit_price', '>', 0)
-            ->groupBy('erp_product_code')
-            ->select(
-                'erp_product_code',
-                DB::raw('MAX(unit_price) as default_price'),
-                DB::raw('MAX(unit_name) as last_unit_name')
-            );
+        $priceMap = $this->productPriceMap();
 
         $q = DB::table('erp_products as p')
-            ->leftJoinSub($latestPriceSub, 'pr', 'pr.erp_product_code', '=', 'p.erp_product_code')
             ->where(function ($w): void {
                 $w->whereNull('p.category_code')
                     ->orWhereNotIn('p.category_code', ['CC', 'CO', 'AS', 'PK']);
@@ -2364,20 +2401,39 @@ final class CrmController
             });
         }
 
-        $items = $q->select(
-            'p.id',
-            'p.erp_product_code',
-            'p.product_name',
-            DB::raw("COALESCE(NULLIF(p.unit, ''), NULLIF(pr.last_unit_name, ''), 'ชิ้น') as unit"),
-            'p.category_code',
-            'p.category_name',
-            DB::raw('COALESCE(pr.default_price, 0) as default_price')
-        )
-            ->orderByDesc(DB::raw('COALESCE(pr.default_price, 0) > 0'))
+        $items = $q->select('p.id', 'p.erp_product_code', 'p.product_name', 'p.unit', 'p.category_code', 'p.category_name')
             ->orderBy('p.erp_product_code')
-            ->limit($limit)
-            ->get();
+            ->get()
+            ->map(static function (object $product) use ($priceMap): object {
+                $price = $priceMap[$product->erp_product_code] ?? null;
+                $product->unit = ($product->unit ?? '') !== '' ? $product->unit : (($price['unit'] ?? '') !== '' ? $price['unit'] : 'ชิ้น');
+                $product->default_price = $price['price'] ?? 0;
+
+                return $product;
+            })
+            ->sortBy(static fn (object $product): int => $product->default_price > 0 ? 0 : 1)
+            ->take($limit)
+            ->values();
 
         return response()->json($items);
+    }
+
+    /**
+     * Highest sold unit price and last unit name per product, built from ~1M invoice
+     * lines. Cached between ERP syncs so product search stays instant.
+     *
+     * @return array<string, array{price: float, unit: string}>
+     */
+    private function productPriceMap(): array
+    {
+        return SalesRules::cacheRemember('product_price_map', 3600, static fn (): array => DB::table('erp_sales_items')
+            ->where('unit_price', '>', 0)
+            ->groupBy('erp_product_code')
+            ->select('erp_product_code', DB::raw('MAX(unit_price) as default_price'), DB::raw('MAX(unit_name) as last_unit_name'))
+            ->get()
+            ->mapWithKeys(static fn (object $row): array => [
+                (string) $row->erp_product_code => ['price' => (float) $row->default_price, 'unit' => (string) ($row->last_unit_name ?? '')],
+            ])
+            ->all());
     }
 }

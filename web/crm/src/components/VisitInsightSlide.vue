@@ -81,7 +81,7 @@
               </td>
               <td>{{ visit.staff_name || 'ไม่ได้ระบุ' }}</td>
               <td>{{ shopType(visit.shop_type) }}</td>
-              <td>{{ resultLabel(visit.result) }}</td>
+              <td>{{ visitResultLabel(visit.result) }}</td>
             </tr>
           </tbody>
         </table>
@@ -162,6 +162,7 @@
 <script setup>
 import { computed } from 'vue';
 import { fmt } from '../composables/useCrmSession.js';
+import { visitResultLabel } from '../utils/visitResult.js';
 const props = defineProps({ page: { type: Object, required: true }, report: { type: Object, required: true } });
 const titles = {
   activity: ['กิจกรรมการขาย', 'การเข้าพบ', 'ภาพรวมการลงพื้นที่และเป้าหมายที่ตั้งไว้'],
@@ -199,17 +200,6 @@ const dailyVisits = computed(() => {
   return [...days].sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total }));
 });
 const shopType = (value) => ({ new: 'ร้านใหม่', existing: 'ร้านเดิม' })[value] || 'ไม่ระบุ';
-const resultLabel = (value) =>
-  ({
-    visited: 'เข้าพบแล้ว',
-    interested: 'สนใจ',
-    follow_up: 'ติดตามต่อ',
-    not_interested: 'ยังไม่สนใจ',
-    closed: 'ปิดการขาย',
-    no_answer: 'ไม่พบผู้ติดต่อ',
-  })[value] ||
-  value ||
-  'ไม่ระบุ';
 const taskStatus = (value) =>
   ({ done: 'เสร็จแล้ว', open: 'รอติดตาม', pending: 'รอติดตาม', in_progress: 'กำลังดำเนินการ' })[value] ||
   value ||

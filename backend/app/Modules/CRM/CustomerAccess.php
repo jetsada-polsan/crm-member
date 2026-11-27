@@ -7,6 +7,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * Single rule for which ERP customers, reservations (ใบจอง), and invoices a staff user may see:
@@ -190,11 +191,20 @@ final class CustomerAccess
     }
 
     /**
+     * Hash of a random secret nobody knows: auto-provisioned accounts cannot sign in
+     * until an admin sets a temporary password, which the owner must then replace.
+     */
+    private static function unusablePasswordHash(): string
+    {
+        return Hash::make(Str::random(48));
+    }
+
+    /**
      * Automatically synchronize and bind staff_users with erp_salespersons and 207 reservation doc_types.
      *
      * @return array{created: int, updated: int, total_sales_staff: int}
      */
-    public static function syncStaffFromErp(string $defaultPassword = 'Popstar2026!'): array
+    public static function syncStaffFromErp(): array
     {
         $map = self::discoverReservationSalespersonMap();
         $spToDocs = $map['sp_to_docs'];
@@ -232,7 +242,8 @@ final class CustomerAccess
                 DB::table('staff_users')->insert([
                     'name' => $exec['name'],
                     'email' => $exec['email'],
-                    'password' => Hash::make($defaultPassword),
+                    'password' => self::unusablePasswordHash(),
+                    'must_change_password' => true,
                     'role' => 'executive',
                     'salesperson_code' => null,
                     'reservation_doc_types' => null,
@@ -329,7 +340,8 @@ final class CustomerAccess
             DB::table('staff_users')->insert([
                 'name' => $displayName,
                 'email' => $candidateEmail,
-                'password' => Hash::make($defaultPassword),
+                'password' => self::unusablePasswordHash(),
+                'must_change_password' => true,
                 'role' => 'sales',
                 'salesperson_code' => $code,
                 'reservation_doc_types' => $normalizedDocs,

@@ -16,7 +16,7 @@ final class RejectExecutiveMutations
             $user &&
             $user->role === 'executive' &&
             ! $request->isMethodSafe() &&
-            ! $request->is('api/crm/logout')
+            ! $request->is('api/crm/logout', 'api/crm/me/password')
         ) {
             return response()->json([
                 'error' => 'บัญชีผู้บริหารสามารถดูข้อมูลของทุกคนได้ แต่ไม่สามารถแก้ไขข้อมูลหรือตั้งค่าระบบได้',

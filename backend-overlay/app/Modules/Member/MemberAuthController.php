@@ -3,8 +3,8 @@
 namespace App\Modules\Member;
 
 use App\Models\MemberAccount;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -45,6 +45,7 @@ final class MemberAuthController
         ]);
         Auth::guard('member')->login($member);
         $request->session()->regenerate();
+
         return response()->json([
             'ok' => true,
             'id' => $member->id,
@@ -72,9 +73,11 @@ final class MemberAuthController
         }
         if (Auth::guard('member')->user()->status !== 'active') {
             Auth::guard('member')->logout();
+
             return response()->json(['error' => 'Disabled account'], 403);
         }
         $request->session()->regenerate();
+
         return response()->json([
             'ok' => true,
             'portal' => 'member',
@@ -85,6 +88,7 @@ final class MemberAuthController
     public function me(): JsonResponse
     {
         $member = Auth::guard('member')->user();
+
         return response()->json([
             'id' => $member->id, 'name' => $member->name, 'email' => $member->email,
             'phone' => $member->phone, 'status' => $member->status,
@@ -96,6 +100,7 @@ final class MemberAuthController
         Auth::guard('member')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return response()->json(['ok' => true]);
     }
 }

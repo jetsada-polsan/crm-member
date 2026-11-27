@@ -218,10 +218,10 @@ final class LocalBridgeSync
      * @param  callable(array<string, mixed>, int): void|null  $onPage
      * @return array{ok: bool, pages: int, fetched: int, inserted: int, updated: int, skipped: int, error: ?string}
      */
-    public function syncAll(string $kind, int $maxPages = 50, ?int $limit = null, ?callable $onPage = null): array
+    public function syncAll(string $kind, int $maxPages = 50, ?int $limit = null, ?callable $onPage = null, ?int $startAfterKey = null): array
     {
         $totals = ['ok' => true, 'pages' => 0, 'fetched' => 0, 'inserted' => 0, 'updated' => 0, 'skipped' => 0, 'error' => null];
-        $afterKey = null;
+        $afterKey = $startAfterKey === null ? null : max(0, $startAfterKey);
 
         while ($totals['pages'] < $maxPages) {
             $body = $this->syncPage($kind, $limit, $afterKey)['body'];
@@ -256,6 +256,23 @@ final class LocalBridgeSync
         }
 
         return $totals;
+    }
+
+    /**
+     * Bridge cursor that re-reads every invoice dated within the last $days days, so bills edited
+     * in Bplus after their first sync (amount, salesperson, cancellation) are refreshed.
+     * Returns null when no mirrored document in that window carries its Bplus DI_KEY yet.
+     */
+    public function recentInvoiceRescanAfterKey(int $days): ?int
+    {
+        $source = (string) config('popstar.erp_source_system', 'BPLUS');
+        $oldestKey = DB::table('erp_sales_invoices')
+            ->where('source_system', $source)
+            ->whereNotNull('erp_doc_key')
+            ->where('sold_at', '>=', now()->subDays(max(0, $days))->startOfDay())
+            ->min('erp_doc_key');
+
+        return $oldestKey === null ? null : max(0, (int) $oldestKey - 1);
     }
 
     public function startRun(string $kind, ?int $triggeredBy = null): int

@@ -54,8 +54,9 @@
           </div>
         </div>
 
-        <div v-if="!laneLeads(lane.id).length" class="small muted" style="text-align: center; padding: 24px 8px">
-          ยังไม่มีรายการในสถานะนี้
+        <div v-if="!laneLeads(lane.id).length" class="lane-empty">
+          <span class="lane-empty-icon" aria-hidden="true">🗂️</span>
+          ยังไม่มีร้านในขั้นนี้
         </div>
       </div>
     </div>

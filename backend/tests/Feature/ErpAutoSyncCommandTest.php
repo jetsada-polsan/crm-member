@@ -170,16 +170,24 @@ class ErpAutoSyncCommandTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_schedules_invoices_every_fifteen_minutes_and_masters_hourly(): void
+    public function test_schedules_morning_afternoon_evening_and_disables_vpn_pull_by_default(): void
     {
-        $events = collect(app(Schedule::class)->events())
-            ->filter(fn ($event): bool => str_contains((string) $event->command, 'popstar:sync-erp'))
+        $syncEvents = collect(app(Schedule::class)->events())
+            ->filter(fn ($event): bool => str_contains((string) $event->command, 'popstar:sync-erp'));
+
+        $expressions = $syncEvents
             ->mapWithKeys(fn ($event): array => [trim(strstr((string) $event->command, 'popstar:sync-erp')) => $event->expression])
             ->all();
 
         $this->assertSame([
-            'popstar:sync-erp --kind=invoices' => '*/15 * * * *',
-            'popstar:sync-erp --kind=salespersons --kind=customers --kind=products --kind=members' => '7 * * * *',
-        ], $events);
+            'popstar:sync-erp --kind=invoices' => '0 8,13,18 * * *',
+            'popstar:sync-erp --kind=invoices --rescan-days=3 --max-pages=20' => '20 18 * * *',
+            'popstar:sync-erp --kind=salespersons --kind=customers --kind=products --kind=members' => '5 8,13,18 * * *',
+        ], $expressions);
+
+        $this->assertFalse((bool) config('popstar.vpn_pull_enabled'));
+        foreach ($syncEvents as $event) {
+            $this->assertFalse($event->filtersPass($this->app));
+        }
     }
 }
